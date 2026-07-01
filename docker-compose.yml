@@ -16,20 +16,6 @@ services:
     networks:
       - pokernet
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    networks:
-      - pokernet
-
   backend:
     build:
       context: ./backend
@@ -37,8 +23,6 @@ services:
     env_file: .env
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     # entrypoint runs alembic upgrade + seed, then launches uvicorn (with the bot)
     command: ["/app/entrypoint.sh"]
@@ -52,8 +36,10 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    # bound to localhost only; Cloudflare Tunnel (or a host proxy) reaches it.
+    # Override the published port with WEB_PORT in .env if 8080 is taken.
     ports:
-      - "8080:80"
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./miniapp:/usr/share/nginx/html:ro
@@ -62,7 +48,6 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
 
 networks:
   pokernet:
