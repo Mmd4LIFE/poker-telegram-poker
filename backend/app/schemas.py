@@ -47,6 +47,8 @@ class UserProfile(BaseModel):
     win_rate: float
     best_win_streak: int
     daily_streak: int
+    referral_count: int
+    referral_earned: int
     is_bot: bool
 
     @classmethod
@@ -63,6 +65,7 @@ class UserProfile(BaseModel):
             games_played=u.games_played, biggest_pot=u.biggest_pot,
             total_won=u.total_won, win_rate=win_rate,
             best_win_streak=u.best_win_streak, daily_streak=u.daily_streak,
+            referral_count=u.referral_count, referral_earned=u.referral_earned,
             is_bot=u.is_bot,
         )
 

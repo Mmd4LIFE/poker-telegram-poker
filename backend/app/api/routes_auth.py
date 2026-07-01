@@ -21,7 +21,8 @@ async def auth_telegram(
         data = validate_init_data(body.init_data)
     except AuthError as e:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(e)) from e
-    user, _ = await get_or_create_from_telegram(session, data["user"])
+    referral = data.get("start_param")
+    user, _ = await get_or_create_from_telegram(session, data["user"], referral=referral)
     await session.flush()
     token = create_access_token(user.id, user.telegram_id)
     return TokenResponse(token=token, user=UserProfile.from_user(user))

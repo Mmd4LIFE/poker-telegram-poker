@@ -17,8 +17,14 @@ async def get_by_telegram_id(session: AsyncSession, telegram_id: int) -> User | 
     ).scalar_one_or_none()
 
 
-async def get_or_create_from_telegram(session: AsyncSession, tg: dict) -> tuple[User, bool]:
-    """tg is the Telegram user dict from initData / bot update."""
+async def get_or_create_from_telegram(
+    session: AsyncSession, tg: dict, referral: str | None = None
+) -> tuple[User, bool]:
+    """tg is the Telegram user dict from initData / bot update.
+
+    `referral` is an optional start param (e.g. 'ref_123') used to attribute a
+    new signup to an inviter.
+    """
     user = await get_by_telegram_id(session, int(tg["id"]))
     created = False
     if user is None:
@@ -35,6 +41,13 @@ async def get_or_create_from_telegram(session: AsyncSession, tg: dict) -> tuple[
         await session.flush()
         await credit(session, user, settings.SIGNUP_BONUS_COINS, "signup_bonus")
         created = True
+        # attribute referral (best-effort; never blocks signup)
+        try:
+            from app.services.referrals import apply_referral, parse_ref
+            await apply_referral(session, user, parse_ref(referral))
+        except Exception:  # noqa: BLE001
+            import logging
+            logging.getLogger("poker.referrals").exception("referral apply failed")
     else:
         # keep profile fresh
         user.username = tg.get("username") or user.username

@@ -63,6 +63,7 @@ const API = (() => {
     openBox: (code, pay) => req("POST", "/api/shop/boxes/open", { box_code: code, pay_with: pay }),
     achievements: () => req("GET", "/api/achievements"),
     challenges: () => req("GET", "/api/challenges"),
+    referral: () => req("GET", "/api/referral"),
     mySquad: () => req("GET", "/api/squads/me"),
     createSquad: (b) => req("POST", "/api/squads", b),
     joinSquad: (code) => req("POST", "/api/squads/join", { code }),

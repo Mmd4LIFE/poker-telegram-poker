@@ -84,6 +84,7 @@ const App = (() => {
         <div class="menu-tile" id="tJoin"><div class="ico">🔑</div><div class="t">Join by Code</div><div class="d">Enter friend's code</div></div>
         <div class="menu-tile" id="tSquad"><div class="ico">🛡️</div><div class="t">Squad</div><div class="d">Play with your crew</div></div>
         <div class="menu-tile" id="tDaily"><div class="ico">🎁</div><div class="t">Daily Reward</div><div class="d">Streak: ${user.daily_streak}🔥</div></div>
+        <div class="menu-tile hot wide" id="tInvite"><div class="ico">🎉</div><div class="t">Invite &amp; Earn</div><div class="d">Get 🪙 ${fmt(5000)} per friend who joins</div></div>
       </div>
       <h2>Open Tables</h2>
       <div id="roomList" class="card"><div class="muted">Loading…</div></div>`);
@@ -93,6 +94,7 @@ const App = (() => {
     document.getElementById("tJoin").onclick = () => joinByCodePrompt();
     document.getElementById("tSquad").onclick = () => renderSquad();
     document.getElementById("tDaily").onclick = () => claimDaily();
+    document.getElementById("tInvite").onclick = () => renderInvite();
 
     try {
       const rooms = await API.listRooms();
@@ -397,14 +399,74 @@ const App = (() => {
         <div class="lrow"><div class="ic">🔥</div><div class="main"><div class="t">Best win streak</div></div><div class="pill">${user.best_win_streak}</div></div>
         <div class="lrow"><div class="ic">🪑</div><div class="main"><div class="t">Tables played</div></div><div class="pill">${user.games_played}</div></div>
       </div>
-      <button class="btn secondary" id="dailyBtn">🎁 Claim Daily Reward</button>
-      ${tg ? `<button class="btn ghost" id="shareBtn" style="margin-top:10px">📢 Invite Friends</button>` : ""}`);
+      <button class="btn" id="inviteBtn" style="margin-top:4px">🎉 Invite &amp; Earn ${user.referral_count ? `· ${user.referral_count} joined` : ""}</button>
+      <button class="btn secondary" id="dailyBtn" style="margin-top:10px">🎁 Claim Daily Reward</button>`);
     document.getElementById("dailyBtn").onclick = () => claimDaily();
-    const share = document.getElementById("shareBtn");
-    if (share) share.onclick = () => {
-      const url = `https://t.me/share/url?url=${encodeURIComponent("https://t.me")}&text=${encodeURIComponent("♠️ Play Poker CM with me!")}`;
-      tg.openTelegramLink ? tg.openTelegramLink(url) : window.open(url);
-    };
+    document.getElementById("inviteBtn").onclick = () => renderInvite();
+  }
+
+  // ---------- Invite & Earn (referrals) ----------
+  async function renderInvite() {
+    if (currentTable) return;
+    document.getElementById("tabbar").classList.remove("hidden");
+    setView(`${walletBar()}
+      <div class="row between"><h1>🎉 Invite &amp; Earn</h1><button class="btn ghost sm" id="back">✕</button></div>
+      <div id="inviteBody"><div class="muted">Loading…</div></div>`);
+    document.getElementById("back").onclick = () => show("profile");
+    const body = document.getElementById("inviteBody");
+    try {
+      const r = await API.referral();
+      const nm = r.next_milestone;
+      body.innerHTML = `
+        <div class="card" style="text-align:center">
+          <div style="font-size:34px">🤝</div>
+          <div style="font-weight:800;font-size:16px;margin-top:4px">Invite friends, earn chips!</div>
+          <div class="muted" style="margin-top:4px">
+            You get <b style="color:var(--accent)">🪙 ${fmt(r.reward_per_friend)}</b> per friend.
+            They get <b style="color:var(--accent)">🪙 ${fmt(r.friend_bonus)}</b> to start.
+          </div>
+        </div>
+        <div class="row" style="gap:10px">
+          <div class="card grow" style="text-align:center;margin:0">
+            <div style="font-size:22px;font-weight:800">${r.referral_count}</div>
+            <div class="muted">Friends joined</div>
+          </div>
+          <div class="card grow" style="text-align:center;margin:0">
+            <div style="font-size:22px;font-weight:800;color:var(--accent)">${fmt(r.referral_earned)}</div>
+            <div class="muted">Chips earned</div>
+          </div>
+        </div>
+        ${nm ? `<div class="card" style="margin-top:12px">
+          <div class="row between"><span>🏁 Next bonus at ${nm.at} friends</span><span class="muted">${nm.remaining} to go</span></div>
+          <div class="bar" style="margin-top:8px"><i style="width:${Math.round((1 - nm.remaining / nm.at) * 100)}%"></i></div>
+          <div class="muted" style="margin-top:6px">Reward: 🪙 ${fmt(nm.coins)}${nm.gems ? " · 💎 " + nm.gems : ""}</div>
+        </div>` : `<div class="card muted">🏆 You've unlocked every milestone. Legend!</div>`}
+        <button class="btn" id="shareInvite" style="margin-top:12px">📲 Share my invite link</button>
+        <button class="btn secondary" id="copyInvite" style="margin-top:10px">📋 Copy link</button>
+        <div class="input" id="linkBox" style="margin-top:10px;word-break:break-all;font-size:13px">${r.link || "Link unavailable"}</div>
+        <h2>Milestone bonuses</h2>
+        <div class="card">${r.milestones.map((m) => `
+          <div class="lrow"><div class="ic">🎯</div>
+            <div class="main"><div class="t">${m.at} friends</div></div>
+            <div class="pill">🪙 ${fmt(m.coins)}${m.gems ? " · 💎" + m.gems : ""}</div></div>`).join("")}</div>
+        ${r.friends.length ? `<h2>Your recruits</h2><div class="card">${r.friends.map((f) => `
+          <div class="lrow"><div class="ic">${f.avatar}</div>
+            <div class="main"><div class="t">${escapeHtml(f.name)}</div><div class="d">Level ${f.level}</div></div></div>`).join("")}</div>` : ""}`;
+
+      const shareText = "♠️ Come play Poker CM with me — grab your welcome chips! 🃏💰";
+      const doShare = () => {
+        if (!r.link) return toast("Invite link not ready yet");
+        const url = `https://t.me/share/url?url=${encodeURIComponent(r.link)}&text=${encodeURIComponent(shareText)}`;
+        if (tg?.openTelegramLink) tg.openTelegramLink(url); else window.open(url, "_blank");
+      };
+      document.getElementById("shareInvite").onclick = doShare;
+      document.getElementById("copyInvite").onclick = async () => {
+        if (!r.link) return;
+        try { await navigator.clipboard.writeText(r.link); toast("Link copied!"); }
+        catch (e) { doShare(); }
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+      };
+    } catch (e) { body.innerHTML = `<div class="card">${escapeHtml(e.message)}</div>`; }
   }
 
   // ---------- Squad ----------

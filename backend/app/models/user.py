@@ -55,6 +55,13 @@ class User(Base, TimestampMixin):
     win_streak: Mapped[int] = mapped_column(Integer, default=0)
     best_win_streak: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Referrals
+    referred_by: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True
+    )
+    referral_count: Mapped[int] = mapped_column(Integer, default=0)
+    referral_earned: Mapped[int] = mapped_column(BigInteger, default=0)
+
     # Engagement
     daily_streak: Mapped[int] = mapped_column(Integer, default=0)
     last_daily_at: Mapped[datetime | None] = mapped_column(

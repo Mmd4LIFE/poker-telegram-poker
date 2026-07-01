@@ -32,6 +32,14 @@ async def setup_bot() -> None:
     dp.include_router(handlers_router)
 
     try:
+        me = await bot.get_me()
+        from app.bot.instance import set_bot_username
+        set_bot_username(me.username or "")
+        logger.info("Bot is @%s", me.username)
+    except Exception:  # noqa: BLE001
+        logger.exception("getMe failed")
+
+    try:
         await bot.set_my_commands(COMMANDS)
     except Exception:  # noqa: BLE001
         logger.exception("Failed to set commands")

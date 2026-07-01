@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     TON_WALLET_ADDRESS: str = ""
     COINS_PER_STAR: int = 1000
 
+    # Referrals
+    REFERRAL_REFERRER_REWARD: int = 5000   # coins the inviter gets per friend
+    REFERRAL_FRIEND_REWARD: int = 2500     # bonus coins the new friend gets
+    BOT_USERNAME: str = ""                 # auto-filled from getMe if empty
+
     # Gameplay
     TURN_TIMEOUT_SECONDS: int = 25
     BOT_THINK_MIN: float = 1.5

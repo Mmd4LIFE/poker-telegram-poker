@@ -50,10 +50,15 @@ WELCOME = (
 async def start_deeplink(message: Message, command: CommandObject):
     param = command.args
     async with SessionLocal() as session:
-        await get_or_create_from_telegram(session, message.from_user.model_dump())
+        _, created = await get_or_create_from_telegram(
+            session, message.from_user.model_dump(), referral=param
+        )
         await session.commit()
     text = WELCOME
-    if param and param not in ("shop", "leaderboard"):
+    is_ref = bool(param) and param.startswith("ref_")
+    if created and is_ref:
+        text += f"\n\n🎁 <b>+{settings.REFERRAL_FRIEND_REWARD:,} bonus coins</b> for joining via a friend's invite!"
+    elif param and not is_ref and param not in ("shop", "leaderboard"):
         text += f"\n\n🔗 Joining table <code>{param}</code>…"
     await message.answer(text, reply_markup=_webapp_kb(param))
 

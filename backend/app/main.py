@@ -11,6 +11,7 @@ from app.api import (
     routes_auth,
     routes_profile,
     routes_progression,
+    routes_referral,
     routes_rooms,
     routes_shop,
     routes_squads,
@@ -51,7 +52,7 @@ app.add_middleware(
 
 for module in (
     routes_auth, routes_profile, routes_rooms, routes_shop,
-    routes_progression, routes_squads, routes_ws,
+    routes_progression, routes_squads, routes_referral, routes_ws,
 ):
     app.include_router(module.router)
 

@@ -9,6 +9,16 @@ from app.config import settings
 
 bot: Bot | None = None
 dp: Dispatcher | None = None
+bot_username: str = ""
+
+
+def set_bot_username(username: str) -> None:
+    global bot_username
+    bot_username = username
+
+
+def get_bot_username() -> str:
+    return bot_username or settings.BOT_USERNAME
 
 
 def get_bot() -> Bot:
