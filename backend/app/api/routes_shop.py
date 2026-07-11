@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.config import settings
 from app.database import get_session
-from app.models import Box, Purchase, User
+from app.models import Box, Purchase, User, UserBox
 from app.schemas import BuyStarsRequest, OpenBoxRequest
 from app.services.catalog import (
     STAR_PRODUCTS,
@@ -202,7 +202,33 @@ async def open_box(
         if key not in (user.owned_cosmetics or []):
             user.owned_cosmetics = [*(user.owned_cosmetics or []), key]
         user.avatar = reward["value"]
-    return {"reward": reward, "coins": user.coins, "gems": user.gems}
+
+    # record the opening for the user's box history
+    session.add(UserBox(
+        user_id=user.id, box_id=box.id, source="shop",
+        opened=True, reward=reward,
+    ))
+    return {"reward": reward, "coins": user.coins, "gems": user.gems, "box": {
+        "name": box.name, "icon": box.icon, "tier": box.tier,
+    }}
+
+
+@router.get("/boxes/history")
+async def box_history(
+    limit: int = 30,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    rows = (await session.execute(
+        select(UserBox, Box).join(Box, Box.id == UserBox.box_id)
+        .where(UserBox.user_id == user.id)
+        .order_by(UserBox.id.desc()).limit(min(limit, 100))
+    )).all()
+    return [{
+        "box_name": b.name, "icon": b.icon, "tier": b.tier,
+        "reward": ub.reward,
+        "at": ub.created_at.isoformat() if ub.created_at else None,
+    } for ub, b in rows]
 
 
 def _roll_reward(rewards: list[dict]) -> dict:

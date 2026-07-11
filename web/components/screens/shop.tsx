@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Star, Gem, Package, Coins } from "lucide-react";
+import { Star, Gem, Package, Coins, History, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -9,34 +9,30 @@ import { openInvoice, notify } from "@/lib/telegram";
 import { WalletBar } from "@/components/wallet-bar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { BoxOpenDialog } from "@/components/shop/box-open-dialog";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-function Rows({
-  items,
-  render,
-}: {
-  items: any[];
-  render: (i: any) => React.ReactNode;
-}) {
-  return (
-    <Card className="p-4">
-      {items.map((i) => (
-        <div
-          key={i.code}
-          className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
-        >
-          {render(i)}
-        </div>
-      ))}
-    </Card>
-  );
-}
+const TIER_COLOR: Record<string, string> = {
+  common: "text-muted-foreground",
+  rare: "text-[#3fa9ff]",
+  epic: "text-[#a06bff]",
+  legendary: "text-gold",
+};
 
 export function ShopScreen() {
   const { refresh } = useApp();
   const [cat, setCat] = useState<any>(null);
   const [boxes, setBoxes] = useState<any[]>([]);
+  const [openingBox, setOpeningBox] = useState<any>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<any[] | null>(null);
 
   useEffect(() => {
     api.catalog().then(setCat).catch(() => {});
@@ -56,17 +52,14 @@ export function ShopScreen() {
       toast.error((e as Error).message);
     }
   }
-  async function openBox(box: any) {
-    const payGems = box.price_gems && !box.price_coins;
+
+  async function openHistory() {
+    setHistoryOpen(true);
+    setHistory(null);
     try {
-      const r: any = await api.openBox(box.code, payGems ? "gems" : "coins");
-      toast.success(
-        `${box.name}: ${r.reward.label || fmt(r.reward.amount) + " coins"}!`,
-      );
-      notify("success");
-      refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
+      setHistory(await api.boxHistory());
+    } catch {
+      setHistory([]);
     }
   }
 
@@ -81,10 +74,9 @@ export function ShopScreen() {
         Coin &amp; Gem Packs
       </h2>
       {cat && (
-        <Rows
-          items={cat.stars}
-          render={(p) => (
-            <>
+        <Card className="p-4">
+          {cat.stars.map((p: any) => (
+            <div key={p.code} className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
               <div className="grid size-9 place-items-center rounded-lg bg-secondary">
                 <Star className="size-5 text-gold" />
               </div>
@@ -97,43 +89,92 @@ export function ShopScreen() {
               <Button size="sm" onClick={() => buyStars(p.code)}>
                 <Star className="size-3.5" /> {p.stars}
               </Button>
-            </>
-          )}
-        />
+            </div>
+          ))}
+        </Card>
       )}
 
-      <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        Loot Boxes
-      </h2>
-      {boxes.length > 0 && (
-        <Rows
-          items={boxes}
-          render={(b) => (
-            <>
-              <div className="grid size-9 place-items-center rounded-lg bg-secondary">
-                <Package className="size-5 text-gem" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold capitalize">
-                  {b.name} <span className="text-xs text-muted-foreground">{b.tier}</span>
+      <div className="mb-2 mt-5 flex items-center justify-between">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          Loot Boxes
+        </h2>
+        <button
+          onClick={openHistory}
+          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+        >
+          <History className="size-3.5" /> History
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {boxes.map((b: any) => (
+          <button
+            key={b.code}
+            onClick={() => setOpeningBox(b)}
+            className="flex flex-col items-center gap-1 rounded-2xl border border-white/5 bg-gradient-to-br from-secondary to-card p-4 text-center active:scale-[0.97]"
+          >
+            <Package className={`size-8 ${TIER_COLOR[b.tier] || ""}`} />
+            <div className="mt-1 text-4xl">{b.icon}</div>
+            <div className="text-sm font-extrabold">{b.name}</div>
+            <div className={`text-[10px] font-bold uppercase ${TIER_COLOR[b.tier] || ""}`}>
+              {b.tier}
+            </div>
+            <div className="mt-1 flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold">
+              {b.price_gems && !b.price_coins ? (
+                <>
+                  <Gem className="size-3.5 text-gem" /> {b.price_gems}
+                </>
+              ) : (
+                <>
+                  <Coins className="size-3.5 text-gold" /> {fmt(b.price_coins)}
+                </>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <BoxOpenDialog
+        box={openingBox}
+        onDone={refresh}
+        onClose={() => setOpeningBox(null)}
+      />
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="size-4" /> Box Openings
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[65vh] overflow-y-auto">
+            {history === null ? (
+              <p className="p-2 text-sm text-muted-foreground">Loading…</p>
+            ) : history.length === 0 ? (
+              <p className="p-2 text-sm text-muted-foreground">No boxes opened yet.</p>
+            ) : (
+              history.map((h, i) => (
+                <div key={i} className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
+                  <div className="text-2xl">{h.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm font-semibold">{h.box_name}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {h.at ? new Date(h.at).toLocaleString() : ""}
+                    </div>
+                  </div>
+                  <span className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-gold">
+                    <Sparkles className="size-3" />
+                    {h.reward?.type === "coins"
+                      ? fmt(h.reward.amount)
+                      : h.reward?.type === "gems"
+                        ? `${h.reward.amount} 💎`
+                        : h.reward?.value || h.reward?.label}
+                  </span>
                 </div>
-                <div className="truncate text-xs text-muted-foreground">{b.description}</div>
-              </div>
-              <Button variant="secondary" size="sm" onClick={() => openBox(b)}>
-                {b.price_gems && !b.price_coins ? (
-                  <>
-                    <Gem className="size-3.5" /> {b.price_gems}
-                  </>
-                ) : (
-                  <>
-                    <Coins className="size-3.5" /> {fmt(b.price_coins)}
-                  </>
-                )}
-              </Button>
-            </>
-          )}
-        />
-      )}
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

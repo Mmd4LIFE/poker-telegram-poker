@@ -172,3 +172,30 @@ body {
 }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ---- loot box reveal animations ---- */
+@keyframes pcm-shake {
+  0%, 100% { transform: rotate(0) translateY(0); }
+  15% { transform: rotate(-9deg); }
+  30% { transform: rotate(8deg); }
+  45% { transform: rotate(-7deg) translateY(-2px); }
+  60% { transform: rotate(6deg); }
+  75% { transform: rotate(-4deg); }
+}
+@keyframes pcm-pop {
+  0% { transform: scale(0.2); opacity: 0; }
+  55% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes pcm-glow {
+  0%, 100% { box-shadow: 0 0 24px 4px var(--pcm-glow, #f5c518aa); }
+  50% { box-shadow: 0 0 52px 14px var(--pcm-glow, #f5c518aa); }
+}
+@keyframes pcm-rays {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.pcm-shake { animation: pcm-shake 0.7s ease-in-out infinite; }
+.pcm-pop { animation: pcm-pop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.pcm-glow { animation: pcm-glow 1.4s ease-in-out infinite; }
+.pcm-rays { animation: pcm-rays 8s linear infinite; }

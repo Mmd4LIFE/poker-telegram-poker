@@ -78,6 +78,7 @@ export const api = {
   boxes: () => req("GET", "/shop/boxes"),
   openBox: (code: string, pay: string) =>
     req("POST", "/shop/boxes/open", { box_code: code, pay_with: pay }),
+  boxHistory: () => req("GET", "/shop/boxes/history"),
   achievements: () => req("GET", "/achievements"),
   challenges: () => req("GET", "/challenges"),
   referral: () => req("GET", "/referral"),
