@@ -4,6 +4,7 @@ import { Coins, Gem } from "lucide-react";
 import { fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 
 export function WalletBar() {
   const { user } = useApp();
@@ -11,8 +12,8 @@ export function WalletBar() {
   return (
     <div className="flex items-center gap-3 mb-4">
       <Avatar className="size-11 border border-white/10">
-        <AvatarFallback className="bg-secondary text-lg">
-          {user.avatar || user.display_name.slice(0, 1)}
+        <AvatarFallback className="bg-secondary text-gold">
+          <AvatarIcon code={user.avatar} className="size-5" />
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">

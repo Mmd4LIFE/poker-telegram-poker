@@ -24,6 +24,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 import { OnlineDot } from "@/components/online-dot";
 
 interface Profile {
@@ -114,7 +115,9 @@ export function UserProfileSheet() {
             <div className="flex flex-col items-center text-center">
               <div className="relative">
                 <Avatar className="size-20 border-2 border-gold/40">
-                  <AvatarFallback className="bg-secondary text-4xl">{p.avatar}</AvatarFallback>
+                  <AvatarFallback className="bg-secondary text-gold">
+                    <AvatarIcon code={p.avatar} className="size-9" />
+                  </AvatarFallback>
                 </Avatar>
                 <OnlineDot online={p.online} className="absolute bottom-1 right-1 size-4" />
               </div>

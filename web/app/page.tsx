@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Spade } from "lucide-react";
+import { Loader2, Spade, Heart, Diamond, Club } from "lucide-react";
 import { api } from "@/lib/api";
 import { initTelegram, startParam } from "@/lib/telegram";
 import { AppProvider } from "@/lib/store";
@@ -36,7 +36,12 @@ export default function Home() {
   if (!user) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3">
-        <div className="text-4xl tracking-[0.3em]">♠ ♥ ♦ ♣</div>
+        <div className="flex gap-3 text-gold">
+          <Spade className="size-7" />
+          <Heart className="size-7 text-lose" />
+          <Diamond className="size-7 text-lose" />
+          <Club className="size-7" />
+        </div>
         <div className="text-2xl font-extrabold tracking-widest text-gold">
           POKER CM
         </div>

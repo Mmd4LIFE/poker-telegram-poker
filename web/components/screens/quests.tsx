@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Target, Check, Coins, Gem } from "lucide-react";
+import { Target, Award, Check, Coins, Gem } from "lucide-react";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { PageHeader } from "@/components/page-header";
@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-function QuestList({ items }: { items: any[] | null }) {
+function QuestList({ items, icon: Icon }: { items: any[] | null; icon: React.ElementType }) {
   if (!items) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (items.length === 0)
     return <p className="text-sm text-muted-foreground">Nothing here.</p>;
@@ -21,8 +21,8 @@ function QuestList({ items }: { items: any[] | null }) {
         const pct = Math.min(100, Math.round((c.progress / c.target) * 100));
         return (
           <div key={c.code} className="flex items-center gap-3 border-b border-white/5 py-3 last:border-0">
-            <div className="grid size-9 place-items-center rounded-lg bg-secondary text-lg">
-              {c.icon}
+            <div className="grid size-9 place-items-center rounded-lg bg-secondary text-gold">
+              <Icon className="size-5" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold">
@@ -82,10 +82,10 @@ export function QuestsScreen() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="challenges">
-          <QuestList items={challenges} />
+          <QuestList items={challenges} icon={Target} />
         </TabsContent>
         <TabsContent value="achievements">
-          <QuestList items={achievements} />
+          <QuestList items={achievements} icon={Award} />
         </TabsContent>
       </Tabs>
     </>

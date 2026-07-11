@@ -21,7 +21,7 @@ export function InviteScreen() {
     api.referral().then(setR).catch(() => {});
   }, []);
 
-  const shareText = "♠️ Come play Poker CM with me — grab your welcome chips!";
+  const shareText = "Come play Poker CM with me — grab your welcome chips!";
   function share() {
     if (!r?.link) return toast("Invite link not ready");
     openTelegramLink(

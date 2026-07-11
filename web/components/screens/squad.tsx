@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -36,7 +37,7 @@ export function SquadScreen() {
 
   async function create() {
     try {
-      await api.createSquad({ name, tag, emblem: "♠️" });
+      await api.createSquad({ name, tag, emblem: "spade" });
       load();
     } catch (e) {
       toast.error((e as Error).message);
@@ -80,7 +81,7 @@ export function SquadScreen() {
       {squad ? (
         <>
           <Card className="items-center p-6 text-center">
-            <div className="text-4xl">{squad.emblem}</div>
+            <Shield className="size-9 text-gold" />
             <div className="mt-1 text-xl font-extrabold">
               {squad.name} {squad.tag && <span className="text-muted-foreground">[{squad.tag}]</span>}
             </div>
@@ -95,7 +96,9 @@ export function SquadScreen() {
             {squad.members.map((m: any, i: number) => (
               <div key={i} className="flex items-center gap-3 border-b border-white/5 py-2 last:border-0">
                 <Avatar className="size-9 border border-white/10">
-                  <AvatarFallback className="bg-secondary">{m.avatar}</AvatarFallback>
+                  <AvatarFallback className="bg-secondary text-gold">
+                    <AvatarIcon code={m.avatar} className="size-4" />
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="text-sm font-semibold">{m.display_name}</div>

@@ -18,36 +18,36 @@ logger = logging.getLogger("poker.seed")
 
 # name, avatar, personality, skill (0=bad .. 1=good)
 BOTS = [
-    ("Ivan the Rock", "🗿", "rock", 0.80),
-    ("Steady Sofia", "🧊", "tight", 0.85),
-    ("Professor Chen", "🎓", "balanced", 0.92),
-    ("Sniper Yuki", "🎯", "tight", 0.88),
-    ("Wall Street Wes", "💼", "balanced", 0.90),
-    ("Calm Kenji", "🧘", "tight", 0.83),
-    ("Sharp Nadia", "🦈", "aggressive", 0.87),
-    ("Cold Viktor", "❄️", "balanced", 0.86),
-    ("Ace Amara", "🅰️", "aggressive", 0.84),
-    ("Diamond Dana", "💎", "balanced", 0.89),
-    ("Lucky Luca", "🍀", "loose", 0.55),
-    ("Casino Carla", "🎰", "loose", 0.50),
-    ("Bluffy Bob", "🎭", "aggressive", 0.60),
-    ("Wild Wanda", "🌪️", "maniac", 0.45),
-    ("Reckless Rex", "🔥", "maniac", 0.35),
-    ("Gambler Gus", "🎲", "loose", 0.40),
-    ("Newbie Nino", "🐣", "loose", 0.20),
-    ("Tilted Tom", "😤", "maniac", 0.25),
-    ("Calling Kate", "📞", "loose", 0.30),
-    ("Splashy Sam", "💦", "maniac", 0.28),
-    ("Fishy Fred", "🐟", "loose", 0.18),
-    ("Rookie Rita", "🌸", "balanced", 0.35),
-    ("Hasty Hugo", "⚡", "aggressive", 0.42),
-    ("Drunk Dmitri", "🍺", "maniac", 0.22),
-    ("Patient Pia", "🕰️", "rock", 0.70),
-    ("Silent Suki", "🤫", "tight", 0.78),
-    ("Boss Bruno", "👔", "aggressive", 0.82),
-    ("Queen Bea", "👸", "balanced", 0.80),
-    ("Maverick Max", "🕶️", "aggressive", 0.75),
-    ("Zen Zoe", "☯️", "tight", 0.72),
+    ("Ivan the Rock", "skull", "rock", 0.80),
+    ("Steady Sofia", "turtle", "tight", 0.85),
+    ("Professor Chen", "brain", "balanced", 0.92),
+    ("Sniper Yuki", "target", "tight", 0.88),
+    ("Wall Street Wes", "diamond", "balanced", 0.90),
+    ("Calm Kenji", "smile", "tight", 0.83),
+    ("Sharp Nadia", "swords", "aggressive", 0.87),
+    ("Cold Viktor", "snail", "balanced", 0.86),
+    ("Ace Amara", "star", "aggressive", 0.84),
+    ("Diamond Dana", "gem", "balanced", 0.89),
+    ("Lucky Luca", "club", "loose", 0.55),
+    ("Casino Carla", "dice", "loose", 0.50),
+    ("Bluffy Bob", "ghost", "aggressive", 0.60),
+    ("Wild Wanda", "flame", "maniac", 0.45),
+    ("Reckless Rex", "flame", "maniac", 0.35),
+    ("Gambler Gus", "dice", "loose", 0.40),
+    ("Newbie Nino", "bird", "loose", 0.20),
+    ("Tilted Tom", "bug", "maniac", 0.25),
+    ("Calling Kate", "cat", "loose", 0.30),
+    ("Splashy Sam", "fish", "maniac", 0.28),
+    ("Fishy Fred", "fish", "loose", 0.18),
+    ("Rookie Rita", "rabbit", "balanced", 0.35),
+    ("Hasty Hugo", "zap", "aggressive", 0.42),
+    ("Drunk Dmitri", "squirrel", "maniac", 0.22),
+    ("Patient Pia", "anchor", "rock", 0.70),
+    ("Silent Suki", "smile", "tight", 0.78),
+    ("Boss Bruno", "crown", "aggressive", 0.82),
+    ("Queen Bea", "crown", "balanced", 0.80),
+    ("Maverick Max", "rocket", "aggressive", 0.75),
+    ("Zen Zoe", "dog", "tight", 0.72),
 ]
 
 ACHIEVEMENTS = [
@@ -92,39 +92,35 @@ BOXES = [
         {"weight": 30, "type": "coins", "amount": 120000, "label": "120K coins"},
         {"weight": 20, "type": "gems", "amount": 15, "label": "15 gems"},
         {"weight": 8, "type": "coins", "amount": 300000, "label": "300K coins"},
-        {"weight": 2, "type": "avatar", "value": "🦈", "label": "Shark avatar"},
+        {"weight": 2, "type": "avatar", "value": "skull", "label": "Skull avatar"},
     ]),
     ("box_epic", "Epic Vault", "Serious rewards for high rollers.", "epic", "🧰", 250000, 40, [
         {"weight": 35, "type": "coins", "amount": 200000, "label": "200K coins"},
         {"weight": 30, "type": "coins", "amount": 500000, "label": "500K coins"},
         {"weight": 20, "type": "gems", "amount": 60, "label": "60 gems"},
         {"weight": 10, "type": "coins", "amount": 1200000, "label": "1.2M coins"},
-        {"weight": 5, "type": "avatar", "value": "👑", "label": "Crown avatar"},
+        {"weight": 5, "type": "avatar", "value": "crown", "label": "Crown avatar"},
     ]),
     ("box_legendary", "Legendary Case", "The ultimate prize.", "legendary", "🏆", 0, 150, [
         {"weight": 40, "type": "coins", "amount": 1000000, "label": "1M coins"},
         {"weight": 30, "type": "gems", "amount": 150, "label": "150 gems"},
         {"weight": 20, "type": "coins", "amount": 3000000, "label": "3M coins"},
-        {"weight": 8, "type": "avatar", "value": "🐋", "label": "Whale avatar"},
-        {"weight": 2, "type": "avatar", "value": "💎", "label": "Diamond avatar"},
+        {"weight": 8, "type": "avatar", "value": "fish", "label": "Fish avatar"},
+        {"weight": 2, "type": "avatar", "value": "diamond", "label": "Diamond avatar"},
     ]),
 ]
 
 
 async def seed_bots(session) -> None:
-    existing = (await session.execute(
-        select(func.count(User.id)).where(User.is_bot.is_(True))
-    )).scalar_one()
-    if existing >= len(BOTS):
-        logger.info("Bots already seeded (%s)", existing)
-        return
-    have = {
-        u.first_name for u in (await session.execute(
+    existing = {
+        u.first_name: u for u in (await session.execute(
             select(User).where(User.is_bot.is_(True))
         )).scalars().all()
     }
     for name, avatar, personality, skill in BOTS:
-        if name in have:
+        bot = existing.get(name)
+        if bot:
+            bot.avatar = avatar  # keep icon avatars in sync
             continue
         session.add(User(
             telegram_id=None, first_name=name,

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Star, Gem, Package, Coins, History, Sparkles } from "lucide-react";
+import { Star, Gem, Package, Gift, Box as BoxIcon, Crown, Coins, History, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -24,6 +25,12 @@ const TIER_COLOR: Record<string, string> = {
   rare: "text-[#3fa9ff]",
   epic: "text-[#a06bff]",
   legendary: "text-gold",
+};
+const TIER_ICON: Record<string, LucideIcon> = {
+  common: Package,
+  rare: Gift,
+  epic: BoxIcon,
+  legendary: Crown,
 };
 
 export function ShopScreen() {
@@ -106,15 +113,16 @@ export function ShopScreen() {
         </button>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {boxes.map((b: any) => (
+        {boxes.map((b: any) => {
+          const TierIcon = TIER_ICON[b.tier] || Package;
+          return (
           <button
             key={b.code}
             onClick={() => setOpeningBox(b)}
             className="flex flex-col items-center gap-1 rounded-2xl border border-white/5 bg-gradient-to-br from-secondary to-card p-4 text-center active:scale-[0.97]"
           >
-            <Package className={`size-8 ${TIER_COLOR[b.tier] || ""}`} />
-            <div className="mt-1 text-4xl">{b.icon}</div>
-            <div className="text-sm font-extrabold">{b.name}</div>
+            <TierIcon className={`size-11 ${TIER_COLOR[b.tier] || ""}`} />
+            <div className="mt-1 text-sm font-extrabold">{b.name}</div>
             <div className={`text-[10px] font-bold uppercase ${TIER_COLOR[b.tier] || ""}`}>
               {b.tier}
             </div>
@@ -130,7 +138,8 @@ export function ShopScreen() {
               )}
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
 
       <BoxOpenDialog
@@ -154,7 +163,10 @@ export function ShopScreen() {
             ) : (
               history.map((h, i) => (
                 <div key={i} className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
-                  <div className="text-2xl">{h.icon}</div>
+                  {(() => {
+                    const Hi = TIER_ICON[h.tier] || Package;
+                    return <Hi className={`size-6 ${TIER_COLOR[h.tier] || ""}`} />;
+                  })()}
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm font-semibold">{h.box_name}</div>
                     <div className="text-[11px] text-muted-foreground">
@@ -164,10 +176,10 @@ export function ShopScreen() {
                   <span className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-gold">
                     <Sparkles className="size-3" />
                     {h.reward?.type === "coins"
-                      ? fmt(h.reward.amount)
+                      ? `${fmt(h.reward.amount)} coins`
                       : h.reward?.type === "gems"
-                        ? `${h.reward.amount} 💎`
-                        : h.reward?.value || h.reward?.label}
+                        ? `${h.reward.amount} gems`
+                        : h.reward?.label || "avatar"}
                   </span>
                 </div>
               ))

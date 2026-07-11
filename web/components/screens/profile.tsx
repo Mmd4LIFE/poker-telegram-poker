@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 
 function StatRow({
   icon: Icon,
@@ -74,8 +75,8 @@ export function ProfileScreen() {
 
       <Card className="items-center p-6 text-center">
         <Avatar className="mx-auto size-20 border-2 border-gold/40">
-          <AvatarFallback className="bg-secondary text-4xl">
-            {user.avatar || <Spade className="size-8" />}
+          <AvatarFallback className="bg-secondary text-gold">
+            <AvatarIcon code={user.avatar} className="size-9" />
           </AvatarFallback>
         </Avatar>
         <div

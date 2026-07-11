@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 import { OnlineDot } from "@/components/online-dot";
 
 function Row({ f, action }: { f: FriendCard; action?: React.ReactNode }) {
@@ -20,7 +21,9 @@ function Row({ f, action }: { f: FriendCard; action?: React.ReactNode }) {
     <div className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
       <button className="relative" onClick={() => openUser(f.id)}>
         <Avatar className="size-10 border border-white/10">
-          <AvatarFallback className="bg-secondary">{f.avatar}</AvatarFallback>
+          <AvatarFallback className="bg-secondary text-gold">
+            <AvatarIcon code={f.avatar} className="size-5" />
+          </AvatarFallback>
         </Avatar>
         <OnlineDot online={f.online} className="absolute -bottom-0.5 -right-0.5" />
       </button>

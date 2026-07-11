@@ -8,6 +8,7 @@ import { WalletBar } from "@/components/wallet-bar";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 import { OnlineDot } from "@/components/online-dot";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +85,9 @@ function Board({ scope }: { scope: "global" | "friends" }) {
               </div>
               <div className="relative">
                 <Avatar className="size-9 border border-white/10">
-                  <AvatarFallback className="bg-secondary text-sm">{r.avatar}</AvatarFallback>
+                  <AvatarFallback className="bg-secondary text-gold">
+                    <AvatarIcon code={r.avatar} className="size-4" />
+                  </AvatarFallback>
                 </Avatar>
                 {r.online !== undefined && (
                   <OnlineDot online={r.online} className="absolute -bottom-0.5 -right-0.5" />

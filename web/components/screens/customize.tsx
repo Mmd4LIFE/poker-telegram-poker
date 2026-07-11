@@ -9,6 +9,7 @@ import { notify } from "@/lib/telegram";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 import { cn } from "@/lib/utils";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -49,7 +50,9 @@ export function CustomizeScreen() {
       {/* live preview */}
       <Card className="items-center p-6 text-center">
         <Avatar className="mx-auto size-20 border-2 border-gold/40">
-          <AvatarFallback className="bg-secondary text-4xl">{user.avatar}</AvatarFallback>
+          <AvatarFallback className="bg-secondary text-gold">
+            <AvatarIcon code={user.avatar} className="size-9" />
+          </AvatarFallback>
         </Avatar>
         <div className="mt-2 text-xl font-extrabold" style={previewColor ? { color: previewColor } : undefined}>
           {user.display_name}
@@ -64,14 +67,15 @@ export function CustomizeScreen() {
         <div className="grid grid-cols-5 gap-2">
           {cat?.avatars.map((a: any) => (
             <button
-              key={a.emoji}
-              onClick={() => act("avatar", a.emoji, a.owned)}
+              key={a.code}
+              onClick={() => act("avatar", a.code, a.owned)}
               className={cn(
-                "relative grid aspect-square place-items-center rounded-xl bg-secondary text-2xl active:scale-90",
+                "relative grid aspect-square place-items-center rounded-xl bg-secondary text-gold active:scale-90",
                 a.equipped && "ring-2 ring-gold",
+                !a.owned && "opacity-70",
               )}
             >
-              {a.emoji}
+              <AvatarIcon code={a.code} className="size-6" />
               {a.equipped ? (
                 <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-gold text-background">
                   <Check className="size-3" />

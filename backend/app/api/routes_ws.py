@@ -15,10 +15,10 @@ from app.services.rooms import get_room_by_code
 router = APIRouter()
 logger = logging.getLogger("poker.ws")
 
-# Emotes players can send at the table (validated server-side).
+# Emotes players can send at the table (icon codes, validated server-side).
 ALLOWED_EMOTES = {
-    "😀", "😎", "😂", "😍", "🤔", "😱", "😭", "😡", "🤡", "🥶",
-    "👍", "👎", "🔥", "🎉", "🤝", "🍀", "💪", "🙏", "🤯", "🤑",
+    "thumbs_up", "thumbs_down", "laugh", "angry", "cry", "fire",
+    "party", "heart", "clap", "muscle", "skull", "lucky",
 }
 
 

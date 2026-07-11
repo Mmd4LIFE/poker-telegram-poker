@@ -26,7 +26,7 @@ class User(Base, TimestampMixin):
     language_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
     photo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # Cosmetic avatar chosen inside the app (emoji / preset id)
-    avatar: Mapped[str] = mapped_column(String(32), default="🎩")
+    avatar: Mapped[str] = mapped_column(String(32), default="user")
     # Equipped username color: "" (classic) or a CSS color string
     name_color: Mapped[str] = mapped_column(String(24), default="")
     # Owned cosmetics, e.g. ["a:👑", "c:#f5c518"]

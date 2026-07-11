@@ -4,21 +4,24 @@ from __future__ import annotations
 from app.models import User
 from app.services.economy import InsufficientFunds, credit, debit
 
-# --- Avatar catalog. price 0 = free/default (always owned). ------------------
+# --- Avatar catalog. Avatars are icon *codes* (rendered as lucide icons on
+#     the client). price 0 = free/default (always owned). ---------------------
+DEFAULT_AVATAR = "user"
+
 AVATARS: list[dict] = [
     # free starter set
-    *[{"emoji": e, "price_coins": 0, "price_gems": 0, "tier": "free"} for e in
-      ["🎩", "🃏", "🎲", "😎", "🤠", "🦊", "🐱", "🐼", "🐵", "🐸"]],
+    *[{"code": c, "price_coins": 0, "price_gems": 0, "tier": "free"} for c in
+      ["user", "cat", "dog", "bird", "fish", "rabbit", "ghost", "smile", "dice", "club"]],
     # coin avatars
-    *[{"emoji": e, "price_coins": p, "price_gems": 0, "tier": "coins"} for e, p in [
-        ("🦁", 30_000), ("🐯", 30_000), ("🐺", 40_000), ("🦉", 40_000),
-        ("🚀", 60_000), ("🤖", 60_000), ("👽", 80_000), ("🧠", 80_000),
-        ("🎯", 100_000), ("🔥", 120_000),
+    *[{"code": c, "price_coins": p, "price_gems": 0, "tier": "coins"} for c, p in [
+        ("squirrel", 30_000), ("turtle", 30_000), ("snail", 40_000), ("bug", 40_000),
+        ("rocket", 60_000), ("bot", 60_000), ("brain", 80_000), ("target", 80_000),
+        ("anchor", 100_000), ("flame", 120_000),
     ]],
     # gem avatars (premium)
-    *[{"emoji": e, "price_coins": 0, "price_gems": g, "tier": "gems"} for e, g in [
-        ("👑", 40), ("🦈", 30), ("🐋", 50), ("💎", 60),
-        ("🀄", 25), ("🎰", 35), ("💰", 45), ("🏆", 80),
+    *[{"code": c, "price_coins": 0, "price_gems": g, "tier": "gems"} for c, g in [
+        ("crown", 40), ("gem", 30), ("skull", 50), ("diamond", 60),
+        ("swords", 25), ("zap", 35), ("star", 45), ("trophy", 80),
     ]],
 ]
 
@@ -36,7 +39,7 @@ COLORS: list[dict] = [
     {"code": "#7CFC00", "label": "Neon", "css": "#7CFC00", "price_coins": 0, "price_gems": 25},
 ]
 
-AVATAR_MAP = {a["emoji"]: a for a in AVATARS}
+AVATAR_MAP = {a["code"]: a for a in AVATARS}
 COLOR_MAP = {c["code"]: c for c in COLORS}
 
 
@@ -67,8 +70,8 @@ def owns(user: User, kind: str, code: str) -> bool:
 def catalog(user: User) -> dict:
     return {
         "avatars": [{
-            **a, "owned": owns(user, "avatar", a["emoji"]),
-            "equipped": user.avatar == a["emoji"],
+            **a, "owned": owns(user, "avatar", a["code"]),
+            "equipped": user.avatar == a["code"],
         } for a in AVATARS],
         "colors": [{
             **c, "owned": owns(user, "color", c["code"]),

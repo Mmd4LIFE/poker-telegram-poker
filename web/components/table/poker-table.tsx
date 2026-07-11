@@ -6,11 +6,7 @@ import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { haptic, notify } from "@/lib/telegram";
-
-const EMOTES = [
-  "😀", "😎", "😂", "😍", "🤔", "😱", "😭", "😡", "🤡", "🥶",
-  "👍", "👎", "🔥", "🎉", "🤝", "🍀", "💪", "🙏", "🤯", "🤑",
-];
+import { AvatarIcon, EMOTES, EMOTE_ICONS } from "@/lib/avatars";
 import * as Poker from "@/lib/poker";
 import { PlayingCard, CardRow } from "@/components/table/playing-card";
 import { Button } from "@/components/ui/button";
@@ -199,21 +195,24 @@ export function PokerTable({ code }: { code: string }) {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setEmoteOpen(false)} />
           <div
-            className="absolute left-1/2 top-1/2 z-40 grid w-[90%] max-w-sm -translate-x-1/2 -translate-y-1/2 grid-cols-5 gap-2 rounded-2xl border border-white/10 bg-card p-4 shadow-2xl"
+            className="absolute left-1/2 top-1/2 z-40 grid w-[90%] max-w-sm -translate-x-1/2 -translate-y-1/2 grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-card p-4 shadow-2xl"
           >
-            {EMOTES.map((e) => (
-              <button
-                key={e}
-                className="grid aspect-square place-items-center rounded-xl bg-secondary text-2xl active:scale-90"
-                onClick={() => {
-                  send({ type: "emote", emote: e });
-                  haptic("light");
-                  setEmoteOpen(false);
-                }}
-              >
-                {e}
-              </button>
-            ))}
+            {EMOTES.map((e) => {
+              const EmoteIcon = EMOTE_ICONS[e];
+              return (
+                <button
+                  key={e}
+                  className="grid aspect-square place-items-center rounded-xl bg-secondary text-gold active:scale-90"
+                  onClick={() => {
+                    send({ type: "emote", emote: e });
+                    haptic("light");
+                    setEmoteOpen(false);
+                  }}
+                >
+                  <EmoteIcon className="size-6" />
+                </button>
+              );
+            })}
           </div>
         </>
       )}
@@ -266,20 +265,23 @@ export function PokerTable({ code }: { code: string }) {
                 {fmt(p.bet)}
               </div>
             )}
-            {emotes[p.user_id] && (
-              <div className="absolute left-1/2 top-[-30px] z-10 -translate-x-1/2 animate-bounce rounded-full bg-card px-2 py-0.5 text-lg shadow-lg">
-                {emotes[p.user_id].e}
-              </div>
-            )}
+            {emotes[p.user_id] && (() => {
+              const EmoteIcon = EMOTE_ICONS[emotes[p.user_id].e];
+              return (
+                <div className="absolute left-1/2 top-[-30px] z-10 -translate-x-1/2 animate-bounce rounded-full bg-card p-1.5 text-gold shadow-lg">
+                  {EmoteIcon ? <EmoteIcon className="size-5" /> : null}
+                </div>
+              );
+            })()}
             <button
               disabled={p.is_bot || p.user_id === meId}
               onClick={() => !p.is_bot && p.user_id !== meId && openUser(p.user_id)}
               className={cn(
-                "relative mx-auto grid size-11 place-items-center rounded-full border-2 bg-secondary text-xl",
+                "relative mx-auto grid size-11 place-items-center rounded-full border-2 bg-secondary text-gold",
                 p.is_turn ? "border-gold shadow-[0_0_14px_var(--color-gold)]" : "border-white/10",
               )}
             >
-              {p.avatar || "🎩"}
+              <AvatarIcon code={p.avatar} className="size-5" />
               {isDealer && (
                 <span className="absolute -left-1 top-6 grid size-4 place-items-center rounded-full bg-white text-[9px] font-bold text-black">
                   D

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Coins, Gem, Sparkles, Package } from "lucide-react";
+import { Coins, Gem, Sparkles, Package, Gift, Box as BoxIcon, Crown } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { api, fmt } from "@/lib/api";
 import { notify, haptic } from "@/lib/telegram";
+import { AvatarIcon } from "@/lib/avatars";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -20,6 +22,12 @@ const TIER_LABEL: Record<string, string> = {
   rare: "Rare",
   epic: "Epic",
   legendary: "Legendary",
+};
+const TIER_ICON: Record<string, LucideIcon> = {
+  common: Package,
+  rare: Gift,
+  epic: BoxIcon,
+  legendary: Crown,
 };
 
 export function BoxOpenDialog({
@@ -69,6 +77,7 @@ export function BoxOpenDialog({
   }, [box, onDone]);
 
   const glow = TIER_GLOW[box?.tier] || TIER_GLOW.common;
+  const TierIcon = TIER_ICON[box?.tier] || Package;
 
   return (
     <Dialog open={!!box} onOpenChange={(o) => !o && onClose()}>
@@ -92,8 +101,8 @@ export function BoxOpenDialog({
               <div className="relative grid size-28 place-items-center">
                 <div className="pcm-rays absolute inset-[-30%] opacity-40"
                   style={{ background: `conic-gradient(from 0deg, transparent, ${glow}, transparent, ${glow}, transparent)`, borderRadius: "9999px" }} />
-                <div className="pcm-shake grid size-24 place-items-center rounded-2xl bg-secondary pcm-glow text-6xl">
-                  {box?.icon || "📦"}
+                <div className="pcm-shake grid size-24 place-items-center rounded-2xl bg-secondary pcm-glow text-gold">
+                  <TierIcon className="size-12" />
                 </div>
               </div>
               <p className="mt-5 font-bold">Opening {box?.name}…</p>
@@ -109,7 +118,7 @@ export function BoxOpenDialog({
                   style={{ background: "var(--card)" }}
                 >
                   {reward?.type === "avatar" ? (
-                    <span className="text-6xl">{reward.value}</span>
+                    <AvatarIcon code={reward.value} className="size-14 text-gold" />
                   ) : reward?.type === "gems" ? (
                     <Gem className="size-14 text-gem" />
                   ) : (
