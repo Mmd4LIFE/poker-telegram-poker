@@ -79,6 +79,22 @@ async def play(message: Message):
     await message.answer("Take a seat 👇", reply_markup=_webapp_kb())
 
 
+@router.message(F.text == "/preview")
+async def preview(message: Message):
+    """Open the new Next.js + shadcn UI (preview build served at /app)."""
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="✨ Open new UI (preview)",
+            web_app=WebAppInfo(url=f"{settings.WEBAPP_URL}/app"),
+        )
+    ]])
+    await message.answer(
+        "Here's the new Next.js + shadcn interface in progress. "
+        "The live table is still being ported — use /play for the full game.",
+        reply_markup=kb,
+    )
+
+
 @router.message(F.text == "/help")
 async def help_cmd(message: Message):
     await message.answer(

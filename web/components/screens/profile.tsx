@@ -1,0 +1,133 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Gift,
+  Users,
+  TrendingUp,
+  Coins,
+  Trophy,
+  Flame,
+  Armchair,
+  Wrench,
+  Spade,
+} from "lucide-react";
+import { toast } from "sonner";
+import { api, fmt } from "@/lib/api";
+import { useApp } from "@/lib/store";
+import { notify } from "@/lib/telegram";
+import { WalletBar } from "@/components/wallet-bar";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+function StatRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
+      <Icon className="size-5 text-muted-foreground" />
+      <span className="flex-1 text-sm">{label}</span>
+      <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+export function ProfileScreen() {
+  const { user, refresh, go } = useApp();
+  const [busy, setBusy] = useState(false);
+
+  if (!user) return null;
+  const pct = Math.round((user.level_progress || 0) * 100);
+
+  async function claimDaily() {
+    setBusy(true);
+    try {
+      const r = await api.daily();
+      if (r.claimed) {
+        toast.success(`+${fmt(r.reward)} coins · streak ${r.streak}`);
+        notify("success");
+      } else {
+        toast("Already claimed — come back later");
+      }
+      await refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <WalletBar />
+
+      <Card className="items-center p-6 text-center">
+        <Avatar className="mx-auto size-20 border-2 border-gold/40">
+          <AvatarFallback className="bg-secondary text-4xl">
+            {user.avatar || <Spade className="size-8" />}
+          </AvatarFallback>
+        </Avatar>
+        <div className="mt-2 text-xl font-extrabold">{user.display_name}</div>
+        <div className="text-sm text-muted-foreground">
+          {user.degree_label || user.degree}
+        </div>
+        <div className="mt-4 flex w-full items-center justify-between text-sm">
+          <span>Level {user.level}</span>
+          <span className="text-muted-foreground">
+            {fmt(user.xp)} / {fmt(user.next_level_xp)} XP
+          </span>
+        </div>
+        <Progress value={pct} className="mt-2" />
+      </Card>
+
+      <Card className="mt-3 p-4">
+        <StatRow icon={Spade} label="Hands won" value={`${user.hands_won} / ${user.hands_played}`} />
+        <StatRow icon={TrendingUp} label="Win rate" value={`${user.win_rate}%`} />
+        <StatRow icon={Coins} label="Total won" value={fmt(user.total_won)} />
+        <StatRow icon={Trophy} label="Biggest pot" value={fmt(user.biggest_pot)} />
+        <StatRow icon={Flame} label="Best win streak" value={String(user.best_win_streak)} />
+        <StatRow icon={Armchair} label="Tables played" value={String(user.games_played)} />
+      </Card>
+
+      <Button
+        className="mt-3 w-full font-bold"
+        size="lg"
+        onClick={() => go("invite")}
+      >
+        <Users className="size-4" /> Invite &amp; Earn
+        {user.referral_count ? ` · ${user.referral_count} joined` : ""}
+      </Button>
+
+      <Button
+        variant="secondary"
+        className="mt-2.5 w-full font-bold"
+        size="lg"
+        disabled={busy}
+        onClick={claimDaily}
+      >
+        <Gift className="size-4" /> Claim Daily Reward
+      </Button>
+
+      {user.is_admin && (
+        <Button
+          variant="outline"
+          className="mt-2.5 w-full"
+          size="lg"
+          onClick={() => go("admin")}
+        >
+          <Wrench className="size-4" /> Admin Dashboard
+        </Button>
+      )}
+    </>
+  );
+}
