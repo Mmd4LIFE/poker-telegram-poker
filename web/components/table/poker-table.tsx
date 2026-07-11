@@ -220,14 +220,14 @@ export function PokerTable({ code }: { code: string }) {
 
       {/* felt */}
       <div
-        className="absolute left-1/2 top-[40%] aspect-[4/4.4] w-[88%] max-w-[440px] -translate-x-1/2 -translate-y-1/2 rounded-[46%/40%] border-[10px] border-[#3a2415]"
+        className="absolute left-1/2 top-[50%] aspect-[4/4.2] w-[86%] max-w-[430px] -translate-x-1/2 -translate-y-1/2 rounded-[46%/40%] border-[10px] border-[#3a2415]"
         style={{
           background: "radial-gradient(ellipse at center, oklch(0.45 0.11 155), oklch(0.36 0.10 155))",
           boxShadow: "inset 0 0 60px rgba(0,0,0,.5), 0 10px 40px rgba(0,0,0,.6)",
         }}
       />
       {/* board + pot */}
-      <div className="absolute left-1/2 top-[38%] w-[90%] -translate-x-1/2 -translate-y-1/2 text-center">
+      <div className="absolute left-1/2 top-[47%] w-[90%] -translate-x-1/2 -translate-y-1/2 text-center">
         <div className="flex min-h-[52px] items-center justify-center gap-1.5">
           {board.map((c, i) => (
             <PlayingCard key={i} card={c} />
@@ -249,8 +249,8 @@ export function PokerTable({ code }: { code: string }) {
       {/* seats */}
       {ordered.map((p, i) => {
         const a = (i * 2 * Math.PI) / n;
-        const x = 50 + 41 * Math.sin(a);
-        const y = 42 + 34 * Math.cos(a);
+        const x = 50 + 42 * Math.sin(a);
+        const y = 52 + 27 * Math.cos(a);
         const isDealer = state?.button === p.user_id;
         return (
           <div
