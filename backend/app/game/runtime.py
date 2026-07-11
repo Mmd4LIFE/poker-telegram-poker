@@ -12,7 +12,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.game.bots import pick_bots
 from app.game.connection import hub
-from app.models import Hand, Room, RoomPlayer, User
+from app.models import Hand, PlayerHand, Room, RoomPlayer, User
 from app.poker import ai
 from app.poker.holdem import HoldemGame, Seat, Street
 from app.services.progression import record_hand
@@ -236,6 +236,7 @@ class RoomRuntime:
         if not result:
             return
         won_map = {r["user_id"]: r["won"] for r in result["results"]}
+        name_map = {r["user_id"]: r.get("hand_name", "") for r in result["results"]}
         showdown = result.get("showdown", False)
 
         async with SessionLocal() as session:
@@ -263,6 +264,15 @@ class RoomRuntime:
                             net=net,
                             pot=result["pot"],
                         )
+                        # match-history row (powers friend history)
+                        session.add(PlayerHand(
+                            user_id=seat.user_id, room_id=self.room_id,
+                            room_code=self.code, hand_no=result["hand_no"],
+                            net=net, won=won_amt > 0,
+                            showdown=showdown and won_amt > 0,
+                            hand_name=name_map.get(seat.user_id, "Folded" if seat.folded else ""),
+                            pot=result["pot"],
+                        ))
                 # sync table stack back to RoomPlayer
                 rp = (await session.execute(
                     select(RoomPlayer).where(

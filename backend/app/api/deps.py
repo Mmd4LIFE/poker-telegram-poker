@@ -23,6 +23,14 @@ async def get_current_user(
     user = await session.get(User, int(payload["sub"]))
     if user is None or user.is_banned:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+    # refresh presence (used for online status) — cheap, throttled to ~30s
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    ls = user.last_seen_at
+    if ls is not None and ls.tzinfo is None:
+        ls = ls.replace(tzinfo=timezone.utc)
+    if ls is None or (now - ls).total_seconds() > 30:
+        user.last_seen_at = now
     return user
 
 
