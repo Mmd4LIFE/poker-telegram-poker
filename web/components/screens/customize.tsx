@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Lock, Coins, Gem } from "lucide-react";
+import { Check, Lock, Coins, Gem, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -13,6 +13,48 @@ import { AvatarIcon } from "@/lib/avatars";
 import { cn } from "@/lib/utils";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+function Section({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className="mt-3 gap-0 p-0">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between p-4"
+      >
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </span>
+        <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </Card>
+  );
+}
+
+function PriceTag({ item }: { item: any }) {
+  return (
+    <span className="absolute -bottom-1 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-bold">
+      {item.price_gems ? (
+        <>
+          <Gem className="size-2.5 text-gem" /> {item.price_gems}
+        </>
+      ) : (
+        <>
+          <Coins className="size-2.5 text-gold" /> {fmt(item.price_coins)}
+        </>
+      )}
+    </span>
+  );
+}
 
 export function CustomizeScreen() {
   const { user, refresh, go } = useApp();
@@ -30,7 +72,7 @@ export function CustomizeScreen() {
         notify("success");
       } else {
         await api.buyCosmetic(kind, code);
-        toast.success("Unlocked & equipped!");
+        toast.success("Unlocked!");
         notify("success");
       }
       await refresh();
@@ -41,7 +83,6 @@ export function CustomizeScreen() {
   }
 
   if (!user) return null;
-  const previewColor = user.name_color || undefined;
 
   return (
     <>
@@ -54,126 +95,106 @@ export function CustomizeScreen() {
             <AvatarIcon code={user.avatar} color={user.avatar_color} className="size-9" />
           </AvatarFallback>
         </Avatar>
-        <div className="mt-2 text-xl font-extrabold" style={previewColor ? { color: previewColor } : undefined}>
+        <div
+          className="mt-2 text-xl font-extrabold"
+          style={user.name_color ? { color: user.name_color } : undefined}
+        >
           {user.display_name}
         </div>
         {user.handle && <div className="text-xs text-muted-foreground">{user.handle}</div>}
       </Card>
 
-      <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        Avatars
-      </h2>
-      <Card className="p-4">
-        <div className="grid grid-cols-5 gap-2">
+      {/* Avatars */}
+      <Section title="Avatar" defaultOpen>
+        <div className="grid grid-cols-5 gap-3">
           {cat?.avatars.map((a: any) => (
             <button
               key={a.code}
               onClick={() => act("avatar", a.code, a.owned)}
               className={cn(
-                "relative flex aspect-square flex-col items-center justify-center gap-1 rounded-xl bg-secondary text-gold active:scale-90",
+                "relative flex aspect-square items-center justify-center rounded-xl bg-secondary text-gold active:scale-90",
                 a.equipped && "ring-2 ring-gold",
                 !a.owned && "opacity-80",
               )}
             >
               <AvatarIcon code={a.code} color={a.color} className="size-6" />
-              {a.equipped ? (
+              {a.equipped && (
                 <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-gold text-background">
                   <Check className="size-3" />
                 </span>
-              ) : !a.owned ? (
-                <span className="flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground">
-                  {a.price_gems ? (
-                    <>
-                      <Gem className="size-2.5 text-gem" />
-                      {a.price_gems}
-                    </>
-                  ) : (
-                    <>
-                      <Coins className="size-2.5 text-gold" />
-                      {fmt(a.price_coins)}
-                    </>
-                  )}
-                </span>
-              ) : null}
+              )}
+              {!a.owned && !a.equipped && <PriceTag item={a} />}
             </button>
           ))}
         </div>
-      </Card>
+      </Section>
 
-      <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        Name Color
-      </h2>
-      <ColorList list={cat?.colors} kind="color" act={act} />
-
-      <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        Avatar Color
-      </h2>
-      <Card className="mb-2 flex-row items-center gap-3 bg-secondary/40 p-3">
-        <div className="grid size-11 place-items-center rounded-xl bg-secondary">
-          <AvatarIcon
-            code={cat?.current_avatar || user.avatar}
-            color={cat?.current_avatar_color}
-            className="size-6"
-          />
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Colors apply to <b className="text-foreground">this avatar only</b>. Each
-          avatar keeps its own color — equip another avatar above to color it separately.
-        </div>
-      </Card>
-      <ColorList list={cat?.avatar_colors} kind="avatar_color" act={act} defaultLabel="Classic" />
-    </>
-  );
-}
-
-function ColorList({
-  list,
-  kind,
-  act,
-  defaultLabel = "Classic",
-}: {
-  list: any[] | undefined;
-  kind: string;
-  act: (kind: string, code: string, owned: boolean) => void;
-  defaultLabel?: string;
-}) {
-  return (
-    <Card className="p-4">
-      {list?.map((c: any) => (
-        <button
-          key={(c.code || "classic") + kind}
-          onClick={() => act(kind, c.code, c.owned)}
-          className="flex w-full items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
-        >
-          <span
-            className="grid size-8 place-items-center rounded-full border border-white/10"
-            style={{ background: c.css || "var(--muted)" }}
-          >
-            {c.equipped && <Check className="size-4 text-background" />}
-          </span>
-          <span className="flex-1 text-left font-bold" style={c.css ? { color: c.css } : undefined}>
-            {c.label === "Classic" ? defaultLabel : c.label}
-          </span>
-          {c.equipped ? (
-            <span className="text-xs text-gold">Equipped</span>
-          ) : c.owned ? (
-            <span className="text-xs text-muted-foreground">Owned</span>
-          ) : (
-            <span className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
-              <Lock className="size-3" />
-              {c.price_gems ? (
-                <>
-                  <Gem className="size-3 text-gem" /> {c.price_gems}
-                </>
-              ) : (
-                <>
-                  <Coins className="size-3 text-gold" /> {fmt(c.price_coins)}
-                </>
+      {/* Name color — each swatch is YOUR name in that color */}
+      <Section title="Name Color">
+        <div className="grid grid-cols-2 gap-2">
+          {cat?.colors.map((c: any) => (
+            <button
+              key={c.code || "classic"}
+              onClick={() => act("color", c.code, c.owned)}
+              className={cn(
+                "relative flex items-center justify-center rounded-xl bg-secondary px-2 py-3 active:scale-95",
+                c.equipped && "ring-2 ring-gold",
+                !c.owned && "opacity-80",
               )}
-            </span>
-          )}
-        </button>
-      ))}
-    </Card>
+            >
+              <span
+                className="truncate text-sm font-extrabold"
+                style={c.css ? { color: c.css } : undefined}
+              >
+                {user.display_name}
+              </span>
+              {c.equipped && (
+                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-gold text-background">
+                  <Check className="size-3" />
+                </span>
+              )}
+              {!c.owned && !c.equipped && (
+                <span className="absolute right-1 top-1">
+                  <Lock className="size-3 text-muted-foreground" />
+                </span>
+              )}
+              {!c.owned && !c.equipped && <PriceTag item={c} />}
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      {/* Avatar color — each swatch is YOUR avatar in that color (current avatar only) */}
+      <Section title="Avatar Color">
+        <p className="mb-3 text-xs text-muted-foreground">
+          Colors your current avatar only — each avatar keeps its own color.
+        </p>
+        <div className="grid grid-cols-5 gap-3">
+          {cat?.avatar_colors.map((c: any) => (
+            <button
+              key={(c.code || "classic") + "ac"}
+              onClick={() => act("avatar_color", c.code, c.owned)}
+              className={cn(
+                "relative flex aspect-square items-center justify-center rounded-xl bg-secondary active:scale-90",
+                c.equipped && "ring-2 ring-gold",
+                !c.owned && "opacity-80",
+              )}
+            >
+              <AvatarIcon
+                code={cat?.current_avatar || user.avatar}
+                color={c.css || "#f5c518"}
+                className="size-6"
+              />
+              {c.equipped && (
+                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-gold text-background">
+                  <Check className="size-3" />
+                </span>
+              )}
+              {!c.owned && !c.equipped && <PriceTag item={c} />}
+            </button>
+          ))}
+        </div>
+      </Section>
+    </>
   );
 }

@@ -99,6 +99,13 @@ export const api = {
   createSquad: (b: unknown) => req("POST", "/squads", b),
   joinSquad: (code: string) => req("POST", "/squads/join", { code }),
   leaveSquad: () => req("POST", "/squads/leave"),
+  squadBrowse: (q: string) => req("GET", "/squads/browse?q=" + encodeURIComponent(q)),
+  squadLeaderboard: () => req("GET", "/squads/leaderboard"),
+  squadPromote: (id: number) => req("POST", "/squads/members/promote", { user_id: id }),
+  squadDemote: (id: number) => req("POST", "/squads/members/demote", { user_id: id }),
+  squadKick: (id: number) => req("POST", "/squads/members/kick", { user_id: id }),
+  squadMessages: (after: number) => req("GET", "/squads/messages?after=" + after),
+  squadSend: (text: string) => req("POST", "/squads/messages", { text }),
 };
 
 export function fmt(n: number): string {

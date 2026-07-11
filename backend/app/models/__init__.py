@@ -8,7 +8,7 @@ from app.models.progression import (  # noqa: F401
     Challenge,
     UserChallenge,
 )
-from app.models.squad import Squad, SquadMember  # noqa: F401
+from app.models.squad import Squad, SquadMember, SquadMessage  # noqa: F401
 from app.models.social import Friendship, PlayerHand  # noqa: F401
 
 __all__ = [
@@ -26,6 +26,7 @@ __all__ = [
     "UserChallenge",
     "Squad",
     "SquadMember",
+    "SquadMessage",
     "Friendship",
     "PlayerHand",
 ]

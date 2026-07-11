@@ -138,8 +138,9 @@ class OpenBoxRequest(BaseModel):
 class CreateSquadRequest(BaseModel):
     name: str = Field(..., max_length=48)
     tag: str = Field("", max_length=8)
-    emblem: str = "♠️"
+    emblem: str = "spade"
     description: str = ""
+    is_public: bool = True
 
 
 class JoinSquadRequest(BaseModel):

@@ -173,4 +173,18 @@ async def record_hand(
     if net > 0:
         await bump_challenges(session, user, "coins_won", net)
     achievements = await sync_achievements(session, user)
+
+    # contribute to the player's squad (clan xp)
+    from app.models import Squad, SquadMember
+    mem = (await session.execute(
+        select(SquadMember).where(SquadMember.user_id == user.id)
+    )).scalar_one_or_none()
+    if mem:
+        squad = await session.get(Squad, mem.squad_id)
+        if squad:
+            squad.xp += xp
+            if net > 0:
+                squad.total_won += net
+                mem.contributed += net
+
     return {"level": level_info, "achievements": achievements}

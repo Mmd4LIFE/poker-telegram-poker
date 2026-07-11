@@ -52,6 +52,19 @@ def level_progress(xp: int) -> dict:
     }
 
 
+def squad_level_progress(xp: int) -> dict:
+    """Squad level curve: level n reached at xp = 2500 * (n-1)^2."""
+    xp = max(0, int(xp))
+    level = int(math.floor(math.sqrt(xp / 2500))) + 1
+    cur = 2500 * (level - 1) ** 2
+    nxt = 2500 * level ** 2
+    span = max(1, nxt - cur)
+    return {
+        "level": level, "xp": xp, "next_level_xp": nxt,
+        "progress": round((xp - cur) / span, 4),
+    }
+
+
 def degree_for_level(level: int) -> tuple[str, str]:
     code, label = "rookie", "🃏 Rookie"
     for min_lvl, c, lab in DEGREES:

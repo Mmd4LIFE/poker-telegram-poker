@@ -5,6 +5,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -29,11 +30,27 @@ class Squad(Base, TimestampMixin):
     description: Mapped[str] = mapped_column(String(256), default="")
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     xp: Mapped[int] = mapped_column(BigInteger, default=0)
+    total_won: Mapped[int] = mapped_column(BigInteger, default=0)
     bank_coins: Mapped[int] = mapped_column(BigInteger, default=0)
     max_members: Mapped[int] = mapped_column(Integer, default=20)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
     members: Mapped[list["SquadMember"]] = relationship(
         back_populates="squad", cascade="all, delete-orphan"
+    )
+
+
+class SquadMessage(Base):
+    __tablename__ = "squad_messages"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    squad_id: Mapped[int] = mapped_column(
+        ForeignKey("squads.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    text: Mapped[str] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
     )
 
 
