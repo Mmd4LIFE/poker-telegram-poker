@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   UserPlus,
+  UserMinus,
   Check,
   MessageCircle,
   TrendingUp,
@@ -21,6 +22,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -59,6 +67,8 @@ function Stat({ icon: Icon, label, value }: { icon: React.ElementType; label: st
 export function UserProfileSheet() {
   const { profileId, closeUser } = useApp();
   const [p, setP] = useState<Profile | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     setP(null);
@@ -86,6 +96,21 @@ export function UserProfileSheet() {
     }
   }
 
+  async function doRemove() {
+    if (!p) return;
+    setRemoving(true);
+    try {
+      await api.friendRemove(p.id);
+      toast("Removed friend");
+      setConfirmRemove(false);
+      setP((await api.userProfile(p.id)) as never);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   function message() {
     if (!p) return;
     if (p.username) openTelegramLink(`https://t.me/${p.username}`);
@@ -101,7 +126,7 @@ export function UserProfileSheet() {
         </Button>
         <button
           className="w-full text-center text-xs text-muted-foreground"
-          onClick={toggleFriend}
+          onClick={() => setConfirmRemove(true)}
         >
           Remove friend
         </button>
@@ -192,6 +217,41 @@ export function UserProfileSheet() {
           </div>
         )}
       </SheetContent>
+
+      <Dialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove friend?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {p ? (
+              <>
+                You&apos;ll no longer be friends with{" "}
+                <b className="text-foreground">{p.display_name}</b>. You can send a
+                new request anytime.
+              </>
+            ) : null}
+          </p>
+          <DialogFooter className="mt-2 gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setConfirmRemove(false)}
+              disabled={removing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={doRemove}
+              disabled={removing}
+            >
+              <UserMinus className="size-4" /> Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
