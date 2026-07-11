@@ -20,8 +20,10 @@ async def my_referral(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    from app.services.users import ensure_referral_code
     username = get_bot_username()
-    deep = f"ref_{user.id}"
+    code = await ensure_referral_code(session, user)
+    deep = f"ref-{code}"
     link = f"https://t.me/{username}?startapp={deep}" if username else None
 
     # recent invited friends

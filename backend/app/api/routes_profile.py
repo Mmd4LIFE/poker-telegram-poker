@@ -58,11 +58,13 @@ async def leaderboard(
     rows = (await session.execute(
         select(User).where(User.is_bot.is_(False)).order_by(col.desc()).limit(limit)
     )).scalars().all()
+    from app.services.cosmetics import effective_avatar_color
     return [{
         "rank": i + 1,
         "id": u.id,
         "display_name": u.display_name,
         "avatar": u.avatar,
+        "avatar_color": effective_avatar_color(u),
         "name_color": u.name_color or "",
         "level": u.level,
         "degree": u.degree,

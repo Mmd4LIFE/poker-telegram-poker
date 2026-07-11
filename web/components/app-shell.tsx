@@ -17,14 +17,29 @@ import { JoinRoomScreen } from "@/components/screens/join-room";
 import { CustomizeScreen } from "@/components/screens/customize";
 import { PokerTable } from "@/components/table/poker-table";
 import { UserProfileSheet } from "@/components/user-profile-sheet";
+import { LevelUpOverlay } from "@/components/level-up-overlay";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 export function AppShell({ startParam }: { startParam: string | null }) {
-  const { view, go, tableCode } = useApp();
+  const { view, go, tableCode, enterTable } = useApp();
 
   useEffect(() => {
-    if (startParam === "shop") go("shop");
-    else if (startParam === "leaderboard") go("leaderboard");
-  }, [startParam, go]);
+    const p = startParam;
+    if (!p) return;
+    if (p === "shop") go("shop");
+    else if (p === "leaderboard") go("leaderboard");
+    else if (p.startsWith("sq-")) {
+      const code = p.split("-")[1];
+      api.joinSquad(code).catch(() => {}).finally(() => go("squad"));
+    } else if (p.startsWith("rm-")) {
+      const code = p.split("-")[1];
+      api.joinRoom(code, null).then(() => enterTable(code)).catch((e) => {
+        toast.error((e as Error).message);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startParam]);
 
   return (
     <>
@@ -50,6 +65,7 @@ export function AppShell({ startParam }: { startParam: string | null }) {
         </>
       )}
       <UserProfileSheet />
+      <LevelUpOverlay />
     </>
   );
 }

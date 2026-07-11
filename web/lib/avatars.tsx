@@ -21,13 +21,15 @@ export function avatarIcon(code?: string | null): LucideIcon {
 
 export function AvatarIcon({
   code,
+  color,
   className,
 }: {
   code?: string | null;
+  color?: string | null;
   className?: string;
 }) {
   const Icon = avatarIcon(code);
-  return <Icon className={className} />;
+  return <Icon className={className} style={color ? { color } : undefined} />;
 }
 
 // --- Emotes (icon-based) ---

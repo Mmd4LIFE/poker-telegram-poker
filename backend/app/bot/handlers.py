@@ -57,7 +57,8 @@ async def start_deeplink(message: Message, command: CommandObject):
         )
         await session.commit()
     text = WELCOME
-    is_ref = bool(param) and param.startswith("ref_")
+    is_ref = bool(param) and (param.startswith("ref-") or param.startswith("ref_")
+                              or param.startswith("sq-") or param.startswith("rm-"))
     if created and is_ref:
         text += f"\n\n🎁 <b>+{settings.REFERRAL_FRIEND_REWARD:,} bonus coins</b> for joining via a friend's invite!"
     elif param and not is_ref and param not in ("shop", "leaderboard"):

@@ -22,7 +22,7 @@ function Row({ f, action }: { f: FriendCard; action?: React.ReactNode }) {
       <button className="relative" onClick={() => openUser(f.id)}>
         <Avatar className="size-10 border border-white/10">
           <AvatarFallback className="bg-secondary text-gold">
-            <AvatarIcon code={f.avatar} className="size-5" />
+            <AvatarIcon code={f.avatar} color={f.avatar_color} className="size-5" />
           </AvatarFallback>
         </Avatar>
         <OnlineDot online={f.online} className="absolute -bottom-0.5 -right-0.5" />

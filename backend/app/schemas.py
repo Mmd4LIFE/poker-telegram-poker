@@ -33,6 +33,9 @@ class UserProfile(BaseModel):
     username: str | None
     avatar: str
     name_color: str
+    avatar_color: str
+    referral_code: str | None
+    bot_username: str
     coins: int
     gems: int
     level: int
@@ -57,13 +60,17 @@ class UserProfile(BaseModel):
     @classmethod
     def from_user(cls, u: User) -> "UserProfile":
         from app.config import settings
+        from app.services.cosmetics import effective_avatar_color
+        from app.bot.instance import get_bot_username
         prog = level_progress(u.xp)
         _, label = degree_for_level(u.level)
         win_rate = round(u.hands_won / u.hands_played * 100, 1) if u.hands_played else 0.0
         return cls(
             id=u.id, telegram_id=u.telegram_id, display_name=u.display_name,
             handle=u.handle, username=u.username, avatar=u.avatar,
-            name_color=u.name_color or "", coins=u.coins, gems=u.gems,
+            name_color=u.name_color or "", avatar_color=effective_avatar_color(u),
+            referral_code=u.referral_code, bot_username=get_bot_username(),
+            coins=u.coins, gems=u.gems,
             level=u.level, xp=u.xp, degree=u.degree, degree_label=label,
             level_progress=prog["progress"], next_level_xp=prog["next_level_xp"],
             hands_played=u.hands_played, hands_won=u.hands_won,

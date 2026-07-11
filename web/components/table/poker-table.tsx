@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { ArrowLeft, BookOpen, Coins, Trophy, Smile } from "lucide-react";
+import { ArrowLeft, BookOpen, Coins, Trophy, Smile, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
-import { haptic, notify } from "@/lib/telegram";
+import { haptic, notify, shareInvite } from "@/lib/telegram";
 import { AvatarIcon, EMOTES, EMOTE_ICONS } from "@/lib/avatars";
 import * as Poker from "@/lib/poker";
 import { PlayingCard, CardRow } from "@/components/table/playing-card";
@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export function PokerTable({ code }: { code: string }) {
-  const { user, exitTable, openUser } = useApp();
+  const { user, exitTable, openUser, refresh } = useApp();
   const meId = user!.id;
   const [state, setState] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
@@ -58,6 +58,7 @@ export function PokerTable({ code }: { code: string }) {
         if (winners.length) {
           setResult(msg.result);
           notify("success");
+          refresh(); // update coins/level (triggers level-up animation)
           clearTimeout(resultTimer.current);
           resultTimer.current = setTimeout(() => setResult(null), 4500);
         }
@@ -178,6 +179,16 @@ export function PokerTable({ code }: { code: string }) {
         </Button>
         <div className="rounded-full bg-card px-3 py-1 text-sm font-bold">#{code}</div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() =>
+              user &&
+              shareInvite(user, "room", code, "Join my poker table on Poker CM!")
+            }
+          >
+            <UserPlus className="size-4" />
+          </Button>
           <Button variant="outline" size="icon" onClick={() => setEmoteOpen((v) => !v)}>
             <Smile className="size-4" />
           </Button>
@@ -281,7 +292,7 @@ export function PokerTable({ code }: { code: string }) {
                 p.is_turn ? "border-gold shadow-[0_0_14px_var(--color-gold)]" : "border-white/10",
               )}
             >
-              <AvatarIcon code={p.avatar} className="size-5" />
+              <AvatarIcon code={p.avatar} color={p.avatar_color} className="size-5" />
               {isDealer && (
                 <span className="absolute -left-1 top-6 grid size-4 place-items-center rounded-full bg-white text-[9px] font-bold text-black">
                   D

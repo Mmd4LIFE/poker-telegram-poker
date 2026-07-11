@@ -25,12 +25,19 @@ class User(Base, TimestampMixin):
     last_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     language_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
     photo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    # Cosmetic avatar chosen inside the app (emoji / preset id)
+    # Cosmetic avatar (icon code, e.g. "crown")
     avatar: Mapped[str] = mapped_column(String(32), default="user")
     # Equipped username color: "" (classic) or a CSS color string
     name_color: Mapped[str] = mapped_column(String(24), default="")
-    # Owned cosmetics, e.g. ["a:👑", "c:#f5c518"]
+    # Equipped avatar icon color: "" (per-avatar default) or a CSS color string
+    avatar_color: Mapped[str] = mapped_column(String(24), default="")
+    # Owned cosmetics, e.g. ["a:crown", "c:#f5c518", "ac:#3fa9ff"]
     owned_cosmetics: Mapped[list] = mapped_column(JSONB, default=list)
+
+    # Opaque referral code used in invite links (instead of the numeric id)
+    referral_code: Mapped[str | None] = mapped_column(
+        String(16), unique=True, index=True, nullable=True
+    )
 
     # AI bot fields
     is_bot: Mapped[bool] = mapped_column(Boolean, default=False, index=True)

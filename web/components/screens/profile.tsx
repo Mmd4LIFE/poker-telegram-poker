@@ -76,7 +76,7 @@ export function ProfileScreen() {
       <Card className="items-center p-6 text-center">
         <Avatar className="mx-auto size-20 border-2 border-gold/40">
           <AvatarFallback className="bg-secondary text-gold">
-            <AvatarIcon code={user.avatar} className="size-9" />
+            <AvatarIcon code={user.avatar} color={user.avatar_color} className="size-9" />
           </AvatarFallback>
         </Avatar>
         <div

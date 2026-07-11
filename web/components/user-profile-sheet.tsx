@@ -33,6 +33,7 @@ interface Profile {
   handle?: string | null;
   name_color?: string;
   avatar: string;
+  avatar_color?: string;
   degree_label: string;
   online: boolean;
   total_won: number;
@@ -116,7 +117,7 @@ export function UserProfileSheet() {
               <div className="relative">
                 <Avatar className="size-20 border-2 border-gold/40">
                   <AvatarFallback className="bg-secondary text-gold">
-                    <AvatarIcon code={p.avatar} className="size-9" />
+                    <AvatarIcon code={p.avatar} color={p.avatar_color} className="size-9" />
                   </AvatarFallback>
                 </Avatar>
                 <OnlineDot online={p.online} className="absolute bottom-1 right-1 size-4" />

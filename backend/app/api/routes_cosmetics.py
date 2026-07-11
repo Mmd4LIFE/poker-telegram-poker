@@ -29,7 +29,7 @@ async def buy(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    if body.kind not in ("avatar", "color"):
+    if body.kind not in ("avatar", "color", "avatar_color"):
         raise HTTPException(400, "bad kind")
     try:
         await C.buy(session, user, body.kind, body.code)
@@ -37,7 +37,7 @@ async def buy(
         await C.equip(session, user, body.kind, body.code)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    return {"coins": user.coins, "gems": user.gems, "avatar": user.avatar, "name_color": user.name_color}
+    return {"coins": user.coins, "gems": user.gems, "avatar": user.avatar, "name_color": user.name_color, "avatar_color": user.avatar_color}
 
 
 @router.post("/equip")
@@ -46,10 +46,10 @@ async def equip(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    if body.kind not in ("avatar", "color"):
+    if body.kind not in ("avatar", "color", "avatar_color"):
         raise HTTPException(400, "bad kind")
     try:
         await C.equip(session, user, body.kind, body.code)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    return {"avatar": user.avatar, "name_color": user.name_color}
+    return {"avatar": user.avatar, "name_color": user.name_color, "avatar_color": user.avatar_color}

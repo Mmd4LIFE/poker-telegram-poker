@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.database import get_session
 from app.models import Squad, SquadMember, User
+from app.services.cosmetics import effective_avatar_color as _eac
 from app.schemas import CreateSquadRequest, JoinSquadRequest
 
 router = APIRouter(prefix="/api/squads", tags=["squads"])
@@ -39,7 +40,9 @@ def _squad_dict(squad: Squad, members: list[tuple[SquadMember, User]]) -> dict:
         "xp": squad.xp, "bank_coins": squad.bank_coins,
         "members": [{
             "display_name": u.display_name, "avatar": u.avatar,
-            "role": m.role, "level": u.level, "contributed": m.contributed,
+            "avatar_color": _eac(u), "name_color": u.name_color or "",
+            "id": u.id, "role": m.role, "level": u.level,
+            "contributed": m.contributed,
         } for m, u in members],
     }
 

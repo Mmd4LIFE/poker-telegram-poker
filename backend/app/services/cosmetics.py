@@ -42,29 +42,53 @@ COLORS: list[dict] = [
 AVATAR_MAP = {a["code"]: a for a in AVATARS}
 COLOR_MAP = {c["code"]: c for c in COLORS}
 
+# Each avatar has a themed default icon color.
+DEFAULT_AVATAR_COLORS: dict[str, str] = {
+    "user": "#9aa7b8", "cat": "#ff9e3f", "dog": "#c08457", "bird": "#3fa9ff",
+    "fish": "#38e0d0", "rabbit": "#ff6bd6", "ghost": "#a06bff", "smile": "#f5c518",
+    "dice": "#e6edf3", "club": "#2ecc71", "squirrel": "#c08457", "turtle": "#2ecc71",
+    "snail": "#a06bff", "bug": "#7CFC00", "rocket": "#ff4d6d", "bot": "#9aa7b8",
+    "brain": "#ff6bd6", "target": "#ff4d6d", "anchor": "#3fa9ff", "flame": "#ff6a00",
+    "crown": "#f5c518", "gem": "#38e0d0", "skull": "#cfd8e3", "diamond": "#7ee0ff",
+    "swords": "#c0c0c0", "zap": "#f5c518", "star": "#f5c518", "trophy": "#f5c518",
+}
+
+
+def effective_avatar_color(user: User) -> str:
+    return user.avatar_color or DEFAULT_AVATAR_COLORS.get(user.avatar, "#f5c518")
+
+
+_KEY = {"avatar": "a:", "color": "c:", "avatar_color": "ac:"}
+
 
 def _owned_set(user: User) -> set[str]:
     return set(user.owned_cosmetics or [])
 
 
-def is_free(kind: str, code: str) -> bool:
+def _item(kind: str, code: str):
+    return AVATAR_MAP.get(code) if kind == "avatar" else COLOR_MAP.get(code)
+
+
+def _equipped(user: User, kind: str) -> str:
     if kind == "avatar":
-        a = AVATAR_MAP.get(code)
-        return bool(a) and a["price_coins"] == 0 and a["price_gems"] == 0
-    c = COLOR_MAP.get(code)
-    return bool(c) and c["price_coins"] == 0 and c["price_gems"] == 0
+        return user.avatar
+    if kind == "color":
+        return user.name_color or ""
+    return user.avatar_color or ""
+
+
+def is_free(kind: str, code: str) -> bool:
+    it = _item(kind, code)
+    return bool(it) and it["price_coins"] == 0 and it["price_gems"] == 0
 
 
 def owns(user: User, kind: str, code: str) -> bool:
     if is_free(kind, code):
         return True
     # whatever is currently equipped is always owned (never lose your current)
-    if kind == "avatar" and user.avatar == code:
+    if _equipped(user, kind) == code:
         return True
-    if kind == "color" and (user.name_color or "") == code:
-        return True
-    key = ("a:" if kind == "avatar" else "c:") + code
-    return key in _owned_set(user)
+    return (_KEY[kind] + code) in _owned_set(user)
 
 
 def catalog(user: User) -> dict:
@@ -72,22 +96,27 @@ def catalog(user: User) -> dict:
         "avatars": [{
             **a, "owned": owns(user, "avatar", a["code"]),
             "equipped": user.avatar == a["code"],
+            "default_color": DEFAULT_AVATAR_COLORS.get(a["code"], "#f5c518"),
         } for a in AVATARS],
         "colors": [{
             **c, "owned": owns(user, "color", c["code"]),
             "equipped": (user.name_color or "") == c["code"],
         } for c in COLORS],
+        "avatar_colors": [{
+            **c, "owned": owns(user, "avatar_color", c["code"]),
+            "equipped": (user.avatar_color or "") == c["code"],
+        } for c in COLORS],
+        "current_avatar_color": effective_avatar_color(user),
     }
 
 
 async def buy(session, user: User, kind: str, code: str) -> dict:
-    item = AVATAR_MAP.get(code) if kind == "avatar" else COLOR_MAP.get(code)
+    item = _item(kind, code)
     if not item:
         raise ValueError("Unknown item")
     if owns(user, kind, code):
         return {"owned": True}
-    coins = item["price_coins"]
-    gems = item["price_gems"]
+    coins, gems = item["price_coins"], item["price_gems"]
     try:
         if gems:
             await debit(session, user, gems, "cosmetic", currency="gems", ref=code)
@@ -95,20 +124,19 @@ async def buy(session, user: User, kind: str, code: str) -> dict:
             await debit(session, user, coins, "cosmetic", ref=code)
     except InsufficientFunds as e:
         raise ValueError(str(e)) from e
-    key = ("a:" if kind == "avatar" else "c:") + code
-    user.owned_cosmetics = [*(user.owned_cosmetics or []), key]
+    user.owned_cosmetics = [*(user.owned_cosmetics or []), _KEY[kind] + code]
     return {"owned": True}
 
 
 async def equip(session, user: User, kind: str, code: str) -> dict:
     if not owns(user, kind, code):
         raise ValueError("You don't own this item")
+    if not _item(kind, code):
+        raise ValueError("Unknown item")
     if kind == "avatar":
-        if code not in AVATAR_MAP:
-            raise ValueError("Unknown avatar")
         user.avatar = code
-    else:
-        if code not in COLOR_MAP:
-            raise ValueError("Unknown color")
+    elif kind == "color":
         user.name_color = code
+    else:
+        user.avatar_color = code
     return {"equipped": code}

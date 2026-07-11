@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Shield, LogOut, Table2 } from "lucide-react";
+import { Shield, LogOut, Table2, Share2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/store";
+import { shareInvite, inviteLink, notify } from "@/lib/telegram";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { AvatarIcon } from "@/lib/avatars";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export function SquadScreen() {
-  const { go, enterTable } = useApp();
+  const { go, enterTable, user } = useApp();
   const [squad, setSquad] = useState<any>(null);
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState("");
@@ -81,23 +82,55 @@ export function SquadScreen() {
       {squad ? (
         <>
           <Card className="items-center p-6 text-center">
-            <Shield className="size-9 text-gold" />
-            <div className="mt-1 text-xl font-extrabold">
+            <div className="grid size-16 place-items-center rounded-2xl bg-gradient-to-br from-gold/20 to-secondary">
+              <Shield className="size-8 text-gold" />
+            </div>
+            <div className="mt-2 text-xl font-extrabold">
               {squad.name} {squad.tag && <span className="text-muted-foreground">[{squad.tag}]</span>}
             </div>
             <div className="text-xs text-muted-foreground">
               #{squad.code} · {squad.members.length} members
             </div>
-            <Button variant="secondary" size="sm" className="mt-3" onClick={squadTable}>
-              <Table2 className="size-4" /> Create Squad Table
-            </Button>
+            <div className="mt-3 grid w-full grid-cols-2 gap-2">
+              <Button
+                onClick={() =>
+                  user &&
+                  shareInvite(
+                    user,
+                    "squad",
+                    squad.code,
+                    `Join my poker squad "${squad.name}" on Poker CM!`,
+                  )
+                }
+              >
+                <Share2 className="size-4" /> Invite
+              </Button>
+              <Button variant="secondary" onClick={squadTable}>
+                <Table2 className="size-4" /> Squad Table
+              </Button>
+            </div>
+            <button
+              className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"
+              onClick={async () => {
+                if (!user) return;
+                try {
+                  await navigator.clipboard.writeText(inviteLink(user, "squad", squad.code));
+                  toast.success("Invite link copied");
+                  notify("success");
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              <Copy className="size-3" /> Copy invite link
+            </button>
           </Card>
           <Card className="mt-3 p-4">
             {squad.members.map((m: any, i: number) => (
               <div key={i} className="flex items-center gap-3 border-b border-white/5 py-2 last:border-0">
                 <Avatar className="size-9 border border-white/10">
                   <AvatarFallback className="bg-secondary text-gold">
-                    <AvatarIcon code={m.avatar} className="size-4" />
+                    <AvatarIcon code={m.avatar} color={m.avatar_color} className="size-4" />
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">

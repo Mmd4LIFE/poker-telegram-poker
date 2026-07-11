@@ -51,7 +51,7 @@ export function CustomizeScreen() {
       <Card className="items-center p-6 text-center">
         <Avatar className="mx-auto size-20 border-2 border-gold/40">
           <AvatarFallback className="bg-secondary text-gold">
-            <AvatarIcon code={user.avatar} className="size-9" />
+            <AvatarIcon code={user.avatar} color={user.avatar_color} className="size-9" />
           </AvatarFallback>
         </Avatar>
         <div className="mt-2 text-xl font-extrabold" style={previewColor ? { color: previewColor } : undefined}>
@@ -75,7 +75,7 @@ export function CustomizeScreen() {
                 !a.owned && "opacity-70",
               )}
             >
-              <AvatarIcon code={a.code} className="size-6" />
+              <AvatarIcon code={a.code} color={a.equipped ? user.avatar_color : a.default_color} className="size-6" />
               {a.equipped ? (
                 <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-gold text-background">
                   <Check className="size-3" />
@@ -103,43 +103,67 @@ export function CustomizeScreen() {
       <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
         Name Color
       </h2>
-      <Card className="p-4">
-        {cat?.colors.map((c: any) => (
-          <button
-            key={c.code || "classic"}
-            onClick={() => act("color", c.code, c.owned)}
-            className="flex w-full items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
-          >
-            <span
-              className="grid size-8 place-items-center rounded-full border border-white/10"
-              style={{ background: c.css || "var(--muted)" }}
-            >
-              {c.equipped && <Check className="size-4 text-background" />}
-            </span>
-            <span className="flex-1 text-left font-bold" style={c.css ? { color: c.css } : undefined}>
-              {c.label}
-            </span>
-            {c.equipped ? (
-              <span className="text-xs text-gold">Equipped</span>
-            ) : c.owned ? (
-              <span className="text-xs text-muted-foreground">Owned</span>
-            ) : (
-              <span className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
-                <Lock className="size-3" />
-                {c.price_gems ? (
-                  <>
-                    <Gem className="size-3 text-gem" /> {c.price_gems}
-                  </>
-                ) : (
-                  <>
-                    <Coins className="size-3 text-gold" /> {fmt(c.price_coins)}
-                  </>
-                )}
-              </span>
-            )}
-          </button>
-        ))}
-      </Card>
+      <ColorList list={cat?.colors} kind="color" act={act} />
+
+      <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        Avatar Color
+      </h2>
+      <p className="mb-2 text-xs text-muted-foreground">
+        Each avatar has a default color. Buy any color to recolor your avatar icon.
+      </p>
+      <ColorList list={cat?.avatar_colors} kind="avatar_color" act={act} defaultLabel="Default" />
     </>
+  );
+}
+
+function ColorList({
+  list,
+  kind,
+  act,
+  defaultLabel = "Classic",
+}: {
+  list: any[] | undefined;
+  kind: string;
+  act: (kind: string, code: string, owned: boolean) => void;
+  defaultLabel?: string;
+}) {
+  return (
+    <Card className="p-4">
+      {list?.map((c: any) => (
+        <button
+          key={(c.code || "classic") + kind}
+          onClick={() => act(kind, c.code, c.owned)}
+          className="flex w-full items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
+        >
+          <span
+            className="grid size-8 place-items-center rounded-full border border-white/10"
+            style={{ background: c.css || "var(--muted)" }}
+          >
+            {c.equipped && <Check className="size-4 text-background" />}
+          </span>
+          <span className="flex-1 text-left font-bold" style={c.css ? { color: c.css } : undefined}>
+            {c.label === "Classic" ? defaultLabel : c.label}
+          </span>
+          {c.equipped ? (
+            <span className="text-xs text-gold">Equipped</span>
+          ) : c.owned ? (
+            <span className="text-xs text-muted-foreground">Owned</span>
+          ) : (
+            <span className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
+              <Lock className="size-3" />
+              {c.price_gems ? (
+                <>
+                  <Gem className="size-3 text-gem" /> {c.price_gems}
+                </>
+              ) : (
+                <>
+                  <Coins className="size-3 text-gold" /> {fmt(c.price_coins)}
+                </>
+              )}
+            </span>
+          )}
+        </button>
+      ))}
+    </Card>
   );
 }

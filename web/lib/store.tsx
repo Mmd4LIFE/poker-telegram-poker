@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useRef, useCallback } from "react";
 import { api } from "./api";
 import type { UserProfile, View } from "./types";
 
@@ -16,6 +16,8 @@ interface AppState {
   tableCode: string | null;
   enterTable: (code: string) => void;
   exitTable: () => void;
+  levelUp: number | null;
+  clearLevelUp: () => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -27,10 +29,18 @@ export function AppProvider({
   initialUser: UserProfile;
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<UserProfile>(initialUser);
+  const [user, setUserState] = useState<UserProfile>(initialUser);
   const [view, setView] = useState<View>("lobby");
   const [tableCode, setTableCode] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<number | null>(null);
+  const [levelUp, setLevelUp] = useState<number | null>(null);
+  const levelRef = useRef(initialUser.level);
+
+  const setUser = useCallback((u: UserProfile) => {
+    if (u.level > levelRef.current) setLevelUp(u.level);
+    levelRef.current = u.level;
+    setUserState(u);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -38,7 +48,7 @@ export function AppProvider({
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [setUser]);
 
   const value: AppState = {
     user,
@@ -52,6 +62,8 @@ export function AppProvider({
     tableCode,
     enterTable: setTableCode,
     exitTable: () => setTableCode(null),
+    levelUp,
+    clearLevelUp: () => setLevelUp(null),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

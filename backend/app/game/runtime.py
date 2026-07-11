@@ -15,6 +15,7 @@ from app.game.connection import hub
 from app.models import Hand, PlayerHand, Room, RoomPlayer, User
 from app.poker import ai
 from app.poker.holdem import HoldemGame, Seat, Street
+from app.services.cosmetics import effective_avatar_color
 from app.services.progression import record_hand
 
 logger = logging.getLogger("poker.runtime")
@@ -59,8 +60,9 @@ class RoomRuntime:
             seat_no = next(i for i in range(self.max_players) if i not in used)
             self.game.add_seat(Seat(
                 user_id=user.id, name=user.display_name, seat=seat_no,
-                stack=stack, is_bot=user.is_bot, avatar=user.avatar or "🎩",
+                stack=stack, is_bot=user.is_bot, avatar=user.avatar or "user",
                 name_color=user.name_color or "",
+                avatar_color=effective_avatar_color(user),
                 bot_personality=user.bot_personality, bot_skill=user.bot_skill,
             ))
             if user.is_bot:
@@ -226,7 +228,9 @@ class RoomRuntime:
                     break
                 self.game.add_seat(Seat(
                     user_id=bot.id, name=bot.display_name, seat=seat_no,
-                    stack=buy, is_bot=True, avatar=bot.avatar or "🤖",
+                    stack=buy, is_bot=True, avatar=bot.avatar or "bot",
+                    name_color=bot.name_color or "",
+                    avatar_color=effective_avatar_color(bot),
                     bot_personality=bot.bot_personality, bot_skill=bot.bot_skill,
                 ))
                 self._bot_ids.add(bot.id)

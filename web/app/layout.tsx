@@ -1,10 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Ubuntu } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
-const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const ubuntu = Ubuntu({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+});
 
 export const metadata: Metadata = {
   title: "Poker CM",
@@ -24,7 +28,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`dark ${geist.variable} h-full antialiased`}>
+    <html lang="en" className={`dark ${ubuntu.variable} h-full antialiased`}>
       <body className="min-h-full">
         <Script
           src="https://telegram.org/js/telegram-web-app.js"

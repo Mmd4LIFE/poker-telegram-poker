@@ -39,8 +39,9 @@ class Seat:
     seat: int
     stack: int
     is_bot: bool = False
-    avatar: str = "🎩"
+    avatar: str = "user"
     name_color: str = ""
+    avatar_color: str = ""
     bot_personality: str | None = None
     bot_skill: float = 0.5
 
@@ -502,6 +503,7 @@ class HoldemGame:
                 "name": s.name,
                 "name_color": s.name_color,
                 "avatar": s.avatar,
+                "avatar_color": s.avatar_color,
                 "seat": s.seat,
                 "stack": s.stack,
                 "bet": s.bet,

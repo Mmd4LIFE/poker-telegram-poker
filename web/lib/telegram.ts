@@ -66,3 +66,35 @@ export function openTelegramLink(url: string) {
   if (w?.openTelegramLink) w.openTelegramLink(url);
   else window.open(url, "_blank");
 }
+
+interface ShareUser {
+  bot_username: string;
+  referral_code: string | null;
+}
+
+export function inviteLink(
+  user: ShareUser,
+  kind: "ref" | "squad" | "room",
+  code?: string,
+): string {
+  const ref = user.referral_code || "";
+  const param =
+    kind === "squad"
+      ? `sq-${code}-${ref}`
+      : kind === "room"
+        ? `rm-${code}-${ref}`
+        : `ref-${ref}`;
+  return `https://t.me/${user.bot_username}?startapp=${param}`;
+}
+
+export function shareInvite(
+  user: ShareUser,
+  kind: "ref" | "squad" | "room",
+  code: string | undefined,
+  text: string,
+) {
+  const url = inviteLink(user, kind, code);
+  openTelegramLink(
+    `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+  );
+}

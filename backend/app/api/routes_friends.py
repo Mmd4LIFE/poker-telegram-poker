@@ -11,6 +11,7 @@ from app.core.leveling import degree_for_level
 from app.database import get_session
 from app.models import Friendship, PlayerHand, User
 from app.services import friends as F
+from app.services.cosmetics import effective_avatar_color
 
 router = APIRouter(prefix="/api", tags=["friends"])
 
@@ -28,6 +29,7 @@ def user_card(u: User) -> dict:
         "handle": u.handle,
         "username": u.username,
         "avatar": u.avatar,
+        "avatar_color": effective_avatar_color(u),
         "name_color": u.name_color or "",
         "level": u.level,
         "degree": u.degree,
@@ -121,7 +123,8 @@ async def friends_leaderboard(
     everyone.sort(key=lambda u: getattr(u, metric), reverse=True)
     return [{
         "rank": i + 1, "id": u.id, "display_name": u.display_name,
-        "avatar": u.avatar, "name_color": u.name_color or "", "level": u.level,
+        "avatar": u.avatar, "avatar_color": effective_avatar_color(u),
+        "name_color": u.name_color or "", "level": u.level,
         "degree": u.degree, "online": F.is_online(u), "value": getattr(u, metric),
         "is_me": u.id == user.id,
     } for i, u in enumerate(everyone)]

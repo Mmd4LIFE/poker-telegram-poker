@@ -15,6 +15,7 @@ from app.game.connection import hub
 from app.game.runtime import RoomRuntime
 from app.models import Room, RoomPlayer, User
 from app.poker.holdem import Seat
+from app.services.cosmetics import effective_avatar_color
 from app.services.economy import InsufficientFunds, credit, debit
 
 logger = logging.getLogger("poker.manager")
@@ -43,8 +44,9 @@ class GameManager:
             for rp, user in players:
                 rt.game.add_seat(Seat(
                     user_id=user.id, name=user.display_name, seat=rp.seat,
-                    stack=rp.stack, is_bot=user.is_bot, avatar=user.avatar or "🎩",
+                    stack=rp.stack, is_bot=user.is_bot, avatar=user.avatar or "user",
                     name_color=user.name_color or "",
+                    avatar_color=effective_avatar_color(user),
                     bot_personality=user.bot_personality, bot_skill=user.bot_skill,
                     sitting_out=(rp.status == "sitting_out"),
                 ))

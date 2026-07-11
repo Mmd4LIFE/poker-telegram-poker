@@ -24,6 +24,7 @@ interface Row {
   display_name: string;
   name_color?: string;
   avatar: string;
+  avatar_color?: string;
   level: number;
   degree: string;
   value: number;
@@ -86,7 +87,7 @@ function Board({ scope }: { scope: "global" | "friends" }) {
               <div className="relative">
                 <Avatar className="size-9 border border-white/10">
                   <AvatarFallback className="bg-secondary text-gold">
-                    <AvatarIcon code={r.avatar} className="size-4" />
+                    <AvatarIcon code={r.avatar} color={r.avatar_color} className="size-4" />
                   </AvatarFallback>
                 </Avatar>
                 {r.online !== undefined && (

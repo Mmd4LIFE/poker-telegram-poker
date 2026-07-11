@@ -6,6 +6,9 @@ export interface UserProfile {
   username: string | null;
   avatar: string;
   name_color: string;
+  avatar_color: string;
+  referral_code: string | null;
+  bot_username: string;
   coins: number;
   gems: number;
   level: number;
@@ -64,6 +67,7 @@ export interface FriendCard {
   handle?: string | null;
   username: string | null;
   avatar: string;
+  avatar_color?: string;
   name_color?: string;
   level: number;
   degree: string;

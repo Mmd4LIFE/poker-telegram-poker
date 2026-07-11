@@ -22,18 +22,45 @@ MILESTONES: dict[int, tuple[int, int, str]] = {
 }
 
 
-def parse_ref(param: str | None) -> int | None:
-    """Extract a referrer user id from a start param like 'ref_123'."""
+def extract_ref(param: str | None) -> tuple[str, str | int] | None:
+    """Parse a start param into a referral pointer.
+
+    Supports:
+      ref-<code>              -> referral only
+      sq-<squad>-<code>       -> squad invite + referral
+      rm-<room>-<code>        -> room invite + referral
+      ref_<id> / <id>         -> legacy numeric referral
+    Returns ("code", <code>) | ("id", <int>) | None.
+    """
     if not param:
         return None
     param = param.strip()
-    if param.startswith("ref_"):
-        rest = param[4:]
-        if rest.isdigit():
-            return int(rest)
-    elif param.isdigit():
-        return int(param)
+    parts = param.split("-")
+    head = parts[0]
+    if head == "ref" and len(parts) >= 2 and parts[1]:
+        return ("code", parts[1])
+    if head in ("sq", "rm"):
+        if len(parts) >= 3 and parts[2]:
+            return ("code", parts[2])
+        return None
+    if param.startswith("ref_") and param[4:].isdigit():
+        return ("id", int(param[4:]))
+    if param.isdigit():
+        return ("id", int(param))
     return None
+
+
+async def resolve_referrer(session: AsyncSession, param: str | None):
+    from app.models import User as _User  # local to avoid cycle at import time
+    r = extract_ref(param)
+    if not r:
+        return None
+    kind, val = r
+    if kind == "id":
+        return await session.get(_User, int(val))
+    return (await session.execute(
+        select(_User).where(_User.referral_code == str(val))
+    )).scalar_one_or_none()
 
 
 async def apply_referral(
