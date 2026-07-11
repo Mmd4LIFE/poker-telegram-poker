@@ -3,6 +3,7 @@ from __future__ import annotations
 
 # Telegram Stars packs. `stars` = price in XTR.
 STAR_PRODUCTS: dict[str, dict] = {
+    "starter_1":    {"label": "Lucky Starter", "icon": "⭐", "stars": 1,    "coins": 2_500,    "gems": 0},
     "coins_small":  {"label": "Stack of Chips", "icon": "🪙", "stars": 50,   "coins": 50_000,   "gems": 0},
     "coins_medium": {"label": "Chip Case",      "icon": "💰", "stars": 150,  "coins": 180_000,  "gems": 5},
     "coins_large":  {"label": "Chip Vault",     "icon": "🏦", "stars": 500,  "coins": 700_000,  "gems": 25},

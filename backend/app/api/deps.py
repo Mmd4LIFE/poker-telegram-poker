@@ -24,3 +24,10 @@ async def get_current_user(
     if user is None or user.is_banned:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
     return user
+
+
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    from app.config import settings
+    if user.telegram_id not in settings.admin_ids:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admins only")
+    return user
