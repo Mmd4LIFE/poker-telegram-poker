@@ -18,7 +18,10 @@ class PokerTable {
         <div class="table-top">
           <button class="btn ghost sm" id="leaveBtn">← Leave</button>
           <div class="chip"><span id="tblCode">${this.code}</span></div>
-          <div class="chip coins">🪙 <span id="tblStack">0</span></div>
+          <div class="row" style="gap:6px">
+            <button class="btn ghost sm" id="ranksBtn">📖</button>
+            <div class="chip coins">🪙 <span id="tblStack">0</span></div>
+          </div>
         </div>
         <div class="felt">
           <div class="felt-center">
@@ -27,12 +30,38 @@ class PokerTable {
           </div>
         </div>
         <div id="seats"></div>
-        <div class="controls hidden" id="controls"></div>
+        <div class="bottom-wrap">
+          <div class="myhand empty" id="myhand"></div>
+          <div class="controls hidden" id="controls"></div>
+        </div>
         <div id="banner"></div>
+        <div class="ranks-sheet hidden" id="ranksSheet"></div>
       </div>`;
     document.getElementById("tabbar").classList.add("hidden");
     document.getElementById("leaveBtn").onclick = () => this.leave();
+    document.getElementById("ranksBtn").onclick = () => this.toggleRankings();
     this.connect();
+  }
+
+  toggleRankings() {
+    const el = document.getElementById("ranksSheet");
+    if (!el.classList.contains("hidden")) { el.classList.add("hidden"); return; }
+    el.innerHTML = `
+      <div class="ranks-inner">
+        <div class="row between"><h2 style="margin:0">Hand Rankings</h2>
+          <button class="btn ghost sm" id="ranksClose">✕</button></div>
+        ${PEval.RANKINGS.map((r, i) => `
+          <div class="rank-row">
+            <div class="rn">${i + 1}</div>
+            <div class="rcards"></div>
+            <div class="rmain"><div class="t">${r.name}</div><div class="d">${r.d}</div></div>
+          </div>`).join("")}
+      </div>`;
+    el.classList.remove("hidden");
+    el.querySelectorAll(".rcards").forEach((c, i) =>
+      renderCards(c, PEval.RANKINGS[i].ex, true));
+    el.querySelector("#ranksClose").onclick = () => el.classList.add("hidden");
+    el.onclick = (e) => { if (e.target === el) el.classList.add("hidden"); };
   }
 
   connect() {
@@ -93,7 +122,57 @@ class PokerTable {
     document.getElementById("tblStack").textContent = me ? fmt(me.stack) : "0";
 
     this.renderSeats(s, me);
+    this.renderMyHand(s, me);
     this.renderControls(s, me);
+  }
+
+  renderMyHand(s, me) {
+    const el = document.getElementById("myhand");
+    if (!me || !me.in_hand || me.folded || !me.hole || me.hole[0] === "??" || me.hole.length < 2) {
+      el.classList.add("empty");
+      el.innerHTML = me && me.folded
+        ? `<div class="mh-msg">🚫 You folded</div>`
+        : `<div class="mh-msg">${s.street === "idle" ? "⏳ Waiting for next hand…" : "🂠 Waiting for cards…"}</div>`;
+      return;
+    }
+    el.classList.remove("empty");
+    const board = s.board || [];
+    const oppCount = (s.seats || []).filter(
+      (x) => x.in_hand && !x.folded && x.user_id !== this.meId
+    ).length;
+
+    const made = board.length >= 3
+      ? PEval.describe(me.hole.concat(board))
+      : PEval.preflopLabel(me.hole);
+    const drawList = PEval.draws(me.hole, board);
+
+    // equity — recompute only when hole/board/opponents change
+    const key = me.hole.join("") + "|" + board.join("") + "|" + oppCount;
+    if (this._eqKey !== key) {
+      this._eqKey = key;
+      const samples = oppCount >= 4 ? 140 : 220;
+      this._eq = oppCount > 0 ? PEval.equity(me.hole, board, oppCount, samples) : 1;
+    }
+    const pct = Math.round(this._eq * 100);
+    const color = pct >= 60 ? "var(--green)" : pct >= 33 ? "var(--accent)" : "var(--accent2)";
+    const strong = made.cat >= 3 ? "strong" : made.cat >= 1 ? "" : "weak";
+
+    el.innerHTML = `
+      <div class="mh-cards" id="mhCards"></div>
+      <div class="mh-info">
+        <div class="mh-combo ${strong}">${made.name}
+          ${made.detail ? `<span class="mh-detail">${made.detail}</span>` : ""}
+          ${drawList.length ? `<span class="mh-draw">+ ${drawList.join(" · ")}</span>` : ""}
+        </div>
+        <div class="mh-eq">
+          <div class="mh-eqbar"><i style="width:${pct}%;background:${color}"></i></div>
+          <span class="mh-eqval" style="color:${color}">${oppCount > 0 ? pct + "%" : "WIN"}</span>
+        </div>
+        <div class="mh-sub">${oppCount > 0
+          ? `win chance vs ${oppCount} ${oppCount > 1 ? "players" : "player"} · ${s.street}`
+          : "last one standing"}</div>
+      </div>`;
+    renderCards(document.getElementById("mhCards"), me.hole);
   }
 
   renderSeats(s, me) {
@@ -108,8 +187,8 @@ class PokerTable {
 
     ordered.forEach((p, i) => {
       const a = (i * 2 * Math.PI) / n;
-      const x = 50 + 40 * Math.sin(a);
-      const y = 50 + 43 * Math.cos(a);
+      const x = 50 + 41 * Math.sin(a);
+      const y = 42 + 34 * Math.cos(a);
       const el = document.createElement("div");
       el.className = "seat" + (p.is_turn ? " active" : "") + (p.folded ? " folded" : "");
       el.style.left = x + "%";
@@ -125,7 +204,9 @@ class PokerTable {
         ${holeHtml}
         ${p.last_action ? `<div class="action-tag">${p.last_action}</div>` : ""}`;
       wrap.appendChild(el);
-      renderCards(document.getElementById("hole_" + p.user_id), p.hole, true);
+      // my own cards are shown large in the hand tray, so keep the ring clean
+      const ringHole = p.user_id === this.meId ? [] : p.hole;
+      renderCards(document.getElementById("hole_" + p.user_id), ringHole, true);
       if (p.bet > 0) {
         const bet = document.createElement("div");
         bet.className = "bet";

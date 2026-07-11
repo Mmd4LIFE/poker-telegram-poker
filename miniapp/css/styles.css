@@ -160,14 +160,14 @@ h2 { font-size: 16px; margin: 18px 0 10px; color: var(--muted); text-transform: 
   padding: calc(8px + var(--safe-top)) 12px 8px;
 }
 .felt {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-  width: 92%; max-width: 460px; aspect-ratio: 3/4;
+  position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%);
+  width: 88%; max-width: 440px; aspect-ratio: 4/4.4;
   background: radial-gradient(ellipse at center, var(--felt), var(--felt2));
-  border: 10px solid #3a2415; border-radius: 46% / 34%;
+  border: 10px solid #3a2415; border-radius: 46% / 40%;
   box-shadow: inset 0 0 60px rgba(0,0,0,.5), 0 10px 40px rgba(0,0,0,.6);
 }
 .felt-center {
-  position: absolute; top: 42%; left: 50%; transform: translate(-50%,-50%);
+  position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%);
   width: 90%; text-align: center;
 }
 .board { display: flex; gap: 5px; justify-content: center; min-height: 60px; align-items: center; }
@@ -209,11 +209,40 @@ h2 { font-size: 16px; margin: 18px 0 10px; color: var(--muted); text-transform: 
 }
 .timer-ring { position: absolute; inset: -3px; border-radius: 50%; }
 
+/* bottom stack: always-visible hand tray + action controls */
+.bottom-wrap {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: flex; flex-direction: column;
+  padding-bottom: var(--safe-bottom);
+  background: #0a0e16;
+}
+.myhand {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; min-height: 66px;
+  background: linear-gradient(to top, #0c1220, #0c1220f0);
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.myhand.empty { justify-content: center; }
+.myhand .mh-msg { color: var(--muted); font-size: 14px; padding: 8px; }
+.mh-cards { display: flex; gap: 6px; flex-shrink: 0; }
+.mh-info { flex: 1; min-width: 0; }
+.mh-combo { font-weight: 800; font-size: 17px; line-height: 1.15; }
+.mh-combo.strong { color: var(--green); }
+.mh-combo.weak { color: var(--muted); }
+.mh-detail { color: var(--muted); font-weight: 500; font-size: 13px; }
+.mh-draw { color: #7ee0ff; font-weight: 600; font-size: 12px; white-space: nowrap; }
+.mh-eq { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.mh-eqbar { flex: 1; height: 9px; background: rgba(255,255,255,.1); border-radius: 99px; overflow: hidden; }
+.mh-eqbar > i { display: block; height: 100%; border-radius: 99px; transition: width .4s ease; }
+.mh-eqval { font-weight: 800; font-size: 15px; min-width: 46px; text-align: right; }
+.mh-sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
 /* action controls */
 .controls {
-  position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
-  padding: 12px 12px calc(12px + var(--safe-bottom));
-  background: linear-gradient(to top, #0a0e16 60%, transparent);
+  z-index: 21;
+  padding: 12px 12px 14px;
+  background: #0a0e16;
+  border-top: 1px solid rgba(255,255,255,.06);
 }
 .control-btns { display: flex; gap: 8px; }
 .control-btns .btn { padding: 15px 8px; font-size: 15px; }
@@ -241,6 +270,22 @@ h2 { font-size: 16px; margin: 18px 0 10px; color: var(--muted); text-transform: 
 .pill.done { background: var(--green); color: #06210f; }
 .rank-badge { width: 26px; text-align: center; font-weight: 800; color: var(--muted); }
 .rank-badge.gold { color: #f5c518; } .rank-badge.silver { color: #cfd8e3; } .rank-badge.bronze { color: #cd7f32; }
+
+/* hand-rankings cheat sheet */
+.ranks-sheet {
+  position: absolute; inset: 0; z-index: 60; background: rgba(0,0,0,.72);
+  display: flex; align-items: flex-end; animation: fade .2s;
+}
+.ranks-inner {
+  background: var(--panel); width: 100%; border-radius: 18px 18px 0 0;
+  padding: 16px 16px calc(20px + var(--safe-bottom)); max-height: 86%; overflow-y: auto;
+}
+.rank-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+.rank-row:last-child { border: 0; }
+.rank-row .rn { width: 20px; text-align: center; font-weight: 800; color: var(--muted); font-size: 13px; }
+.rank-row .rcards { display: flex; gap: 2px; }
+.rank-row .rmain .t { font-weight: 700; font-size: 14px; }
+.rank-row .rmain .d { color: var(--muted); font-size: 12px; }
 
 .seg { display: flex; background: var(--bg2); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
 .seg button { flex: 1; background: none; color: var(--muted); padding: 9px; border-radius: 9px; font-size: 13px; font-weight: 700; }
