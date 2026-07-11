@@ -75,7 +75,7 @@ export function CustomizeScreen() {
                 !a.owned && "opacity-70",
               )}
             >
-              <AvatarIcon code={a.code} color={a.equipped ? user.avatar_color : a.default_color} className="size-6" />
+              <AvatarIcon code={a.code} color={a.color} className="size-6" />
               {a.equipped ? (
                 <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-gold text-background">
                   <Check className="size-3" />
@@ -108,10 +108,20 @@ export function CustomizeScreen() {
       <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
         Avatar Color
       </h2>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Each avatar has a default color. Buy any color to recolor your avatar icon.
-      </p>
-      <ColorList list={cat?.avatar_colors} kind="avatar_color" act={act} defaultLabel="Default" />
+      <Card className="mb-2 flex-row items-center gap-3 bg-secondary/40 p-3">
+        <div className="grid size-11 place-items-center rounded-xl bg-secondary">
+          <AvatarIcon
+            code={cat?.current_avatar || user.avatar}
+            color={cat?.current_avatar_color}
+            className="size-6"
+          />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Colors apply to <b className="text-foreground">this avatar only</b>. Each
+          avatar keeps its own color — equip another avatar above to color it separately.
+        </div>
+      </Card>
+      <ColorList list={cat?.avatar_colors} kind="avatar_color" act={act} defaultLabel="Classic" />
     </>
   );
 }

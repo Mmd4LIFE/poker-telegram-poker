@@ -42,20 +42,18 @@ COLORS: list[dict] = [
 AVATAR_MAP = {a["code"]: a for a in AVATARS}
 COLOR_MAP = {c["code"]: c for c in COLORS}
 
-# Each avatar has a themed default icon color.
-DEFAULT_AVATAR_COLORS: dict[str, str] = {
-    "user": "#9aa7b8", "cat": "#ff9e3f", "dog": "#c08457", "bird": "#3fa9ff",
-    "fish": "#38e0d0", "rabbit": "#ff6bd6", "ghost": "#a06bff", "smile": "#f5c518",
-    "dice": "#e6edf3", "club": "#2ecc71", "squirrel": "#c08457", "turtle": "#2ecc71",
-    "snail": "#a06bff", "bug": "#7CFC00", "rocket": "#ff4d6d", "bot": "#9aa7b8",
-    "brain": "#ff6bd6", "target": "#ff4d6d", "anchor": "#3fa9ff", "flame": "#ff6a00",
-    "crown": "#f5c518", "gem": "#38e0d0", "skull": "#cfd8e3", "diamond": "#7ee0ff",
-    "swords": "#c0c0c0", "zap": "#f5c518", "star": "#f5c518", "trophy": "#f5c518",
-}
+# Every avatar defaults to "classic" (empty string -> inherits the gold theme).
+CLASSIC_AVATAR_COLOR = ""
+
+
+def avatar_color_of(user: User, code: str) -> str:
+    """The color applied to a specific avatar (classic if none set)."""
+    return (user.avatar_colors or {}).get(code, CLASSIC_AVATAR_COLOR)
 
 
 def effective_avatar_color(user: User) -> str:
-    return user.avatar_color or DEFAULT_AVATAR_COLORS.get(user.avatar, "#f5c518")
+    """Color of the user's currently-equipped avatar."""
+    return avatar_color_of(user, user.avatar)
 
 
 _KEY = {"avatar": "a:", "color": "c:", "avatar_color": "ac:"}
@@ -74,7 +72,8 @@ def _equipped(user: User, kind: str) -> str:
         return user.avatar
     if kind == "color":
         return user.name_color or ""
-    return user.avatar_color or ""
+    # avatar_color: whatever is applied to the currently-equipped avatar
+    return avatar_color_of(user, user.avatar)
 
 
 def is_free(kind: str, code: str) -> bool:
@@ -92,21 +91,24 @@ def owns(user: User, kind: str, code: str) -> bool:
 
 
 def catalog(user: User) -> dict:
+    current_color = avatar_color_of(user, user.avatar)
     return {
         "avatars": [{
             **a, "owned": owns(user, "avatar", a["code"]),
             "equipped": user.avatar == a["code"],
-            "default_color": DEFAULT_AVATAR_COLORS.get(a["code"], "#f5c518"),
+            "color": avatar_color_of(user, a["code"]),  # this avatar's own color
         } for a in AVATARS],
         "colors": [{
             **c, "owned": owns(user, "color", c["code"]),
             "equipped": (user.name_color or "") == c["code"],
         } for c in COLORS],
+        # colors selectable for the CURRENT avatar. owned = globally owned.
         "avatar_colors": [{
             **c, "owned": owns(user, "avatar_color", c["code"]),
-            "equipped": (user.avatar_color or "") == c["code"],
+            "equipped": current_color == c["code"],
         } for c in COLORS],
-        "current_avatar_color": effective_avatar_color(user),
+        "current_avatar": user.avatar,
+        "current_avatar_color": current_color,
     }
 
 
@@ -138,5 +140,11 @@ async def equip(session, user: User, kind: str, code: str) -> dict:
     elif kind == "color":
         user.name_color = code
     else:
-        user.avatar_color = code
+        # apply the color to the currently-equipped avatar only
+        colors = dict(user.avatar_colors or {})
+        if code:
+            colors[user.avatar] = code
+        else:
+            colors.pop(user.avatar, None)  # classic
+        user.avatar_colors = colors
     return {"equipped": code}

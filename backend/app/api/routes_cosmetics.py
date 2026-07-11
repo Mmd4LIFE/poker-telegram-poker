@@ -37,7 +37,7 @@ async def buy(
         await C.equip(session, user, body.kind, body.code)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    return {"coins": user.coins, "gems": user.gems, "avatar": user.avatar, "name_color": user.name_color, "avatar_color": user.avatar_color}
+    return {"coins": user.coins, "gems": user.gems, "avatar": user.avatar, "name_color": user.name_color, "avatar_color": C.effective_avatar_color(user)}
 
 
 @router.post("/equip")
@@ -52,4 +52,4 @@ async def equip(
         await C.equip(session, user, body.kind, body.code)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    return {"avatar": user.avatar, "name_color": user.name_color, "avatar_color": user.avatar_color}
+    return {"avatar": user.avatar, "name_color": user.name_color, "avatar_color": C.effective_avatar_color(user)}

@@ -29,9 +29,11 @@ class User(Base, TimestampMixin):
     avatar: Mapped[str] = mapped_column(String(32), default="user")
     # Equipped username color: "" (classic) or a CSS color string
     name_color: Mapped[str] = mapped_column(String(24), default="")
-    # Equipped avatar icon color: "" (per-avatar default) or a CSS color string
+    # Deprecated single field (kept for migration compatibility)
     avatar_color: Mapped[str] = mapped_column(String(24), default="")
-    # Owned cosmetics, e.g. ["a:crown", "c:#f5c518", "ac:#3fa9ff"]
+    # Per-avatar equipped colors, e.g. {"skull": "#2ecc71", "crown": "#f5c518"}
+    avatar_colors: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # Owned cosmetics, e.g. ["a:crown", "c:#f5c518", "ac:#3fa9ff"] (colors owned globally)
     owned_cosmetics: Mapped[list] = mapped_column(JSONB, default=list)
 
     # Opaque referral code used in invite links (instead of the numeric id)
