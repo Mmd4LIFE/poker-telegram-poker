@@ -70,9 +70,9 @@ export function CustomizeScreen() {
               key={a.code}
               onClick={() => act("avatar", a.code, a.owned)}
               className={cn(
-                "relative grid aspect-square place-items-center rounded-xl bg-secondary text-gold active:scale-90",
+                "relative flex aspect-square flex-col items-center justify-center gap-1 rounded-xl bg-secondary text-gold active:scale-90",
                 a.equipped && "ring-2 ring-gold",
-                !a.owned && "opacity-70",
+                !a.owned && "opacity-80",
               )}
             >
               <AvatarIcon code={a.code} color={a.color} className="size-6" />
@@ -81,7 +81,7 @@ export function CustomizeScreen() {
                   <Check className="size-3" />
                 </span>
               ) : !a.owned ? (
-                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 rounded-b-xl bg-black/60 py-0.5 text-[9px] font-bold">
+                <span className="flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground">
                   {a.price_gems ? (
                     <>
                       <Gem className="size-2.5 text-gem" />
