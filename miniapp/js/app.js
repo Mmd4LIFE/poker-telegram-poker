@@ -96,6 +96,23 @@ const App = (() => {
     document.getElementById("tDaily").onclick = () => claimDaily();
     document.getElementById("tInvite").onclick = () => renderInvite();
 
+    // show a resume banner if the player is still seated somewhere
+    try {
+      const cur = await API.currentRoom();
+      if (cur && cur.code) {
+        const h1 = document.querySelector("#app h1");
+        const banner = document.createElement("div");
+        banner.className = "card tap";
+        banner.style.cssText = "background:linear-gradient(140deg,#0b6b3a,#094e2b);cursor:pointer";
+        banner.innerHTML = `<div class="row between center">
+          <div><div style="font-weight:800">▶️ Resume your table</div>
+          <div class="muted" style="color:#cfe">#${cur.code} · stack ${fmt(cur.stack || 0)}</div></div>
+          <div class="pill">Rejoin</div></div>`;
+        banner.onclick = () => enterTable(cur.code);
+        h1.after(banner);
+      }
+    } catch (e) {}
+
     try {
       const rooms = await API.listRooms();
       const list = document.getElementById("roomList");

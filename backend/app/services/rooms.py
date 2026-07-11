@@ -41,7 +41,9 @@ async def player_count(session: AsyncSession, room_id: int) -> int:
     )).scalar_one()
 
 
-async def find_random_open_room(session: AsyncSession) -> Room | None:
+async def find_random_open_room(
+    session: AsyncSession, exclude_user_id: int | None = None
+) -> Room | None:
     """A public, non-full room with the most players (to fill tables faster)."""
     subq = (
         select(RoomPlayer.room_id, func.count(RoomPlayer.id).label("cnt"))
@@ -53,7 +55,24 @@ async def find_random_open_room(session: AsyncSession) -> Room | None:
         .outerjoin(subq, subq.c.room_id == Room.id)
         .where(Room.is_private.is_(False), Room.status != "finished")
         .where(func.coalesce(subq.c.cnt, 0) < Room.max_players)
-        .order_by(func.coalesce(subq.c.cnt, 0).desc(), func.random())
-        .limit(1)
     )
+    if exclude_user_id is not None:
+        seated_in = (
+            select(RoomPlayer.room_id).where(RoomPlayer.user_id == exclude_user_id)
+        )
+        stmt = stmt.where(Room.id.not_in(seated_in))
+    stmt = stmt.order_by(func.coalesce(subq.c.cnt, 0).desc(), func.random()).limit(1)
     return (await session.execute(stmt)).scalars().first()
+
+
+async def get_user_membership(
+    session: AsyncSession, user_id: int
+) -> tuple[RoomPlayer, Room] | None:
+    """Return the (RoomPlayer, Room) the user is currently seated at, if any."""
+    row = (await session.execute(
+        select(RoomPlayer, Room)
+        .join(Room, Room.id == RoomPlayer.room_id)
+        .where(RoomPlayer.user_id == user_id)
+        .limit(1)
+    )).first()
+    return (row[0], row[1]) if row else None

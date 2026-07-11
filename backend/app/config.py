@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     TURN_TIMEOUT_SECONDS: int = 25
     BOT_THINK_MIN: float = 1.5
     BOT_THINK_MAX: float = 4.0
+    # How long a seat is kept after a player disconnects before it is reaped
+    # (chips refunded to their wallet). Protects against brief network blips.
+    IDLE_SEAT_GRACE_SECONDS: int = 90
+    JANITOR_INTERVAL_SECONDS: int = 30
 
     # App
     ENV: str = "production"

@@ -52,6 +52,7 @@ const API = (() => {
     createRoom: (b) => req("POST", "/api/rooms", b),
     joinRoom: (code, buy) => req("POST", `/api/rooms/${code}/join`, { buy_in: buy }),
     joinRandom: (buy) => req("POST", "/api/rooms/join/random", { buy_in: buy }),
+    currentRoom: () => req("GET", "/api/rooms/state/current"),
     leaveRoom: (code) => req("POST", `/api/rooms/${code}/leave`),
     rebuy: (code, amt) => req("POST", `/api/rooms/${code}/rebuy`, { amount: amt }),
     roomInfo: (code) => req("GET", `/api/rooms/${code}`),

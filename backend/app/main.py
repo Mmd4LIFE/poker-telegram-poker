@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
         await setup_bot()
     except Exception:  # noqa: BLE001
         logger.exception("Bot setup failed (continuing without bot)")
+    manager.start_janitor()
     yield
     await manager.shutdown()
     await shutdown_bot()

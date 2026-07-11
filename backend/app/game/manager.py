@@ -3,10 +3,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.database import SessionLocal
+from app.game.connection import hub
 from app.game.runtime import RoomRuntime
 from app.models import Room, RoomPlayer, User
 from app.poker.holdem import Seat
@@ -19,6 +24,9 @@ class GameManager:
     def __init__(self) -> None:
         self._runtimes: dict[int, RoomRuntime] = {}
         self._lock = asyncio.Lock()
+        # (room_id, user_id) -> epoch when we first noticed them disconnected
+        self._missing_since: dict[tuple[int, int], float] = {}
+        self._janitor: asyncio.Task | None = None
 
     async def get_runtime(self, session: AsyncSession, room: Room) -> RoomRuntime:
         async with self._lock:
@@ -136,7 +144,95 @@ class GameManager:
     def get_live(self, room_id: int) -> RoomRuntime | None:
         return self._runtimes.get(room_id)
 
+    # ---- idle-seat janitor ----------------------------------------------
+    def start_janitor(self) -> None:
+        if self._janitor is None or self._janitor.done():
+            self._janitor = asyncio.create_task(self._janitor_loop())
+
+    async def _janitor_loop(self) -> None:
+        logger.info("Seat janitor started (grace=%ss)", settings.IDLE_SEAT_GRACE_SECONDS)
+        while True:
+            try:
+                await asyncio.sleep(settings.JANITOR_INTERVAL_SECONDS)
+                await self._reap_idle_seats()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("janitor error")
+
+    async def _reap_idle_seats(self) -> None:
+        """Release seats of players who have been disconnected past the grace
+        period, refunding their chips. Runtimes are the source of truth for
+        who is seated; the connection hub tells us who is currently online."""
+        now = time.time()
+        grace = settings.IDLE_SEAT_GRACE_SECONDS
+        for room_id, rt in list(self._runtimes.items()):
+            present = hub.viewers(rt.code)
+            humans = [s for s in rt.game.seats if not s.is_bot]
+            for seat in humans:
+                key = (room_id, seat.user_id)
+                if seat.user_id in present:
+                    self._missing_since.pop(key, None)
+                    continue
+                first = self._missing_since.get(key)
+                if first is None:
+                    self._missing_since[key] = now
+                elif now - first >= grace:
+                    self._missing_since.pop(key, None)
+                    await self._reap_seat(room_id, seat.user_id)
+
+        await self._reap_orphan_seats(grace)
+
+    async def _reap_orphan_seats(self, grace: int) -> None:
+        """Reap seats persisted in rooms that have no live runtime (e.g. after a
+        backend restart) once they are older than the grace period. A returning
+        player recreates a runtime first, which moves them under the presence
+        logic above, so this only ever touches genuinely abandoned seats."""
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(grace, 60))
+        async with SessionLocal() as session:
+            rows = (await session.execute(
+                select(RoomPlayer, Room, User)
+                .join(Room, Room.id == RoomPlayer.room_id)
+                .join(User, User.id == RoomPlayer.user_id)
+                .where(RoomPlayer.updated_at < cutoff)
+            )).all()
+            for rp, room, user in rows:
+                if room.id in self._runtimes:
+                    continue  # handled by the presence logic
+                if hub.has_viewers(room.code):
+                    continue  # someone is connecting
+                try:
+                    await self.unseat_player(session, room, user)
+                    await session.commit()
+                    logger.info("Reaped orphan seat: user=%s room=%s", user.id, room.code)
+                except ValueError:
+                    await session.rollback()
+                except Exception:
+                    await session.rollback()
+                    logger.exception("orphan reap failed user=%s", user.id)
+
+    async def _reap_seat(self, room_id: int, user_id: int) -> None:
+        async with SessionLocal() as session:
+            room = await session.get(Room, room_id)
+            user = await session.get(User, user_id)
+            if not room or not user:
+                return
+            try:
+                result = await self.unseat_player(session, room, user)
+                await session.commit()
+                logger.info(
+                    "Reaped idle seat: user=%s room=%s refunded=%s",
+                    user_id, room.code, result.get("refunded"),
+                )
+            except ValueError:
+                await session.rollback()
+            except Exception:
+                await session.rollback()
+                logger.exception("reap failed for user=%s room=%s", user_id, room_id)
+
     async def shutdown(self) -> None:
+        if self._janitor:
+            self._janitor.cancel()
         for rt in self._runtimes.values():
             await rt.stop()
 

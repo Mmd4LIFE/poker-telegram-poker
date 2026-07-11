@@ -19,6 +19,7 @@ from app.services.rooms import (
     find_random_open_room,
     generate_room_code,
     get_room_by_code,
+    get_user_membership,
     player_count,
 )
 
@@ -91,13 +92,31 @@ async def get_room(
     return await _summary(session, room)
 
 
+@router.get("/state/current")
+async def current_room(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """The table the player is currently seated at (for a Resume button)."""
+    membership = await get_user_membership(session, user.id)
+    if not membership:
+        return None
+    rp, room = membership
+    return {**(await _summary(session, room)).model_dump(), "stack": rp.stack}
+
+
 @router.post("/join/random", response_model=RoomSummary)
 async def join_random(
     body: JoinRoomRequest,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    room = await find_random_open_room(session)
+    # already seated somewhere? resume that table instead of erroring
+    membership = await get_user_membership(session, user.id)
+    if membership:
+        return await _summary(session, membership[1])
+
+    room = await find_random_open_room(session, exclude_user_id=user.id)
     if room is None:
         code = await generate_room_code(session)
         room = Room(code=code, name="Quick Table", host_id=user.id, allow_bots=True)
@@ -121,6 +140,17 @@ async def join_room(
 
 async def _join(session: AsyncSession, room: Room, user: User, buy_in: int | None) -> RoomSummary:
     buy_in = buy_in or room.min_buy_in
+    # if already seated: resume the same table, or switch from another one
+    membership = await get_user_membership(session, user.id)
+    if membership:
+        rp, cur_room = membership
+        if cur_room.id == room.id:
+            return await _summary(session, room)  # resume — no re-buy
+        # seated elsewhere → leave that table first (chips refunded)
+        try:
+            await manager.unseat_player(session, cur_room, user)
+        except ValueError:
+            pass
     try:
         await manager.seat_player(session, room, user, buy_in)
     except ValueError as e:
