@@ -66,25 +66,25 @@ function Board({ scope }: { scope: "global" | "friends" }) {
           </button>
         ))}
       </div>
-      <Card className="p-4">
+      <Card className="p-2">
         {!rows ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="p-2 text-sm text-muted-foreground">Loading…</p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing here yet.</p>
+          <p className="p-2 text-sm text-muted-foreground">Nothing here yet.</p>
         ) : (
           rows.map((r) => (
             <button
               key={`${r.rank}-${r.display_name}`}
               onClick={() => r.id && openUser(r.id)}
               className={cn(
-                "flex w-full items-center gap-3 border-b border-white/5 py-2.5 text-left last:border-0",
-                r.is_me && "-mx-2 rounded-lg bg-gold/10 px-2",
+                "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left",
+                r.is_me && "bg-gold/10",
               )}
             >
-              <div className="flex w-6 justify-center">
+              <div className="flex w-6 shrink-0 justify-center">
                 <RankIcon rank={r.rank} />
               </div>
-              <div className="relative">
+              <div className="relative shrink-0">
                 <Avatar className="size-9 border border-white/10">
                   <AvatarFallback className="bg-secondary text-gold">
                     <AvatarIcon code={r.avatar} color={r.avatar_color} className="size-4" />
@@ -94,7 +94,7 @@ function Board({ scope }: { scope: "global" | "friends" }) {
                   <OnlineDot online={r.online} className="absolute -bottom-0.5 -right-0.5" />
                 )}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <div
                   className="truncate text-sm font-semibold"
                   style={r.name_color ? { color: r.name_color } : undefined}
@@ -103,7 +103,7 @@ function Board({ scope }: { scope: "global" | "friends" }) {
                 </div>
                 <div className="text-xs text-muted-foreground">Level {r.level}</div>
               </div>
-              <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-gold">
+              <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-gold">
                 {fmt(r.value)}
               </span>
             </button>

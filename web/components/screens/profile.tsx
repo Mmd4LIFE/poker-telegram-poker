@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Gift,
   Users,
+  UserPlus,
   TrendingUp,
   Coins,
   Trophy,
@@ -12,6 +13,7 @@ import {
   Wrench,
   Spade,
   Palette,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
@@ -47,6 +49,11 @@ function StatRow({
 export function ProfileScreen() {
   const { user, refresh, go } = useApp();
   const [busy, setBusy] = useState(false);
+
+  // pull fresh profile (coins, level, friend count) when opening the tab
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   if (!user) return null;
   const pct = Math.round((user.level_progress || 0) * 100);
@@ -100,17 +107,34 @@ export function ProfileScreen() {
         <Progress value={pct} className="mt-2" />
       </Card>
 
-      <button className="w-full" onClick={() => go("friends")}>
-        <Card className="mb-3 flex-row items-center gap-3 p-4">
-          <Users className="size-5 text-gold" />
-          <span className="flex-1 text-left text-sm font-semibold">Friends</span>
-          <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
-            {user.friend_count}
-          </span>
-        </Card>
-      </button>
+      <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        Social
+      </h2>
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => go("friends")}>
+          <Card className="items-center gap-1 bg-gradient-to-br from-gold/15 to-secondary p-4 text-center active:scale-[0.98]">
+            <Users className="size-6 text-gold" />
+            <div className="text-2xl font-extrabold leading-none">{user.friend_count}</div>
+            <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+              Friends <ChevronRight className="size-3" />
+            </div>
+          </Card>
+        </button>
+        <button onClick={() => go("invite")}>
+          <Card className="items-center gap-1 bg-gradient-to-br from-gem/15 to-secondary p-4 text-center active:scale-[0.98]">
+            <UserPlus className="size-6 text-gem" />
+            <div className="text-2xl font-extrabold leading-none">{user.referral_count}</div>
+            <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+              Recruited <ChevronRight className="size-3" />
+            </div>
+          </Card>
+        </button>
+      </div>
 
-      <Card className="mt-3 p-4">
+      <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        Statistics
+      </h2>
+      <Card className="p-4">
         <StatRow icon={Spade} label="Hands won" value={`${user.hands_won} / ${user.hands_played}`} />
         <StatRow icon={TrendingUp} label="Win rate" value={`${user.win_rate}%`} />
         <StatRow icon={Coins} label="Total won" value={fmt(user.total_won)} />
