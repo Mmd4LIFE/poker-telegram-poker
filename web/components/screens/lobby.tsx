@@ -67,13 +67,19 @@ export function LobbyScreen() {
     api.listRooms().then(setRooms).catch(() => setRooms([]));
   }, []);
 
-  function quickPlay() {
-    // Preview build: the live table is still being ported to the new UI.
+  async function quickPlay() {
+    if (busy) return;
+    setBusy(true);
     haptic("medium");
-    enterTable("quick");
+    try {
+      const room = await api.joinRandom(null);
+      enterTable(room.code);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
-  void busy;
-  void setBusy;
 
   async function claimDaily() {
     try {

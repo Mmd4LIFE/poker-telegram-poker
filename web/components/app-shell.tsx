@@ -12,8 +12,10 @@ import { ShopScreen } from "@/components/screens/shop";
 import { QuestsScreen } from "@/components/screens/quests";
 import { InviteScreen } from "@/components/screens/invite";
 import { AdminScreen } from "@/components/screens/admin";
-import { Placeholder } from "@/components/screens/placeholder";
-import { TableSoon } from "@/components/screens/table-soon";
+import { SquadScreen } from "@/components/screens/squad";
+import { CreateRoomScreen } from "@/components/screens/create-room";
+import { JoinRoomScreen } from "@/components/screens/join-room";
+import { PokerTable } from "@/components/table/poker-table";
 
 export function AppShell({ startParam }: { startParam: string | null }) {
   const { view, go, tableCode } = useApp();
@@ -23,7 +25,7 @@ export function AppShell({ startParam }: { startParam: string | null }) {
     else if (startParam === "leaderboard") go("leaderboard");
   }, [startParam, go]);
 
-  if (tableCode) return <TableSoon />;
+  if (tableCode) return <PokerTable code={tableCode} />;
 
   return (
     <>
@@ -37,9 +39,9 @@ export function AppShell({ startParam }: { startParam: string | null }) {
         {view === "profile" && <ProfileScreen />}
         {view === "invite" && <InviteScreen />}
         {view === "admin" && <AdminScreen />}
-        {view === "squad" && <Placeholder title="Squad" />}
-        {view === "create" && <Placeholder title="Create Room" />}
-        {view === "join" && <Placeholder title="Join by Code" />}
+        {view === "squad" && <SquadScreen />}
+        {view === "create" && <CreateRoomScreen />}
+        {view === "join" && <JoinRoomScreen />}
       </main>
       <BottomNav />
     </>
