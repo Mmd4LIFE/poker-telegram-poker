@@ -50,9 +50,11 @@ class UserProfile(BaseModel):
     referral_count: int
     referral_earned: int
     is_bot: bool
+    is_admin: bool = False
 
     @classmethod
     def from_user(cls, u: User) -> "UserProfile":
+        from app.config import settings
         prog = level_progress(u.xp)
         _, label = degree_for_level(u.level)
         win_rate = round(u.hands_won / u.hands_played * 100, 1) if u.hands_played else 0.0
@@ -67,6 +69,7 @@ class UserProfile(BaseModel):
             best_win_streak=u.best_win_streak, daily_streak=u.daily_streak,
             referral_count=u.referral_count, referral_earned=u.referral_earned,
             is_bot=u.is_bot,
+            is_admin=(u.telegram_id in settings.admin_ids),
         )
 
 

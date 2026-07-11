@@ -65,6 +65,7 @@ const API = (() => {
     achievements: () => req("GET", "/api/achievements"),
     challenges: () => req("GET", "/api/challenges"),
     referral: () => req("GET", "/api/referral"),
+    adminStats: () => req("GET", "/api/admin/stats"),
     mySquad: () => req("GET", "/api/squads/me"),
     createSquad: (b) => req("POST", "/api/squads", b),
     joinSquad: (code) => req("POST", "/api/squads/join", { code }),

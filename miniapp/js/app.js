@@ -417,9 +417,55 @@ const App = (() => {
         <div class="lrow"><div class="ic">🪑</div><div class="main"><div class="t">Tables played</div></div><div class="pill">${user.games_played}</div></div>
       </div>
       <button class="btn" id="inviteBtn" style="margin-top:4px">🎉 Invite &amp; Earn ${user.referral_count ? `· ${user.referral_count} joined` : ""}</button>
-      <button class="btn secondary" id="dailyBtn" style="margin-top:10px">🎁 Claim Daily Reward</button>`);
+      <button class="btn secondary" id="dailyBtn" style="margin-top:10px">🎁 Claim Daily Reward</button>
+      ${user.is_admin ? `<button class="btn ghost" id="adminBtn" style="margin-top:10px">🛠️ Admin Dashboard</button>` : ""}`);
     document.getElementById("dailyBtn").onclick = () => claimDaily();
     document.getElementById("inviteBtn").onclick = () => renderInvite();
+    const adminB = document.getElementById("adminBtn");
+    if (adminB) adminB.onclick = () => renderAdmin();
+  }
+
+  // ---------- Admin dashboard ----------
+  async function renderAdmin() {
+    if (currentTable) return;
+    document.getElementById("tabbar").classList.remove("hidden");
+    setView(`${walletBar()}
+      <div class="row between"><h1>🛠️ Admin</h1><button class="btn ghost sm" id="back">✕</button></div>
+      <div id="adminBody"><div class="muted">Loading…</div></div>`);
+    document.getElementById("back").onclick = () => show("profile");
+    const body = document.getElementById("adminBody");
+    try {
+      const d = await API.adminStats();
+      body.innerHTML = `
+        <div class="row" style="gap:10px">
+          <div class="card grow" style="text-align:center;margin:0">
+            <div style="font-size:24px;font-weight:800;color:var(--accent)">⭐ ${fmt(d.stars_revenue)}</div>
+            <div class="muted">Stars earned</div></div>
+          <div class="card grow" style="text-align:center;margin:0">
+            <div style="font-size:24px;font-weight:800;color:#7ee0ff">${d.ton_revenue_ton} TON</div>
+            <div class="muted">TON earned</div></div>
+        </div>
+        <div class="row" style="gap:10px;margin-top:10px">
+          <div class="card grow" style="text-align:center;margin:0">
+            <div style="font-size:22px;font-weight:800">${d.stars_orders}</div><div class="muted">Star orders</div></div>
+          <div class="card grow" style="text-align:center;margin:0">
+            <div style="font-size:22px;font-weight:800">${d.paying_users}/${d.total_users}</div><div class="muted">Payers / users</div></div>
+        </div>
+        <div class="card" style="margin-top:10px;background:#1a2340">
+          <div class="muted">💡 These are your <b>sales records</b>. The real Stars sit in your bot's Telegram balance — withdraw as TON via Fragment.</div>
+        </div>
+        <h2>Top Spenders</h2>
+        <div class="card">${d.top_spenders.length ? d.top_spenders.map((t, i) => `
+          <div class="lrow"><div class="rank-badge ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">${i+1}</div>
+            <div class="main"><div class="t">${escapeHtml(t.user)}</div><div class="d">ID ${t.telegram_id||"—"}</div></div>
+            <div class="pill">⭐ ${fmt(t.stars)}</div></div>`).join("") : '<div class="muted">No purchases yet</div>'}</div>
+        <h2>Recent Purchases</h2>
+        <div class="card">${d.recent_purchases.length ? d.recent_purchases.map((p) => `
+          <div class="lrow"><div class="ic">${p.provider==="stars"?"⭐":"💠"}</div>
+            <div class="main"><div class="t">${escapeHtml(p.user)}</div>
+              <div class="d">${p.product} · 🪙${fmt(p.coins)}${p.gems?" 💎"+p.gems:""}</div></div>
+            <div class="pill">${p.provider==="stars"?"⭐"+p.amount:(p.amount/1e9).toFixed(2)+" TON"}</div></div>`).join("") : '<div class="muted">No purchases yet</div>'}</div>`;
+    } catch (e) { body.innerHTML = `<div class="card">${escapeHtml(e.message)}</div>`; }
   }
 
   // ---------- Invite & Earn (referrals) ----------
