@@ -12,6 +12,7 @@ interface AppState {
   go: (v: View) => void;
   profileId: number | null;
   openUser: (id: number) => void;
+  closeUser: () => void;
   tableCode: string | null;
   enterTable: (code: string) => void;
   exitTable: () => void;
@@ -46,10 +47,8 @@ export function AppProvider({
     view,
     go: setView,
     profileId,
-    openUser: (id: number) => {
-      setProfileId(id);
-      setView("user");
-    },
+    openUser: (id: number) => setProfileId(id),
+    closeUser: () => setProfileId(null),
     tableCode,
     enterTable: setTableCode,
     exitTable: () => setTableCode(null),

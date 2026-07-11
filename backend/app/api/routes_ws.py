@@ -15,6 +15,12 @@ from app.services.rooms import get_room_by_code
 router = APIRouter()
 logger = logging.getLogger("poker.ws")
 
+# Emotes players can send at the table (validated server-side).
+ALLOWED_EMOTES = {
+    "😀", "😎", "😂", "😍", "🤔", "😱", "😭", "😡", "🤡", "🥶",
+    "👍", "👎", "🔥", "🎉", "🤝", "🍀", "💪", "🙏", "🤯", "🤑",
+}
+
 
 @router.websocket("/ws/room/{code}")
 async def room_ws(websocket: WebSocket, code: str, token: str = Query(...)):
@@ -54,6 +60,13 @@ async def room_ws(websocket: WebSocket, code: str, token: str = Query(...)):
                 await websocket.send_json({"type": "pong"})
             elif mtype == "sync":
                 await websocket.send_json(rt._render(user_id))
+            elif mtype == "emote":
+                emote = str(data.get("emote", ""))
+                if emote in ALLOWED_EMOTES:
+                    await hub.broadcast(
+                        room_code,
+                        {"type": "emote", "user_id": user_id, "emote": emote},
+                    )
     except WebSocketDisconnect:
         pass
     except Exception:

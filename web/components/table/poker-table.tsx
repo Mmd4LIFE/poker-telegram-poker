@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { ArrowLeft, BookOpen, Coins, Trophy } from "lucide-react";
+import { ArrowLeft, BookOpen, Coins, Trophy, Smile } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { haptic, notify } from "@/lib/telegram";
+
+const EMOTES = [
+  "😀", "😎", "😂", "😍", "🤔", "😱", "😭", "😡", "🤡", "🥶",
+  "👍", "👎", "🔥", "🎉", "🤝", "🍀", "💪", "🙏", "🤯", "🤑",
+];
 import * as Poker from "@/lib/poker";
 import { PlayingCard, CardRow } from "@/components/table/playing-card";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +25,7 @@ import { cn } from "@/lib/utils";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export function PokerTable({ code }: { code: string }) {
-  const { user, exitTable } = useApp();
+  const { user, exitTable, openUser } = useApp();
   const meId = user!.id;
   const [state, setState] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
@@ -29,10 +33,13 @@ export function PokerTable({ code }: { code: string }) {
   const [raiseTo, setRaiseTo] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [minBuy, setMinBuy] = useState(2000);
+  const [emotes, setEmotes] = useState<Record<number, { e: string; id: number }>>({});
+  const [emoteOpen, setEmoteOpen] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const aliveRef = useRef(true);
   const resultTimer = useRef<any>(null);
+  const emoteSeq = useRef(0);
 
   // ---- websocket ----
   const connect = useCallback(() => {
@@ -58,6 +65,12 @@ export function PokerTable({ code }: { code: string }) {
           clearTimeout(resultTimer.current);
           resultTimer.current = setTimeout(() => setResult(null), 4500);
         }
+      } else if (msg.type === "emote") {
+        const id = ++emoteSeq.current;
+        setEmotes((m) => ({ ...m, [msg.user_id]: { e: msg.emote, id } }));
+        setTimeout(() => {
+          setEmotes((m) => (m[msg.user_id]?.id === id ? (() => { const c = { ...m }; delete c[msg.user_id]; return c; })() : m));
+        }, 3500);
       }
     };
   }, [code]);
@@ -169,6 +182,9 @@ export function PokerTable({ code }: { code: string }) {
         </Button>
         <div className="rounded-full bg-card px-3 py-1 text-sm font-bold">#{code}</div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => setEmoteOpen((v) => !v)}>
+            <Smile className="size-4" />
+          </Button>
           <Button variant="outline" size="icon" onClick={() => setRanksOpen(true)}>
             <BookOpen className="size-4" />
           </Button>
@@ -177,6 +193,30 @@ export function PokerTable({ code }: { code: string }) {
           </div>
         </div>
       </div>
+
+      {/* emote picker */}
+      {emoteOpen && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setEmoteOpen(false)} />
+          <div
+            className="absolute left-1/2 top-1/2 z-40 grid w-[90%] max-w-sm -translate-x-1/2 -translate-y-1/2 grid-cols-5 gap-2 rounded-2xl border border-white/10 bg-card p-4 shadow-2xl"
+          >
+            {EMOTES.map((e) => (
+              <button
+                key={e}
+                className="grid aspect-square place-items-center rounded-xl bg-secondary text-2xl active:scale-90"
+                onClick={() => {
+                  send({ type: "emote", emote: e });
+                  haptic("light");
+                  setEmoteOpen(false);
+                }}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* felt */}
       <div
@@ -226,7 +266,14 @@ export function PokerTable({ code }: { code: string }) {
                 {fmt(p.bet)}
               </div>
             )}
-            <div
+            {emotes[p.user_id] && (
+              <div className="absolute left-1/2 top-[-30px] z-10 -translate-x-1/2 animate-bounce rounded-full bg-card px-2 py-0.5 text-lg shadow-lg">
+                {emotes[p.user_id].e}
+              </div>
+            )}
+            <button
+              disabled={p.is_bot || p.user_id === meId}
+              onClick={() => !p.is_bot && p.user_id !== meId && openUser(p.user_id)}
               className={cn(
                 "relative mx-auto grid size-11 place-items-center rounded-full border-2 bg-secondary text-xl",
                 p.is_turn ? "border-gold shadow-[0_0_14px_var(--color-gold)]" : "border-white/10",
@@ -238,7 +285,7 @@ export function PokerTable({ code }: { code: string }) {
                   D
                 </span>
               )}
-            </div>
+            </button>
             <div className="mt-0.5 truncate text-[11px]">{p.name}</div>
             <div className="text-[11px] font-bold text-gold">
               {p.sitting_out ? "SIT OUT" : fmt(p.stack)}
@@ -347,13 +394,14 @@ export function PokerTable({ code }: { code: string }) {
                   ))}
                 </div>
                 <div className="mb-2.5 flex items-center gap-3">
-                  <Slider
+                  <input
+                    type="range"
                     min={legal.min_raise_to}
                     max={legal.max_raise_to}
                     step={state.big_blind || 1}
-                    value={[raiseTo]}
-                    onValueChange={(v) => setRaiseTo(v[0])}
-                    className="flex-1"
+                    value={raiseTo}
+                    onChange={(e) => setRaiseTo(Number(e.target.value))}
+                    className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-secondary accent-[var(--color-gold)]"
                   />
                   <span className="min-w-[70px] text-center text-sm font-extrabold text-gold">{fmt(raiseTo)}</span>
                 </div>
