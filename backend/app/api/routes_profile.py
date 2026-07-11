@@ -60,8 +60,10 @@ async def leaderboard(
     )).scalars().all()
     return [{
         "rank": i + 1,
+        "id": u.id,
         "display_name": u.display_name,
         "avatar": u.avatar,
+        "name_color": u.name_color or "",
         "level": u.level,
         "degree": u.degree,
         "value": getattr(u, metric),

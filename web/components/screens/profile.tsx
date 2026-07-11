@@ -11,6 +11,7 @@ import {
   Armchair,
   Wrench,
   Spade,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
@@ -77,10 +78,19 @@ export function ProfileScreen() {
             {user.avatar || <Spade className="size-8" />}
           </AvatarFallback>
         </Avatar>
-        <div className="mt-2 text-xl font-extrabold">{user.display_name}</div>
+        <div
+          className="mt-2 text-xl font-extrabold"
+          style={user.name_color ? { color: user.name_color } : undefined}
+        >
+          {user.display_name}
+        </div>
         <div className="text-sm text-muted-foreground">
+          {user.handle ? `${user.handle} · ` : ""}
           {user.degree_label || user.degree}
         </div>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => go("customize")}>
+          <Palette className="size-4" /> Customize profile
+        </Button>
         <div className="mt-4 flex w-full items-center justify-between text-sm">
           <span>Level {user.level}</span>
           <span className="text-muted-foreground">

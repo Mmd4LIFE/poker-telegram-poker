@@ -2,8 +2,10 @@ export interface UserProfile {
   id: number;
   telegram_id: number | null;
   display_name: string;
+  handle: string | null;
   username: string | null;
   avatar: string;
+  name_color: string;
   coins: number;
   gems: number;
   level: number;
@@ -53,13 +55,16 @@ export type View =
   | "create"
   | "join"
   | "friends"
-  | "user";
+  | "user"
+  | "customize";
 
 export interface FriendCard {
   id: number;
   display_name: string;
+  handle?: string | null;
   username: string | null;
   avatar: string;
+  name_color?: string;
   level: number;
   degree: string;
   degree_label: string;

@@ -44,6 +44,7 @@ class GameManager:
                 rt.game.add_seat(Seat(
                     user_id=user.id, name=user.display_name, seat=rp.seat,
                     stack=rp.stack, is_bot=user.is_bot, avatar=user.avatar or "🎩",
+                    name_color=user.name_color or "",
                     bot_personality=user.bot_personality, bot_skill=user.bot_skill,
                     sitting_out=(rp.status == "sitting_out"),
                 ))

@@ -29,6 +29,8 @@ import { OnlineDot } from "@/components/online-dot";
 interface Profile {
   id: number;
   display_name: string;
+  handle?: string | null;
+  name_color?: string;
   avatar: string;
   degree_label: string;
   online: boolean;
@@ -116,8 +118,14 @@ export function UserProfileSheet() {
                 </Avatar>
                 <OnlineDot online={p.online} className="absolute bottom-1 right-1 size-4" />
               </div>
-              <div className="mt-2 text-xl font-extrabold">{p.display_name}</div>
+              <div
+                className="mt-2 text-xl font-extrabold"
+                style={p.name_color ? { color: p.name_color } : undefined}
+              >
+                {p.display_name}
+              </div>
               <div className="text-sm text-muted-foreground">
+                {p.handle ? `${p.handle} · ` : ""}
                 {p.degree_label} · {p.online ? "Online" : "Offline"}
               </div>
             </div>

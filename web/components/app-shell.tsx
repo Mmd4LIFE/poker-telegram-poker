@@ -14,6 +14,7 @@ import { AdminScreen } from "@/components/screens/admin";
 import { SquadScreen } from "@/components/screens/squad";
 import { CreateRoomScreen } from "@/components/screens/create-room";
 import { JoinRoomScreen } from "@/components/screens/join-room";
+import { CustomizeScreen } from "@/components/screens/customize";
 import { PokerTable } from "@/components/table/poker-table";
 import { UserProfileSheet } from "@/components/user-profile-sheet";
 
@@ -43,6 +44,7 @@ export function AppShell({ startParam }: { startParam: string | null }) {
             {view === "squad" && <SquadScreen />}
             {view === "create" && <CreateRoomScreen />}
             {view === "join" && <JoinRoomScreen />}
+            {view === "customize" && <CustomizeScreen />}
           </main>
           <BottomNav />
         </>

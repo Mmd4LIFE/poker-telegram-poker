@@ -29,8 +29,10 @@ class UserProfile(BaseModel):
     id: int
     telegram_id: int | None
     display_name: str
+    handle: str | None
     username: str | None
     avatar: str
+    name_color: str
     coins: int
     gems: int
     level: int
@@ -60,7 +62,8 @@ class UserProfile(BaseModel):
         win_rate = round(u.hands_won / u.hands_played * 100, 1) if u.hands_played else 0.0
         return cls(
             id=u.id, telegram_id=u.telegram_id, display_name=u.display_name,
-            username=u.username, avatar=u.avatar, coins=u.coins, gems=u.gems,
+            handle=u.handle, username=u.username, avatar=u.avatar,
+            name_color=u.name_color or "", coins=u.coins, gems=u.gems,
             level=u.level, xp=u.xp, degree=u.degree, degree_label=label,
             level_progress=prog["progress"], next_level_xp=prog["next_level_xp"],
             hands_played=u.hands_played, hands_won=u.hands_won,

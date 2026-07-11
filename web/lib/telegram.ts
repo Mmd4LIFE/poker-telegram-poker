@@ -23,7 +23,15 @@ export function initTelegram() {
 }
 
 export function startParam(): string | null {
-  return tg()?.initDataUnsafe?.start_param ?? null;
+  const p = tg()?.initDataUnsafe?.start_param;
+  if (p) return p;
+  if (typeof window !== "undefined") {
+    return (
+      new URLSearchParams(window.location.search).get("startapp") ||
+      new URLSearchParams(window.location.search).get("tgWebAppStartParam")
+    );
+  }
+  return null;
 }
 
 export function haptic(style: HapticStyle = "light") {

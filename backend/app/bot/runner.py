@@ -44,6 +44,18 @@ async def setup_bot() -> None:
     except Exception:  # noqa: BLE001
         logger.exception("Failed to set commands")
 
+    # Point the persistent menu button at the new Next.js app (/app)
+    try:
+        from aiogram.types import MenuButtonWebApp, WebAppInfo
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="🎮 Play", web_app=WebAppInfo(url=f"{settings.WEBAPP_URL}/app")
+            )
+        )
+        logger.info("Menu button set to %s/app", settings.WEBAPP_URL)
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to set menu button")
+
     if settings.BOT_MODE == "webhook":
         webhook_url = f"{settings.PUBLIC_URL}/webhook/{settings.WEBHOOK_SECRET}"
         await bot.set_webhook(

@@ -25,8 +25,10 @@ def user_card(u: User) -> dict:
     return {
         "id": u.id,
         "display_name": u.display_name,
+        "handle": u.handle,
         "username": u.username,
         "avatar": u.avatar,
+        "name_color": u.name_color or "",
         "level": u.level,
         "degree": u.degree,
         "degree_label": label,
@@ -119,8 +121,8 @@ async def friends_leaderboard(
     everyone.sort(key=lambda u: getattr(u, metric), reverse=True)
     return [{
         "rank": i + 1, "id": u.id, "display_name": u.display_name,
-        "avatar": u.avatar, "level": u.level, "degree": u.degree,
-        "online": F.is_online(u), "value": getattr(u, metric),
+        "avatar": u.avatar, "name_color": u.name_color or "", "level": u.level,
+        "degree": u.degree, "online": F.is_online(u), "value": getattr(u, metric),
         "is_me": u.id == user.id,
     } for i, u in enumerate(everyone)]
 

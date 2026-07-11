@@ -25,8 +25,14 @@ function Row({ f, action }: { f: FriendCard; action?: React.ReactNode }) {
         <OnlineDot online={f.online} className="absolute -bottom-0.5 -right-0.5" />
       </button>
       <button className="flex-1 min-w-0 text-left" onClick={() => openUser(f.id)}>
-        <div className="truncate text-sm font-semibold">{f.display_name}</div>
+        <div
+          className="truncate text-sm font-semibold"
+          style={f.name_color ? { color: f.name_color } : undefined}
+        >
+          {f.display_name}
+        </div>
         <div className="text-xs text-muted-foreground">
+          {f.handle ? `${f.handle} · ` : ""}
           {f.online ? "Online" : "Offline"} · Lvl {f.level}
         </div>
       </button>

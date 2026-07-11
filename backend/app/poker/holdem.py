@@ -40,6 +40,7 @@ class Seat:
     stack: int
     is_bot: bool = False
     avatar: str = "🎩"
+    name_color: str = ""
     bot_personality: str | None = None
     bot_skill: float = 0.5
 
@@ -499,6 +500,7 @@ class HoldemGame:
             seats.append({
                 "user_id": s.user_id,
                 "name": s.name,
+                "name_color": s.name_color,
                 "avatar": s.avatar,
                 "seat": s.seat,
                 "stack": s.stack,

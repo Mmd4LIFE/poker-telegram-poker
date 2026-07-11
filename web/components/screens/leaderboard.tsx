@@ -21,6 +21,7 @@ interface Row {
   rank: number;
   id?: number;
   display_name: string;
+  name_color?: string;
   avatar: string;
   level: number;
   degree: string;
@@ -90,7 +91,10 @@ function Board({ scope }: { scope: "global" | "friends" }) {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="truncate text-sm font-semibold">
+                <div
+                  className="truncate text-sm font-semibold"
+                  style={r.name_color ? { color: r.name_color } : undefined}
+                >
                   {r.display_name} {r.is_me && <span className="text-xs text-gold">(you)</span>}
                 </div>
                 <div className="text-xs text-muted-foreground">

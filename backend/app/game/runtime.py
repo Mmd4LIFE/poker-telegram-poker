@@ -60,6 +60,7 @@ class RoomRuntime:
             self.game.add_seat(Seat(
                 user_id=user.id, name=user.display_name, seat=seat_no,
                 stack=stack, is_bot=user.is_bot, avatar=user.avatar or "🎩",
+                name_color=user.name_color or "",
                 bot_personality=user.bot_personality, bot_skill=user.bot_skill,
             ))
             if user.is_bot:

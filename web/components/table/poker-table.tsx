@@ -286,7 +286,12 @@ export function PokerTable({ code }: { code: string }) {
                 </span>
               )}
             </button>
-            <div className="mt-0.5 truncate text-[11px]">{p.name}</div>
+            <div
+              className="mt-0.5 truncate text-[11px] font-semibold"
+              style={p.name_color ? { color: p.name_color } : undefined}
+            >
+              {p.name}
+            </div>
             <div className="text-[11px] font-bold text-gold">
               {p.sitting_out ? "SIT OUT" : fmt(p.stack)}
             </div>

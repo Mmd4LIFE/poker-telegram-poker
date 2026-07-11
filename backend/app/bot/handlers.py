@@ -22,15 +22,17 @@ logger = logging.getLogger("poker.bot")
 router = Router()
 
 
+def _app_url(param: str | None = None) -> str:
+    url = f"{settings.WEBAPP_URL}/app"
+    return f"{url}?startapp={param}" if param else url
+
+
 def _webapp_kb(param: str | None = None) -> InlineKeyboardMarkup:
-    url = settings.WEBAPP_URL
-    if param:
-        url = f"{url}?startapp={param}"
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎮 Play Poker", web_app=WebAppInfo(url=url))],
+        [InlineKeyboardButton(text="🎮 Play Poker", web_app=WebAppInfo(url=_app_url(param)))],
         [
-            InlineKeyboardButton(text="🏆 Leaderboard", web_app=WebAppInfo(url=f"{settings.WEBAPP_URL}?startapp=leaderboard")),
-            InlineKeyboardButton(text="💰 Shop", web_app=WebAppInfo(url=f"{settings.WEBAPP_URL}?startapp=shop")),
+            InlineKeyboardButton(text="🏆 Leaderboard", web_app=WebAppInfo(url=_app_url("leaderboard"))),
+            InlineKeyboardButton(text="💰 Shop", web_app=WebAppInfo(url=_app_url("shop"))),
         ],
     ])
 

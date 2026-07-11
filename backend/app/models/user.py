@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Float, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -26,6 +27,10 @@ class User(Base, TimestampMixin):
     photo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # Cosmetic avatar chosen inside the app (emoji / preset id)
     avatar: Mapped[str] = mapped_column(String(32), default="🎩")
+    # Equipped username color: "" (classic) or a CSS color string
+    name_color: Mapped[str] = mapped_column(String(24), default="")
+    # Owned cosmetics, e.g. ["a:👑", "c:#f5c518"]
+    owned_cosmetics: Mapped[list] = mapped_column(JSONB, default=list)
 
     # AI bot fields
     is_bot: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
@@ -75,9 +80,15 @@ class User(Base, TimestampMixin):
 
     @property
     def display_name(self) -> str:
-        if self.username:
-            return f"@{self.username}"
-        name = self.first_name or "Player"
+        name = (self.first_name or "").strip()
         if self.last_name:
-            name = f"{name} {self.last_name}"
-        return name
+            name = f"{name} {self.last_name}".strip()
+        if name:
+            return name
+        if self.username:
+            return self.username
+        return "Player"
+
+    @property
+    def handle(self) -> str | None:
+        return f"@{self.username}" if self.username else None
