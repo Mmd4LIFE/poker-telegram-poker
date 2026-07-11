@@ -61,11 +61,11 @@ async def admin_stats(
     )).all()
 
     return {
-        "total_users": total_users,
-        "paying_users": paying_users,
-        "stars_revenue": stars_revenue,          # total Stars earned
-        "stars_orders": stars_orders,
-        "ton_revenue_ton": round(ton_revenue_nano / 1e9, 4),
+        "total_users": int(total_users),
+        "paying_users": int(paying_users),
+        "stars_revenue": int(stars_revenue),     # total Stars earned
+        "stars_orders": int(stars_orders),
+        "ton_revenue_ton": round(int(ton_revenue_nano) / 1e9, 4),
         "recent_purchases": [{
             "user": u.display_name,
             "telegram_id": u.telegram_id,
