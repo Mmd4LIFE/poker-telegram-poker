@@ -23,7 +23,7 @@ router = Router()
 
 
 def _app_url(param: str | None = None) -> str:
-    url = f"{settings.WEBAPP_URL}/app"
+    url = settings.WEBAPP_URL
     return f"{url}?startapp={param}" if param else url
 
 

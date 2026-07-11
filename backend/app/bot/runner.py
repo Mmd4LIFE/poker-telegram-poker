@@ -49,10 +49,10 @@ async def setup_bot() -> None:
         from aiogram.types import MenuButtonWebApp, WebAppInfo
         await bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(
-                text="🎮 Play", web_app=WebAppInfo(url=f"{settings.WEBAPP_URL}/app")
+                text="🎮 Play", web_app=WebAppInfo(url=settings.WEBAPP_URL)
             )
         )
-        logger.info("Menu button set to %s/app", settings.WEBAPP_URL)
+        logger.info("Menu button set to %s", settings.WEBAPP_URL)
     except Exception:  # noqa: BLE001
         logger.exception("Failed to set menu button")
 
