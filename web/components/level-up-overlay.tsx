@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Star, ChevronUp } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { notify } from "@/lib/telegram";
+import { fmt } from "@/lib/api";
 
 export function LevelUpOverlay() {
   const { levelUp, clearLevelUp, user } = useApp();
@@ -38,7 +39,9 @@ export function LevelUpOverlay() {
         </div>
         <div className="mt-1 text-4xl font-extrabold">Level {levelUp}</div>
         {user && (
-          <div className="mt-1 text-sm text-muted-foreground">{user.degree_label || user.degree}</div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            +{fmt(500 * levelUp)} bonus coins
+          </div>
         )}
         <div className="mt-4 text-xs text-muted-foreground">Tap to continue</div>
       </div>

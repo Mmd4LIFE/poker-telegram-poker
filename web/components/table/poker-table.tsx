@@ -230,9 +230,12 @@ export function PokerTable({ code }: { code: string }) {
 
       {/* felt */}
       <div
-        className="absolute left-1/2 top-[50%] aspect-[4/4.2] w-[86%] max-w-[430px] -translate-x-1/2 -translate-y-1/2 rounded-[46%/40%] border-[10px] border-[#3a2415]"
+        className="absolute left-1/2 top-[50%] aspect-[4/4.2] w-[86%] max-w-[430px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[46%/40%] border-[10px] border-[#3a2415]"
         style={{
-          background: "radial-gradient(ellipse at center, oklch(0.45 0.11 155), oklch(0.36 0.10 155))",
+          backgroundImage:
+            "radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,.45) 100%), url(/poker-table.jpg)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
           boxShadow: "inset 0 0 60px rgba(0,0,0,.5), 0 10px 40px rgba(0,0,0,.6)",
         }}
       />

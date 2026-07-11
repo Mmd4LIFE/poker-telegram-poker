@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   UserPlus,
-  UserMinus,
   Check,
+  MessageCircle,
   TrendingUp,
   TrendingDown,
   Trophy,
@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import { fmt, api } from "@/lib/api";
 import { useApp } from "@/lib/store";
-import { notify } from "@/lib/telegram";
+import { notify, openTelegramLink } from "@/lib/telegram";
 import type { HistoryItem } from "@/lib/types";
 import {
   Sheet,
@@ -31,9 +31,12 @@ interface Profile {
   id: number;
   display_name: string;
   handle?: string | null;
+  username?: string | null;
+  telegram_id?: number | null;
   name_color?: string;
   avatar: string;
   avatar_color?: string;
+  level: number;
   degree_label: string;
   online: boolean;
   total_won: number;
@@ -83,11 +86,26 @@ export function UserProfileSheet() {
     }
   }
 
+  function message() {
+    if (!p) return;
+    if (p.username) openTelegramLink(`https://t.me/${p.username}`);
+    else if (p.telegram_id) openTelegramLink(`tg://user?id=${p.telegram_id}`);
+    else toast("This player can't be messaged directly");
+  }
+
   const friendBtn = p && (
     p.relation === "friends" ? (
-      <Button variant="outline" className="w-full" onClick={toggleFriend}>
-        <UserMinus className="size-4" /> Unfriend
-      </Button>
+      <div className="space-y-2">
+        <Button className="w-full" onClick={message}>
+          <MessageCircle className="size-4" /> Message
+        </Button>
+        <button
+          className="w-full text-center text-xs text-muted-foreground"
+          onClick={toggleFriend}
+        >
+          Remove friend
+        </button>
+      </div>
     ) : p.relation === "incoming" ? (
       <Button className="w-full" onClick={toggleFriend}>
         <Check className="size-4" /> Accept request
@@ -130,7 +148,7 @@ export function UserProfileSheet() {
               </div>
               <div className="text-sm text-muted-foreground">
                 {p.handle ? `${p.handle} · ` : ""}
-                {p.degree_label} · {p.online ? "Online" : "Offline"}
+                Level {p.level} · {p.online ? "Online" : "Offline"}
               </div>
             </div>
 

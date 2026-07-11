@@ -10,11 +10,13 @@ import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export function InviteScreen() {
-  const { go } = useApp();
+  const { go, openUser } = useApp();
   const [r, setR] = useState<any>(null);
 
   useEffect(() => {
@@ -96,6 +98,39 @@ export function InviteScreen() {
           <div className="mt-3 break-all rounded-lg bg-secondary/60 p-3 text-xs text-muted-foreground">
             {r.link || "Link unavailable"}
           </div>
+
+          {r.friends && r.friends.length > 0 && (
+            <>
+              <h2 className="mb-2 mt-5 flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <Users className="size-3.5" /> Your recruits ({r.friends.length})
+              </h2>
+              <Card className="p-4">
+                {r.friends.map((f: any) => (
+                  <button
+                    key={f.id}
+                    onClick={() => f.id && openUser(f.id)}
+                    className="flex w-full items-center gap-3 border-b border-white/5 py-2 text-left last:border-0"
+                  >
+                    <Avatar className="size-9 border border-white/10">
+                      <AvatarFallback className="bg-secondary text-gold">
+                        <AvatarIcon code={f.avatar} color={f.avatar_color} className="size-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="truncate text-sm font-semibold"
+                        style={f.name_color ? { color: f.name_color } : undefined}
+                      >
+                        {f.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Level {f.level}</div>
+                    </div>
+                    <span className="text-xs text-win">Friend</span>
+                  </button>
+                ))}
+              </Card>
+            </>
+          )}
 
           <h2 className="mb-2 mt-5 flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
             <Gift className="size-3.5" /> Milestone bonuses

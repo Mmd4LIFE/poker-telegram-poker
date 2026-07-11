@@ -23,9 +23,7 @@ export function WalletBar() {
         >
           {user.display_name}
         </div>
-        <div className="text-[11px] text-muted-foreground">
-          Lvl {user.level} · {user.degree_label || user.degree}
-        </div>
+        <div className="text-[11px] text-muted-foreground">Level {user.level}</div>
         <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
           <div
             className="h-full rounded-full bg-gradient-to-r from-gold to-[var(--color-gem)]"

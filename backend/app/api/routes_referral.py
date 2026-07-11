@@ -11,6 +11,7 @@ from app.config import settings
 from app.database import get_session
 from app.models import User
 from app.services.referrals import MILESTONES, next_milestone
+from app.services.cosmetics import effective_avatar_color as _eac
 
 router = APIRouter(prefix="/api/referral", tags=["referral"])
 
@@ -46,7 +47,11 @@ async def my_referral(
             for k, v in sorted(MILESTONES.items())
         ],
         "friends": [
-            {"name": f.display_name, "avatar": f.avatar, "level": f.level}
+            {
+                "id": f.id, "name": f.display_name, "avatar": f.avatar,
+                "avatar_color": _eac(f), "name_color": f.name_color or "",
+                "level": f.level,
+            }
             for f in friends
         ],
     }

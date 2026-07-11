@@ -86,8 +86,7 @@ export function ProfileScreen() {
           {user.display_name}
         </div>
         <div className="text-sm text-muted-foreground">
-          {user.handle ? `${user.handle} · ` : ""}
-          {user.degree_label || user.degree}
+          {user.handle || `Level ${user.level}`}
         </div>
         <Button variant="outline" size="sm" className="mt-3" onClick={() => go("customize")}>
           <Palette className="size-4" /> Customize profile
@@ -100,6 +99,16 @@ export function ProfileScreen() {
         </div>
         <Progress value={pct} className="mt-2" />
       </Card>
+
+      <button className="w-full" onClick={() => go("friends")}>
+        <Card className="mb-3 flex-row items-center gap-3 p-4">
+          <Users className="size-5 text-gold" />
+          <span className="flex-1 text-left text-sm font-semibold">Friends</span>
+          <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
+            {user.friend_count}
+          </span>
+        </Card>
+      </button>
 
       <Card className="mt-3 p-4">
         <StatRow icon={Spade} label="Hands won" value={`${user.hands_won} / ${user.hands_played}`} />

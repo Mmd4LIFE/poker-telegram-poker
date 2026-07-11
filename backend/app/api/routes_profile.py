@@ -15,8 +15,21 @@ router = APIRouter(prefix="/api", tags=["profile"])
 
 
 @router.get("/me", response_model=UserProfile)
-async def me(user: User = Depends(get_current_user)):
-    return UserProfile.from_user(user)
+async def me(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    from sqlalchemy import func, or_
+    from app.models import Friendship
+    count = (await session.execute(
+        select(func.count(Friendship.id)).where(
+            Friendship.status == "accepted",
+            or_(Friendship.user_id == user.id, Friendship.friend_id == user.id),
+        )
+    )).scalar_one()
+    profile = UserProfile.from_user(user)
+    profile.friend_count = int(count)
+    return profile
 
 
 @router.post("/daily")

@@ -101,9 +101,7 @@ function Board({ scope }: { scope: "global" | "friends" }) {
                 >
                   {r.display_name} {r.is_me && <span className="text-xs text-gold">(you)</span>}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  Lvl {r.level} · {r.degree}
-                </div>
+                <div className="text-xs text-muted-foreground">Level {r.level}</div>
               </div>
               <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-gold">
                 {fmt(r.value)}

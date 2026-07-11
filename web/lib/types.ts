@@ -27,6 +27,7 @@ export interface UserProfile {
   daily_streak: number;
   referral_count: number;
   referral_earned: number;
+  friend_count: number;
   is_bot: boolean;
   is_admin: boolean;
 }

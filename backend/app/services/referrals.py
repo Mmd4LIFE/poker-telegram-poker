@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import User
+from app.models import Friendship, User
 from app.services.economy import credit
 
 logger = logging.getLogger("poker.referrals")
@@ -82,6 +83,19 @@ async def apply_referral(
 
     # link them
     new_user.referred_by = referrer.id
+
+    # auto-friend the referrer and the new user (accepted)
+    from datetime import datetime, timezone
+    exists = (await session.execute(
+        select(Friendship).where(
+            Friendship.user_id == referrer.id, Friendship.friend_id == new_user.id
+        )
+    )).scalar_one_or_none()
+    if exists is None:
+        session.add(Friendship(
+            user_id=referrer.id, friend_id=new_user.id,
+            status="accepted", responded_at=datetime.now(timezone.utc),
+        ))
 
     # reward the new friend
     if settings.REFERRAL_FRIEND_REWARD:

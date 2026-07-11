@@ -54,6 +54,7 @@ class UserProfile(BaseModel):
     daily_streak: int
     referral_count: int
     referral_earned: int
+    friend_count: int = 0
     is_bot: bool
     is_admin: bool = False
 
