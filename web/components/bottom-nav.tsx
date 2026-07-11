@@ -1,16 +1,16 @@
 "use client";
 
-import { Gamepad2, Target, ShoppingBag, Trophy, User } from "lucide-react";
+import { Gamepad2, Users, ShoppingBag, Trophy, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 import type { View } from "@/lib/types";
 
-const TABS: { view: View; label: string; icon: React.ElementType }[] = [
-  { view: "lobby", label: "Play", icon: Gamepad2 },
-  { view: "quests", label: "Quests", icon: Target },
-  { view: "shop", label: "Shop", icon: ShoppingBag },
-  { view: "leaderboard", label: "Ranks", icon: Trophy },
-  { view: "profile", label: "Me", icon: User },
+const TABS: { view: View; label: string; icon: React.ElementType; match: View[] }[] = [
+  { view: "lobby", label: "Play", icon: Gamepad2, match: ["lobby", "create", "join"] },
+  { view: "friends", label: "Friends", icon: Users, match: ["friends", "user"] },
+  { view: "leaderboard", label: "Ranks", icon: Trophy, match: ["leaderboard"] },
+  { view: "shop", label: "Shop", icon: ShoppingBag, match: ["shop"] },
+  { view: "profile", label: "Me", icon: User, match: ["profile", "invite", "admin", "quests", "squad"] },
 ];
 
 export function BottomNav() {
@@ -21,7 +21,7 @@ export function BottomNav() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {TABS.map((t) => {
-        const active = view === t.view;
+        const active = t.match.includes(view);
         const Icon = t.icon;
         return (
           <button

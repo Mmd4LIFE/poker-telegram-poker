@@ -10,6 +10,7 @@ import {
   Users,
   Play,
   Spade,
+  Target,
   ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -120,6 +121,7 @@ export function LobbyScreen() {
         />
         <Tile icon={Plus} title="Create Room" sub="Host a table" onClick={() => go("create")} />
         <Tile icon={KeyRound} title="Join by Code" sub="Friend's code" onClick={() => go("join")} />
+        <Tile icon={Target} title="Quests" sub="Daily & weekly goals" onClick={() => go("quests")} />
         <Tile icon={Shield} title="Squad" sub="Play with crew" onClick={() => go("squad")} />
         <Tile
           icon={Gift}
@@ -127,6 +129,7 @@ export function LobbyScreen() {
           sub={`Streak: ${user?.daily_streak ?? 0}`}
           onClick={claimDaily}
         />
+        <Tile icon={Users} title="Friends" sub="See who's online" onClick={() => go("friends")} />
         <Tile
           icon={Users}
           title="Invite & Earn"

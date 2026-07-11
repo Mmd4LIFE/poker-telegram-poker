@@ -10,6 +10,8 @@ interface AppState {
   refresh: () => Promise<void>;
   view: View;
   go: (v: View) => void;
+  profileId: number | null;
+  openUser: (id: number) => void;
   tableCode: string | null;
   enterTable: (code: string) => void;
   exitTable: () => void;
@@ -27,6 +29,7 @@ export function AppProvider({
   const [user, setUser] = useState<UserProfile>(initialUser);
   const [view, setView] = useState<View>("lobby");
   const [tableCode, setTableCode] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -42,6 +45,11 @@ export function AppProvider({
     refresh,
     view,
     go: setView,
+    profileId,
+    openUser: (id: number) => {
+      setProfileId(id);
+      setView("user");
+    },
     tableCode,
     enterTable: setTableCode,
     exitTable: () => setTableCode(null),

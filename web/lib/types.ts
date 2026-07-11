@@ -51,4 +51,32 @@ export type View =
   | "admin"
   | "squad"
   | "create"
-  | "join";
+  | "join"
+  | "friends"
+  | "user";
+
+export interface FriendCard {
+  id: number;
+  display_name: string;
+  username: string | null;
+  avatar: string;
+  level: number;
+  degree: string;
+  degree_label: string;
+  online: boolean;
+  hands_won: number;
+  hands_played: number;
+  total_won: number;
+  win_rate: number;
+  relation?: string;
+}
+
+export interface HistoryItem {
+  room_code: string;
+  hand_no: number;
+  net: number;
+  won: boolean;
+  hand_name: string;
+  pot: number;
+  at: string | null;
+}
