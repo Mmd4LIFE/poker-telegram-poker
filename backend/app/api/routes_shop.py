@@ -197,6 +197,10 @@ async def open_box(
     elif reward["type"] == "gems":
         await credit(session, user, reward["amount"], "box_open", currency="gems", ref=box.code)
     elif reward["type"] == "avatar":
+        # permanently unlock the avatar so it can be re-equipped for free
+        key = "a:" + reward["value"]
+        if key not in (user.owned_cosmetics or []):
+            user.owned_cosmetics = [*(user.owned_cosmetics or []), key]
         user.avatar = reward["value"]
     return {"reward": reward, "coins": user.coins, "gems": user.gems}
 

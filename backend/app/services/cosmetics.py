@@ -55,6 +55,11 @@ def is_free(kind: str, code: str) -> bool:
 def owns(user: User, kind: str, code: str) -> bool:
     if is_free(kind, code):
         return True
+    # whatever is currently equipped is always owned (never lose your current)
+    if kind == "avatar" and user.avatar == code:
+        return True
+    if kind == "color" and (user.name_color or "") == code:
+        return True
     key = ("a:" if kind == "avatar" else "c:") + code
     return key in _owned_set(user)
 
