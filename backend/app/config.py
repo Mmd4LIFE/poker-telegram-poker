@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     TON_WALLET_ADDRESS: str = ""
     COINS_PER_STAR: int = 1000
 
+    # Loot boxes
+    BOX_DAILY_LIMIT: int = 20   # max box opens per user per day (0 = unlimited)
+
     # Referrals
     REFERRAL_REFERRER_REWARD: int = 5000   # coins the inviter gets per friend
     REFERRAL_FRIEND_REWARD: int = 2500     # bonus coins the new friend gets

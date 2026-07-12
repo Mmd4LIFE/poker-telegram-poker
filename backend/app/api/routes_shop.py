@@ -3,35 +3,63 @@ from __future__ import annotations
 
 import logging
 import secrets
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from aiogram.types import LabeledPrice
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.config import settings
 from app.database import get_session
-from app.models import Box, Purchase, User, UserBox
+from app.models import Box, Product, Purchase, User, UserBox
 from app.schemas import BuyStarsRequest, OpenBoxRequest
-from app.services.catalog import (
-    STAR_PRODUCTS,
-    TON_PRODUCTS,
-    star_catalog,
-    ton_catalog,
-)
+from app.services import cosmetics as C
 from app.services.economy import InsufficientFunds, credit, debit
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
 logger = logging.getLogger("poker.shop")
 
 
+async def _product(session: AsyncSession, code: str, kind: str) -> Product:
+    p = (await session.execute(
+        select(Product).where(
+            Product.code == code, Product.kind == kind, Product.is_active.is_(True)
+        )
+    )).scalar_one_or_none()
+    if not p:
+        raise HTTPException(404, "Unknown product")
+    return p
+
+
+def _product_dict(p: Product) -> dict:
+    d = {
+        "code": p.code, "label": p.label, "coins": p.coins, "gems": p.gems,
+        "discount_pct": p.discount_pct, "base_price": p.base_price,
+        "price": p.price,
+    }
+    if p.kind == "ton":
+        d["ton"] = round(p.price / 1e9, 4)
+        d["base_ton"] = round(p.base_price / 1e9, 4)
+    else:
+        d["stars"] = p.price
+        d["base_stars"] = p.base_price
+    return d
+
+
 @router.get("/catalog")
-async def catalog(user: User = Depends(get_current_user)):
+async def catalog(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    rows = (await session.execute(
+        select(Product).where(Product.is_active.is_(True)).order_by(Product.sort_order)
+    )).scalars().all()
     return {
-        "stars": star_catalog(),
-        "ton": ton_catalog(),
+        "stars": [_product_dict(p) for p in rows if p.kind == "stars"],
+        "ton": [_product_dict(p) for p in rows if p.kind == "ton"],
         "ton_wallet": settings.TON_WALLET_ADDRESS,
     }
 
@@ -43,28 +71,26 @@ async def stars_invoice(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    product = STAR_PRODUCTS.get(body.product_code)
-    if not product:
-        raise HTTPException(404, "Unknown product")
+    product = await _product(session, body.product_code, "stars")
+    price = product.price  # discount applied
 
     payload = f"stars_{user.id}_{secrets.token_hex(8)}"
-    purchase = Purchase(
-        user_id=user.id, provider="stars", product_code=body.product_code,
-        amount=product["stars"], coins_granted=product["coins"],
-        gems_granted=product["gems"], status="pending", payload=payload,
-    )
-    session.add(purchase)
+    session.add(Purchase(
+        user_id=user.id, provider="stars", product_code=product.code,
+        amount=price, coins_granted=product.coins, gems_granted=product.gems,
+        status="pending", payload=payload,
+    ))
     await session.flush()
 
     from app.bot.instance import get_bot
     try:
         link = await get_bot().create_invoice_link(
-            title=product["label"],
-            description=f"{product['coins']:,} coins"
-            + (f" + {product['gems']} gems" if product["gems"] else ""),
+            title=product.label,
+            description=f"{product.coins:,} coins"
+            + (f" + {product.gems} gems" if product.gems else ""),
             payload=payload,
             currency="XTR",
-            prices=[LabeledPrice(label=product["label"], amount=product["stars"])],
+            prices=[LabeledPrice(label=product.label, amount=price)],
         )
     except Exception as e:  # noqa: BLE001
         logger.exception("invoice creation failed")
@@ -80,24 +106,21 @@ async def ton_intent(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    product = TON_PRODUCTS.get(body.product_code)
-    if not product:
-        raise HTTPException(404, "Unknown product")
+    product = await _product(session, body.product_code, "ton")
     if not settings.TON_WALLET_ADDRESS:
         raise HTTPException(400, "TON payments are not configured on this server")
 
     comment = f"pcm-{user.id}-{secrets.token_hex(6)}"
-    purchase = Purchase(
-        user_id=user.id, provider="ton", product_code=body.product_code,
-        amount=product["ton_nano"], coins_granted=product["coins"],
-        gems_granted=product["gems"], status="pending", payload=comment,
-    )
-    session.add(purchase)
+    session.add(Purchase(
+        user_id=user.id, provider="ton", product_code=product.code,
+        amount=product.price, coins_granted=product.coins,
+        gems_granted=product.gems, status="pending", payload=comment,
+    ))
     await session.flush()
     return {
         "wallet": settings.TON_WALLET_ADDRESS,
-        "amount_nano": product["ton_nano"],
-        "amount_ton": product["ton_nano"] / 1e9,
+        "amount_nano": product.price,
+        "amount_ton": round(product.price / 1e9, 4),
         "comment": comment,
         "payload": comment,
     }
@@ -109,7 +132,6 @@ async def ton_verify(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Best-effort verification of an incoming TON transfer via toncenter."""
     payload = body.get("payload")
     purchase = (await session.execute(
         select(Purchase).where(
@@ -127,7 +149,6 @@ async def ton_verify(
         return {"status": "pending", "message": "Transaction not found yet"}
 
     purchase.status = "paid"
-    user.stars_spent += 0
     user.ton_spent_nano += purchase.amount
     if purchase.coins_granted:
         await credit(session, user, purchase.coins_granted, "purchase",
@@ -141,10 +162,12 @@ async def ton_verify(
 async def _check_ton_payment(wallet: str, comment: str, min_nano: int) -> bool:
     if not wallet:
         return False
-    url = "https://toncenter.com/api/v3/transactions"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, params={"account": wallet, "limit": 30})
+            resp = await client.get(
+                "https://toncenter.com/api/v3/transactions",
+                params={"account": wallet, "limit": 30},
+            )
             resp.raise_for_status()
             data = resp.json()
     except Exception:  # noqa: BLE001
@@ -161,56 +184,35 @@ async def _check_ton_payment(wallet: str, comment: str, min_nano: int) -> bool:
 
 # ---- Loot boxes ------------------------------------------------------------
 @router.get("/boxes")
-async def boxes(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    rows = (await session.execute(select(Box).where(Box.is_active.is_(True)))).scalars().all()
-    return [{
-        "code": b.code, "name": b.name, "tier": b.tier, "icon": b.icon,
-        "description": b.description, "price_coins": b.price_coins,
-        "price_gems": b.price_gems, "rewards": b.rewards,
-    } for b in rows]
-
-
-@router.post("/boxes/open")
-async def open_box(
-    body: OpenBoxRequest,
-    user: User = Depends(get_current_user),
+async def boxes(
     session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
 ):
-    box = (await session.execute(
-        select(Box).where(Box.code == body.box_code, Box.is_active.is_(True))
-    )).scalar_one_or_none()
-    if not box:
-        raise HTTPException(404, "Box not found")
+    rows = (await session.execute(select(Box).where(Box.is_active.is_(True)))).scalars().all()
+    opened_today = await _opens_today(session, user.id)
+    remaining = (
+        max(0, settings.BOX_DAILY_LIMIT - opened_today)
+        if settings.BOX_DAILY_LIMIT else None
+    )
+    return {
+        "boxes": [{
+            "code": b.code, "name": b.name, "tier": b.tier, "icon": b.icon,
+            "description": b.description, "price_coins": b.price_coins,
+            "price_gems": b.price_gems, "rewards": b.rewards,
+        } for b in rows],
+        "daily_limit": settings.BOX_DAILY_LIMIT or None,
+        "opened_today": opened_today,
+        "remaining_today": remaining,
+    }
 
-    price = box.price_gems if body.pay_with == "gems" else box.price_coins
-    currency = "gems" if body.pay_with == "gems" else "coins"
-    if price <= 0 and currency == "gems":
-        raise HTTPException(400, "This box cannot be bought with gems")
-    try:
-        await debit(session, user, price, "box_open", currency=currency, ref=box.code)
-    except InsufficientFunds as e:
-        raise HTTPException(400, str(e)) from e
 
-    reward = _roll_reward(box.rewards)
-    if reward["type"] == "coins":
-        await credit(session, user, reward["amount"], "box_open", ref=box.code)
-    elif reward["type"] == "gems":
-        await credit(session, user, reward["amount"], "box_open", currency="gems", ref=box.code)
-    elif reward["type"] == "avatar":
-        # permanently unlock the avatar so it can be re-equipped for free
-        key = "a:" + reward["value"]
-        if key not in (user.owned_cosmetics or []):
-            user.owned_cosmetics = [*(user.owned_cosmetics or []), key]
-        user.avatar = reward["value"]
-
-    # record the opening for the user's box history
-    session.add(UserBox(
-        user_id=user.id, box_id=box.id, source="shop",
-        opened=True, reward=reward,
-    ))
-    return {"reward": reward, "coins": user.coins, "gems": user.gems, "box": {
-        "name": box.name, "icon": box.icon, "tier": box.tier,
-    }}
+async def _opens_today(session: AsyncSession, user_id: int) -> int:
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    return int((await session.execute(
+        select(func.count(UserBox.id)).where(
+            UserBox.user_id == user_id, UserBox.created_at >= since
+        )
+    )).scalar_one())
 
 
 @router.get("/boxes/history")
@@ -231,12 +233,73 @@ async def box_history(
     } for ub, b in rows]
 
 
-def _roll_reward(rewards: list[dict]) -> dict:
-    total = sum(r.get("weight", 1) for r in rewards) or 1
+@router.post("/boxes/open")
+async def open_box(
+    body: OpenBoxRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    box = (await session.execute(
+        select(Box).where(Box.code == body.box_code, Box.is_active.is_(True))
+    )).scalar_one_or_none()
+    if not box:
+        raise HTTPException(404, "Box not found")
+
+    # daily limit
+    if settings.BOX_DAILY_LIMIT:
+        if await _opens_today(session, user.id) >= settings.BOX_DAILY_LIMIT:
+            raise HTTPException(
+                429,
+                f"Daily box limit reached ({settings.BOX_DAILY_LIMIT}). Come back tomorrow!",
+            )
+
+    price = box.price_gems if body.pay_with == "gems" else box.price_coins
+    currency = "gems" if body.pay_with == "gems" else "coins"
+    if price <= 0:
+        raise HTTPException(400, "This box cannot be bought with that currency")
+    try:
+        await debit(session, user, price, "box_open", currency=currency, ref=box.code)
+    except InsufficientFunds as e:
+        raise HTTPException(400, str(e)) from e
+
+    reward = _roll_reward(box.rewards or [], user)
+    if reward["type"] == "coins":
+        await credit(session, user, reward["amount"], "box_open", ref=box.code)
+    elif reward["type"] == "gems":
+        await credit(session, user, reward["amount"], "box_open", currency="gems", ref=box.code)
+    elif reward["type"] == "avatar":
+        key = "a:" + reward["value"]
+        if key not in (user.owned_cosmetics or []):
+            user.owned_cosmetics = [*(user.owned_cosmetics or []), key]
+        user.avatar = reward["value"]
+
+    session.add(UserBox(
+        user_id=user.id, box_id=box.id, source="shop", opened=True, reward=reward,
+    ))
+    return {
+        "reward": reward, "coins": user.coins, "gems": user.gems,
+        "box": {"name": box.name, "icon": box.icon, "tier": box.tier},
+    }
+
+
+def _roll_reward(rewards: list[dict], user: User) -> dict:
+    """Roll a reward, never awarding an avatar the player already owns.
+
+    Avatar entries the player owns are removed from the pool; their weight is
+    absorbed by the remaining rewards (so you get coins/gems instead of a
+    duplicate). If the pool empties, fall back to the best coin reward.
+    """
+    pool = [
+        r for r in rewards
+        if not (r.get("type") == "avatar" and C.owns(user, "avatar", r.get("value", "")))
+    ]
+    if not pool:
+        pool = [r for r in rewards if r.get("type") in ("coins", "gems")] or rewards
+    total = sum(max(0, r.get("weight", 1)) for r in pool) or 1
     pick = secrets.randbelow(total)
     upto = 0
-    for r in rewards:
-        upto += r.get("weight", 1)
+    for r in pool:
+        upto += max(0, r.get("weight", 1))
         if pick < upto:
             return r
-    return rewards[-1]
+    return pool[-1]

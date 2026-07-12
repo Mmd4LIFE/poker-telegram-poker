@@ -31,6 +31,13 @@ class ChatMessage(BaseModel):
     text: str
 
 
+class SquadUpdate(BaseModel):
+    name: str | None = None
+    tag: str | None = None
+    description: str | None = None
+    is_public: bool | None = None
+
+
 async def _gen_code(session: AsyncSession) -> str:
     for _ in range(20):
         code = "".join(secrets.choice(SAFE) for _ in range(6))
@@ -143,6 +150,37 @@ async def leave_squad(
                 await session.delete(squad)  # last member -> disband
     await session.delete(m)
     return {"ok": True}
+
+
+@router.patch("")
+async def edit_squad(
+    body: SquadUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Squad leader can edit name/tag/description and public/private.
+
+    is_public only controls whether the squad is joinable from Browse — every
+    squad still appears in the squad rankings.
+    """
+    m = await _membership(session, user.id)
+    if not m:
+        raise HTTPException(400, "Not in a squad")
+    if m.role != "owner":
+        raise HTTPException(403, "Only the squad leader can edit")
+    squad = await session.get(Squad, m.squad_id)
+    if not squad:
+        raise HTTPException(404, "Squad not found")
+    if body.name is not None and body.name.strip():
+        squad.name = body.name.strip()[:48]
+    if body.tag is not None:
+        squad.tag = body.tag.strip().upper()[:8]
+    if body.description is not None:
+        squad.description = body.description.strip()[:256]
+    if body.is_public is not None:
+        squad.is_public = body.is_public
+    await session.flush()
+    return await _full(session, squad, user.id)
 
 
 # ---- browse / leaderboard --------------------------------------------------

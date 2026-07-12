@@ -386,9 +386,11 @@ export function PokerTable({ code }: { code: string }) {
             <div className="w-full text-center text-sm text-muted-foreground">
               {me?.folded
                 ? "You folded"
-                : state?.street === "idle"
-                  ? "Waiting for next hand…"
-                  : "Waiting for cards…"}
+                : !me
+                  ? "Taking your seat…"
+                  : state?.street === "idle"
+                    ? "Shuffling up — dealing you in…"
+                    : "You're seated — dealt in on the next hand"}
             </div>
           )}
         </div>

@@ -80,34 +80,54 @@ CHALLENGES = [
     ("weekly_earn_200k", "Weekly Tycoon", "Win 200,000 chips this week", "🏦", "weekly", "coins_won", 200000, 60000, 20, 1500),
 ]
 
+# Reward tables are balanced to a house edge (EV ~75-85% of price).
+# 1 gem is valued at ~2,500 coins (see services/economy_balance.GEM_COIN_VALUE).
 BOXES = [
     ("box_common", "Common Chest", "A little something.", "common", "📦", 20000, 0, [
-        {"weight": 50, "type": "coins", "amount": 10000, "label": "10K coins"},
-        {"weight": 30, "type": "coins", "amount": 25000, "label": "25K coins"},
-        {"weight": 15, "type": "coins", "amount": 50000, "label": "50K coins"},
-        {"weight": 5, "type": "gems", "amount": 5, "label": "5 gems"},
+        {"weight": 40, "type": "coins", "amount": 10000, "label": "10K coins"},
+        {"weight": 32, "type": "coins", "amount": 16000, "label": "16K coins"},
+        {"weight": 20, "type": "coins", "amount": 24000, "label": "24K coins"},
+        {"weight": 6, "type": "coins", "amount": 40000, "label": "40K coins"},
+        {"weight": 2, "type": "gems", "amount": 4, "label": "4 gems"},
     ]),
-    ("box_rare", "Rare Chest", "Better odds, bigger loot.", "rare", "🎁", 75000, 10, [
-        {"weight": 40, "type": "coins", "amount": 50000, "label": "50K coins"},
-        {"weight": 30, "type": "coins", "amount": 120000, "label": "120K coins"},
-        {"weight": 20, "type": "gems", "amount": 15, "label": "15 gems"},
-        {"weight": 8, "type": "coins", "amount": 300000, "label": "300K coins"},
-        {"weight": 2, "type": "avatar", "value": "skull", "label": "Skull avatar"},
+    ("box_rare", "Rare Chest", "Better odds, bigger loot.", "rare", "🎁", 75000, 30, [
+        {"weight": 40, "type": "coins", "amount": 45000, "label": "45K coins"},
+        {"weight": 30, "type": "coins", "amount": 65000, "label": "65K coins"},
+        {"weight": 18, "type": "coins", "amount": 95000, "label": "95K coins"},
+        {"weight": 8, "type": "gems", "amount": 12, "label": "12 gems"},
+        {"weight": 3, "type": "coins", "amount": 160000, "label": "160K coins"},
+        {"weight": 1, "type": "avatar", "value": "skull", "label": "Skull avatar"},
     ]),
-    ("box_epic", "Epic Vault", "Serious rewards for high rollers.", "epic", "🧰", 250000, 40, [
-        {"weight": 35, "type": "coins", "amount": 200000, "label": "200K coins"},
-        {"weight": 30, "type": "coins", "amount": 500000, "label": "500K coins"},
-        {"weight": 20, "type": "gems", "amount": 60, "label": "60 gems"},
-        {"weight": 10, "type": "coins", "amount": 1200000, "label": "1.2M coins"},
-        {"weight": 5, "type": "avatar", "value": "crown", "label": "Crown avatar"},
+    ("box_epic", "Epic Vault", "Serious rewards for high rollers.", "epic", "🧰", 250000, 100, [
+        {"weight": 38, "type": "coins", "amount": 140000, "label": "140K coins"},
+        {"weight": 30, "type": "coins", "amount": 210000, "label": "210K coins"},
+        {"weight": 20, "type": "coins", "amount": 300000, "label": "300K coins"},
+        {"weight": 8, "type": "gems", "amount": 40, "label": "40 gems"},
+        {"weight": 3, "type": "coins", "amount": 550000, "label": "550K coins"},
+        {"weight": 1, "type": "avatar", "value": "crown", "label": "Crown avatar"},
     ]),
     ("box_legendary", "Legendary Case", "The ultimate prize.", "legendary", "🏆", 0, 150, [
-        {"weight": 40, "type": "coins", "amount": 1000000, "label": "1M coins"},
-        {"weight": 30, "type": "gems", "amount": 150, "label": "150 gems"},
-        {"weight": 20, "type": "coins", "amount": 3000000, "label": "3M coins"},
-        {"weight": 8, "type": "avatar", "value": "fish", "label": "Fish avatar"},
-        {"weight": 2, "type": "avatar", "value": "diamond", "label": "Diamond avatar"},
+        {"weight": 34, "type": "coins", "amount": 250000, "label": "250K coins"},
+        {"weight": 28, "type": "gems", "amount": 50, "label": "50 gems"},
+        {"weight": 22, "type": "coins", "amount": 450000, "label": "450K coins"},
+        {"weight": 10, "type": "gems", "amount": 100, "label": "100 gems"},
+        {"weight": 5, "type": "coins", "amount": 900000, "label": "900K coins"},
+        {"weight": 1, "type": "avatar", "value": "diamond", "label": "Diamond avatar"},
     ]),
+]
+
+# code, kind, label, base_price (stars XTR / nanoTON), coins, gems, sort
+PRODUCTS = [
+    ("starter_1", "stars", "Lucky Starter", 1, 2_500, 0, 0),
+    ("coins_small", "stars", "Stack of Chips", 50, 50_000, 0, 1),
+    ("coins_medium", "stars", "Chip Case", 150, 180_000, 5, 2),
+    ("coins_large", "stars", "Chip Vault", 500, 700_000, 25, 3),
+    ("coins_whale", "stars", "High Roller", 1500, 2_500_000, 100, 4),
+    ("gems_pack", "stars", "Gem Pouch", 250, 0, 100, 5),
+    ("vip_month", "stars", "VIP Month", 400, 250_000, 50, 6),
+    ("ton_starter", "ton", "TON Starter", 500_000_000, 200_000, 20, 10),
+    ("ton_pro", "ton", "TON Pro", 2_000_000_000, 1_000_000, 120, 11),
+    ("ton_elite", "ton", "TON Elite", 5_000_000_000, 3_000_000, 400, 12),
 ]
 
 
@@ -180,9 +200,31 @@ async def _upsert_box(session, row) -> None:
         session.add(Box(**fields))
 
 
+async def _upsert_product(session, row) -> None:
+    from app.models import Product
+    obj = (await session.execute(
+        select(Product).where(Product.code == row[0])
+    )).scalar_one_or_none()
+    if obj:
+        # never clobber admin-tuned price/discount/active — only refresh statics
+        obj.label = row[2]
+        obj.coins = row[4]
+        obj.gems = row[5]
+        obj.sort_order = row[6]
+        if not obj.base_price:
+            obj.base_price = row[3]
+        return
+    session.add(Product(
+        code=row[0], kind=row[1], label=row[2], base_price=row[3],
+        coins=row[4], gems=row[5], sort_order=row[6], is_active=True,
+    ))
+
+
 async def main() -> None:
     async with SessionLocal() as session:
         await seed_bots(session)
+        for row in PRODUCTS:
+            await _upsert_product(session, row)
         for row in ACHIEVEMENTS:
             await _upsert_achievement(session, row)
         for row in CHALLENGES:

@@ -79,6 +79,31 @@ class UserBox(Base):
     )
 
 
+class Product(Base, TimestampMixin):
+    """A purchasable pack (Telegram Stars or TON). Admin-editable."""
+
+    __tablename__ = "products"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(48), unique=True, index=True)
+    # stars | ton
+    kind: Mapped[str] = mapped_column(String(8), index=True)
+    label: Mapped[str] = mapped_column(String(64))
+    # Stars: XTR count. TON: nanoTON.
+    base_price: Mapped[int] = mapped_column(BigInteger, default=0)
+    coins: Mapped[int] = mapped_column(BigInteger, default=0)
+    gems: Mapped[int] = mapped_column(Integer, default=0)
+    # 0..90 percent off
+    discount_pct: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    @property
+    def price(self) -> int:
+        p = int(round(self.base_price * (100 - max(0, min(90, self.discount_pct))) / 100))
+        return max(1, p)
+
+
 class Purchase(Base, TimestampMixin):
     """A real-money purchase via Telegram Stars or TON."""
 

@@ -36,15 +36,40 @@ const TIER_ICON: Record<string, LucideIcon> = {
 export function ShopScreen() {
   const { refresh } = useApp();
   const [cat, setCat] = useState<any>(null);
-  const [boxes, setBoxes] = useState<any[]>([]);
+  const [boxInfo, setBoxInfo] = useState<any>(null);
   const [openingBox, setOpeningBox] = useState<any>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<any[] | null>(null);
+  const [ton, setTon] = useState<any>(null);
 
+  const boxes: any[] = boxInfo?.boxes ?? [];
+
+  const loadBoxes = () => api.boxes().then(setBoxInfo).catch(() => {});
   useEffect(() => {
     api.catalog().then(setCat).catch(() => {});
-    api.boxes().then(setBoxes as never).catch(() => {});
+    loadBoxes();
   }, []);
+
+  async function buyTon(code: string) {
+    try {
+      setTon(await api.tonIntent(code));
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+  async function verifyTon() {
+    try {
+      const v: any = await api.tonVerify(ton.payload);
+      if (v.status === "paid") {
+        toast.success("TON payment confirmed!");
+        notify("success");
+        setTon(null);
+        refresh();
+      } else toast("Not found yet — wait a moment and retry.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
 
   async function buyStars(code: string) {
     try {
@@ -84,8 +109,13 @@ export function ShopScreen() {
         <Card className="p-4">
           {cat.stars.map((p: any) => (
             <div key={p.code} className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
-              <div className="grid size-9 place-items-center rounded-lg bg-secondary">
+              <div className="relative grid size-9 place-items-center rounded-lg bg-secondary">
                 <Star className="size-5 text-gold" />
+                {p.discount_pct > 0 && (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-lose px-1 text-[9px] font-bold text-white">
+                    -{p.discount_pct}%
+                  </span>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold">{p.label}</div>
@@ -94,16 +124,56 @@ export function ShopScreen() {
                 </div>
               </div>
               <Button size="sm" onClick={() => buyStars(p.code)}>
-                <Star className="size-3.5" /> {p.stars}
+                <Star className="size-3.5" />
+                {p.discount_pct > 0 && (
+                  <span className="mr-1 text-[10px] line-through opacity-60">{p.base_stars}</span>
+                )}
+                {p.stars}
               </Button>
             </div>
           ))}
         </Card>
       )}
 
+      {cat?.ton?.length > 0 && (
+        <>
+          <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            TON Packs
+          </h2>
+          <Card className="p-4">
+            {cat.ton.map((p: any) => (
+              <div key={p.code} className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
+                <div className="relative grid size-9 place-items-center rounded-lg bg-secondary">
+                  <Gem className="size-5 text-gem" />
+                  {p.discount_pct > 0 && (
+                    <span className="absolute -right-1 -top-1 rounded-full bg-lose px-1 text-[9px] font-bold text-white">
+                      -{p.discount_pct}%
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold">{p.label}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {fmt(p.coins)} coins{p.gems ? ` · ${p.gems} gems` : ""}
+                  </div>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => buyTon(p.code)}>
+                  {p.ton} TON
+                </Button>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
+
       <div className="mb-2 mt-5 flex items-center justify-between">
         <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Loot Boxes
+          {boxInfo?.daily_limit ? (
+            <span className="ml-2 font-normal normal-case text-muted-foreground/70">
+              {boxInfo.remaining_today}/{boxInfo.daily_limit} left today
+            </span>
+          ) : null}
         </h2>
         <button
           onClick={openHistory}
@@ -144,9 +214,43 @@ export function ShopScreen() {
 
       <BoxOpenDialog
         box={openingBox}
-        onDone={refresh}
+        onDone={() => {
+          refresh();
+          loadBoxes();
+        }}
         onClose={() => setOpeningBox(null)}
       />
+
+      {/* TON payment */}
+      <Dialog open={!!ton} onOpenChange={(o) => !o && setTon(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pay with TON</DialogTitle>
+          </DialogHeader>
+          {ton && (
+            <div className="space-y-3">
+              <div className="text-center">
+                <div className="text-2xl font-extrabold text-gem">{ton.amount_ton} TON</div>
+                <div className="text-xs text-muted-foreground">Send exactly this amount</div>
+              </div>
+              <div>
+                <div className="mb-1 text-xs text-muted-foreground">To wallet</div>
+                <div className="break-all rounded-lg bg-secondary p-2 text-xs">{ton.wallet}</div>
+              </div>
+              <div>
+                <div className="mb-1 text-xs text-muted-foreground">Comment (required!)</div>
+                <div className="rounded-lg bg-secondary p-2 text-xs">{ton.comment}</div>
+              </div>
+              <Button className="w-full" onClick={verifyTon}>
+                I&apos;ve paid — Verify
+              </Button>
+              <p className="text-center text-[11px] text-muted-foreground">
+                Include the comment or funds can&apos;t be matched.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent>

@@ -1,7 +1,7 @@
 """ORM models. Import everything here so Alembic autogenerate sees all tables."""
 from app.models.user import User  # noqa: F401
 from app.models.room import Room, RoomPlayer, Hand  # noqa: F401
-from app.models.economy import Transaction, Box, UserBox, Purchase  # noqa: F401
+from app.models.economy import Transaction, Box, UserBox, Purchase, Product  # noqa: F401
 from app.models.progression import (  # noqa: F401
     Achievement,
     UserAchievement,
@@ -20,6 +20,7 @@ __all__ = [
     "Box",
     "UserBox",
     "Purchase",
+    "Product",
     "Achievement",
     "UserAchievement",
     "Challenge",

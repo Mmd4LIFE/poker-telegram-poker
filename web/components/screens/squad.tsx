@@ -3,8 +3,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Shield, LogOut, Table2, Share2, Copy, Users, Crown, Star, Send,
-  Search, Trophy, ChevronUp, ChevronDown, UserX, Globe, Lock, Swords,
+  Search, Trophy, ChevronUp, ChevronDown, UserX, Globe, Lock, Swords, Pencil,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -32,6 +35,7 @@ export function SquadScreen() {
   const { go, enterTable, user, openUser } = useApp();
   const [squad, setSquad] = useState<any>(null);
   const [loaded, setLoaded] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -97,9 +101,14 @@ export function SquadScreen() {
               </span>
             </div>
           </div>
-          <div className="text-right">
+          <div className="flex flex-col items-end gap-1">
             <div className="text-lg font-extrabold text-gold">Lv {squad.level}</div>
             <div className="text-[10px] text-muted-foreground">{squad.member_count}/{squad.max_members}</div>
+            {myRole === "owner" && (
+              <Button variant="outline" size="icon" className="size-7" onClick={() => setEditOpen(true)}>
+                <Pencil className="size-3.5" />
+              </Button>
+            )}
           </div>
         </div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
@@ -151,7 +160,68 @@ export function SquadScreen() {
           <SquadRanks myCode={squad.code} />
         </TabsContent>
       </Tabs>
+
+      <EditSquadDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        squad={squad}
+        onSaved={() => { setEditOpen(false); load(); }}
+      />
     </>
+  );
+}
+
+function EditSquadDialog({ open, onOpenChange, squad, onSaved }: any) {
+  const [name, setName] = useState(squad.name);
+  const [tag, setTag] = useState(squad.tag || "");
+  const [desc, setDesc] = useState(squad.description || "");
+  const [isPublic, setIsPublic] = useState(!!squad.is_public);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName(squad.name); setTag(squad.tag || "");
+      setDesc(squad.description || ""); setIsPublic(!!squad.is_public);
+    }
+  }, [open, squad]);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await api.squadEdit({ name, tag, description: desc, is_public: isPublic });
+      toast.success("Squad updated");
+      onSaved();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Edit Squad</DialogTitle></DialogHeader>
+        <div className="space-y-2">
+          <Input placeholder="Squad name" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input placeholder="TAG" maxLength={6} value={tag} onChange={(e) => setTag(e.target.value.toUpperCase())} />
+          <Input placeholder="Description" value={desc} onChange={(e) => setDesc(e.target.value)} />
+          <button
+            onClick={() => setIsPublic((v) => !v)}
+            className="flex w-full items-center gap-3 rounded-lg bg-secondary p-3 text-left"
+          >
+            {isPublic ? <Globe className="size-5 text-gold" /> : <Lock className="size-5 text-muted-foreground" />}
+            <div className="flex-1">
+              <div className="text-sm font-semibold">{isPublic ? "Public" : "Private"}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {isPublic ? "Anyone can find and join from Browse" : "Invite-only (code/link). Still shown in Ranks."}
+              </div>
+            </div>
+          </button>
+          <Button className="w-full font-bold" disabled={busy || !name} onClick={save}>Save</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

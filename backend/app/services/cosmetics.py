@@ -81,13 +81,21 @@ def is_free(kind: str, code: str) -> bool:
     return bool(it) and it["price_coins"] == 0 and it["price_gems"] == 0
 
 
+def owned_key(user: User, kind: str, code: str) -> str:
+    """Ownership key. Avatar colors are owned PER AVATAR: buying pink while the
+    crown is equipped unlocks pink for the crown only."""
+    if kind == "avatar_color":
+        return f"ac:{user.avatar}:{code}"
+    return _KEY[kind] + code
+
+
 def owns(user: User, kind: str, code: str) -> bool:
     if is_free(kind, code):
         return True
     # whatever is currently equipped is always owned (never lose your current)
     if _equipped(user, kind) == code:
         return True
-    return (_KEY[kind] + code) in _owned_set(user)
+    return owned_key(user, kind, code) in _owned_set(user)
 
 
 def catalog(user: User) -> dict:
@@ -126,7 +134,7 @@ async def buy(session, user: User, kind: str, code: str) -> dict:
             await debit(session, user, coins, "cosmetic", ref=code)
     except InsufficientFunds as e:
         raise ValueError(str(e)) from e
-    user.owned_cosmetics = [*(user.owned_cosmetics or []), _KEY[kind] + code]
+    user.owned_cosmetics = [*(user.owned_cosmetics or []), owned_key(user, kind, code)]
     return {"owned": True}
 
 

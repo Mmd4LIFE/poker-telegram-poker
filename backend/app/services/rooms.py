@@ -65,6 +65,30 @@ async def find_random_open_room(
     return (await session.execute(stmt)).scalars().first()
 
 
+async def find_open_rooms(
+    session: AsyncSession, exclude_user_id: int | None = None, limit: int = 8
+) -> list[Room]:
+    """Candidate public, non-full rooms (fullest first) for quick matchmaking."""
+    subq = (
+        select(RoomPlayer.room_id, func.count(RoomPlayer.id).label("cnt"))
+        .group_by(RoomPlayer.room_id)
+        .subquery()
+    )
+    stmt = (
+        select(Room)
+        .outerjoin(subq, subq.c.room_id == Room.id)
+        .where(Room.is_private.is_(False), Room.status != "finished")
+        .where(func.coalesce(subq.c.cnt, 0) < Room.max_players)
+    )
+    if exclude_user_id is not None:
+        seated_in = (
+            select(RoomPlayer.room_id).where(RoomPlayer.user_id == exclude_user_id)
+        )
+        stmt = stmt.where(Room.id.not_in(seated_in))
+    stmt = stmt.order_by(func.coalesce(subq.c.cnt, 0).desc(), func.random()).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
 async def get_user_membership(
     session: AsyncSession, user_id: int
 ) -> tuple[RoomPlayer, Room] | None:

@@ -15,7 +15,9 @@ from app.schemas import (
     RebuyRequest,
     RoomSummary,
 )
+from app.poker.holdem import Street
 from app.services.rooms import (
+    find_open_rooms,
     find_random_open_room,
     generate_room_code,
     get_room_by_code,
@@ -116,7 +118,17 @@ async def join_random(
     if membership:
         return await _summary(session, membership[1])
 
-    room = await find_random_open_room(session, exclude_user_id=user.id)
+    # Prefer a table that is BETWEEN hands so the player is dealt in immediately
+    # (joining mid-hand means sitting out until the next deal — bad first
+    # impression for Quick Play). Otherwise spin up a fresh table: bots fill it
+    # and a hand starts right away.
+    room = None
+    for candidate in await find_open_rooms(session, exclude_user_id=user.id):
+        rt = manager.get_live(candidate.id)
+        if rt is None or rt.game.street == Street.IDLE:
+            room = candidate
+            break
+
     if room is None:
         code = await generate_room_code(session)
         room = Room(code=code, name="Quick Table", host_id=user.id, allow_bots=True)
