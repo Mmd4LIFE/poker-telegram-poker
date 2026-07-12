@@ -44,6 +44,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -534,113 +540,6 @@ function MarketTab() {
   }
 
 
-  /* ---- one trade: who, what, how much, and where the fee went ---- */
-  if (trade) {
-    const t = trade;
-    const d: Design | undefined = designs[t.design];
-    const Party = ({ label, p }: { label: string; p: any }) => (
-      <div className="flex items-center gap-2 border-b border-white/5 py-2.5 last:border-0">
-        <span className="w-14 text-[11px] uppercase text-muted-foreground">{label}</span>
-        {p ? (
-          <button
-            onClick={() => openUser(p.id)}
-            className="flex min-w-0 flex-1 items-center gap-2"
-          >
-            <Avatar className="size-7">
-              <AvatarFallback className="bg-secondary text-gold">
-                <AvatarIcon code={p.avatar} className="size-3.5" />
-              </AvatarFallback>
-            </Avatar>
-            <span className="truncate text-sm font-semibold">{p.name}</span>
-          </button>
-        ) : (
-          <span className="flex-1 text-sm text-muted-foreground">—</span>
-        )}
-      </div>
-    );
-
-    return (
-      <>
-        <button
-          onClick={() => setTrade(null)}
-          className="mb-3 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
-        >
-          <ChevronLeft className="size-4" /> Trades
-        </button>
-
-        <Card className="mb-3 items-center gap-1 p-5">
-          <PlayingCard card={t.card} size="xl" design={t.design} />
-          <div className="mt-1 text-lg font-extrabold">{t.design_name}</div>
-          <div className={`text-[10px] font-bold uppercase ${RARITY_COLOR[t.rarity]}`}>
-            {t.rarity}
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
-              #{t.serial}
-              {t.mint ? (
-                <span className="font-normal text-muted-foreground"> / {fmt(t.mint)}</span>
-              ) : null}
-            </span>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
-                t.side === "sold" ? "bg-win/20 text-win" : "bg-secondary text-muted-foreground"
-              }`}
-            >
-              {t.side}
-            </span>
-          </div>
-          {t.uid && (
-            <button
-              onClick={() => {
-                navigator.clipboard?.writeText(t.uid);
-                toast("Item ID copied");
-              }}
-              className="mt-1.5 flex items-center gap-1 font-mono text-[11px] text-muted-foreground"
-            >
-              <Hash className="size-3" />
-              {t.uid}
-              <Copy className="size-3" />
-            </button>
-          )}
-        </Card>
-
-        <Card className="mb-3 p-3">
-          <Party label="Seller" p={t.seller} />
-          <Party label="Buyer" p={t.buyer} />
-        </Card>
-
-        <Card className="p-3">
-          <Row label="Price">
-            <Price
-              coins={t.currency === "coins" ? t.price : 0}
-              gems={t.currency === "gems" ? t.price : 0}
-            />
-          </Row>
-          <Row label="Market fee">
-            <span className="flex items-center gap-1 text-sm font-bold text-lose">
-              <Flame className="size-3.5" />-
-              {t.currency === "coins" ? fmt(t.fee) : t.fee}
-            </span>
-          </Row>
-          <Row label={t.side === "sold" ? "You received" : "Seller received"}>
-            <Price
-              coins={t.currency === "coins" ? t.net : 0}
-              gems={t.currency === "gems" ? t.net : 0}
-            />
-          </Row>
-          <Row label="Date">
-            <span className="text-xs text-muted-foreground">
-              {t.at ? new Date(t.at).toLocaleString() : "—"}
-            </span>
-          </Row>
-        </Card>
-        <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          The fee is burned, not paid to anyone.
-        </p>
-      </>
-    );
-  }
-
   /* ---- my trades: everything I've bought and sold here ---- */
   if (trades) {
     const h: any[] = mine?.history ?? [];
@@ -693,6 +592,14 @@ function MarketTab() {
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
           Sales are shown net of the market fee.
         </p>
+        <TradeSheet
+          trade={trade}
+          onClose={() => setTrade(null)}
+          onUser={(id) => {
+            setTrade(null); // don't stack a second sheet on top of this one
+            openUser(id);
+          }}
+        />
       </>
     );
   }
@@ -1142,7 +1049,144 @@ function CardSheet({
   );
 }
 
+
+/* ---- one trade, as a bottom sheet (same gesture as tapping a player) ---- */
+
+function Party({
+  label,
+  p,
+  onUser,
+}: {
+  label: string;
+  p: any;
+  onUser: (id: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 border-b border-white/5 py-2.5 last:border-0">
+      <span className="w-14 text-[11px] uppercase text-muted-foreground">{label}</span>
+      {p ? (
+        <button
+          onClick={() => onUser(p.id)}
+          className="flex min-w-0 flex-1 items-center gap-2 active:opacity-70"
+        >
+          <Avatar className="size-7">
+            <AvatarFallback className="bg-secondary text-gold">
+              <AvatarIcon code={p.avatar} className="size-3.5" />
+            </AvatarFallback>
+          </Avatar>
+          <span className="truncate text-sm font-semibold">{p.name}</span>
+          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      ) : (
+        <span className="flex-1 text-sm text-muted-foreground">—</span>
+      )}
+    </div>
+  );
+}
+
+function TradeSheet({
+  trade: t,
+  onClose,
+  onUser,
+}: {
+  trade: any;
+  onClose: () => void;
+  onUser: (id: number) => void;
+}) {
+  const { designs } = useSkins();
+  if (!t) return null;
+  const d: Design | undefined = designs[t.design];
+
+  return (
+    <Sheet open={!!t} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto rounded-t-2xl">
+        <SheetHeader>
+          <SheetTitle className="text-left">Trade</SheetTitle>
+        </SheetHeader>
+
+        <div className="flex items-center gap-3 pb-3">
+          <PlayingCard card={t.card} size="xl" design={t.design} />
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-extrabold">{t.design_name || d?.name}</div>
+            <div className={`text-[10px] font-bold uppercase ${RARITY_COLOR[t.rarity]}`}>
+              {t.rarity}
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
+                #{t.serial}
+                {t.mint ? (
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    / {fmt(t.mint)}
+                  </span>
+                ) : null}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+                  t.side === "sold"
+                    ? "bg-win/20 text-win"
+                    : "bg-secondary text-muted-foreground"
+                }`}
+              >
+                {t.side}
+              </span>
+            </div>
+            {t.uid && (
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(t.uid);
+                  toast("Item ID copied");
+                }}
+                className="mt-1.5 flex items-center gap-1 font-mono text-[11px] text-muted-foreground active:opacity-70"
+              >
+                <Hash className="size-3" />
+                {t.uid}
+                <Copy className="size-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <Card className="mb-3 p-3">
+          <Party label="Seller" p={t.seller} onUser={onUser} />
+          <Party label="Buyer" p={t.buyer} onUser={onUser} />
+        </Card>
+
+        <Card className="p-3">
+          <Row label="Price">
+            <Price
+              coins={t.currency === "coins" ? t.price : 0}
+              gems={t.currency === "gems" ? t.price : 0}
+            />
+          </Row>
+          <Row label="Market fee">
+            <span className="flex items-center gap-1 text-sm font-bold text-lose">
+              <Flame className="size-3.5" />−
+              {t.currency === "coins" ? fmt(t.fee) : t.fee}
+            </span>
+          </Row>
+          <Row label={t.side === "sold" ? "You received" : "Seller received"}>
+            <Price
+              coins={t.currency === "coins" ? t.net : 0}
+              gems={t.currency === "gems" ? t.net : 0}
+            />
+          </Row>
+          <Row label="Date">
+            <span className="text-xs text-muted-foreground">
+              {t.at ? new Date(t.at).toLocaleString() : "—"}
+            </span>
+          </Row>
+        </Card>
+        <p className="mt-2 pb-2 text-center text-[11px] text-muted-foreground">
+          The fee is burned, not paid to anyone.
+        </p>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 /* --------------------------------------------------------------------- root */
+
 
 export function CardsScreen() {
   const [tab, setTab] = useState("collection");
