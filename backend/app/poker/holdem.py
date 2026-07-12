@@ -58,6 +58,10 @@ class Seat:
     in_hand: bool = False
     sitting_out: bool = False
     last_action: str | None = None
+    # Joined a game already in progress: must post a big blind to be dealt in.
+    # Without this, whether a newcomer pays anything is pure luck of where the
+    # button happens to be — two players seating together can pay 0 and 1 BB.
+    owes_bb: bool = False
 
     def reset_for_hand(self) -> None:
         self.hole = []
@@ -151,6 +155,18 @@ class HoldemGame:
 
         self._post_blind(sb_i, self.small_blind, "small_blind")
         self._post_blind(bb_i, self.big_blind, "big_blind")
+
+        # Newcomers buy their way in: their first hand costs exactly one big blind,
+        # live (so they see a flop for it, like the BB does). Top up to the BB rather
+        # than adding to it — a newcomer dealt into the SB seat has already put in 50,
+        # and must reach 100, not pay 150. Landing on the BB seat settles it outright.
+        for i, seat in enumerate(self.seats):
+            if not (seat.owes_bb and seat.in_hand):
+                continue
+            owed = self.big_blind - seat.bet
+            if owed > 0:
+                self._post_blind(i, owed, "entry_blind")
+            seat.owes_bb = False
 
         self.current_bet = self.big_blind
         self.min_raise = self.big_blind
@@ -515,6 +531,7 @@ class HoldemGame:
                 "all_in": s.all_in,
                 "in_hand": s.in_hand,
                 "sitting_out": s.sitting_out,
+                "owes_bb": s.owes_bb,
                 "is_bot": s.is_bot,
                 "last_action": s.last_action,
                 "hole": s.hole if reveal else (["??", "??"] if s.in_hand and not s.folded else []),

@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 import type { View } from "@/lib/types";
 
+// Play sits dead centre — it's the thumb's home position and the thing you open
+// the app to do.
 const TABS: { view: View; label: string; icon: React.ElementType; match: View[] }[] = [
-  { view: "lobby", label: "Play", icon: Gamepad2, match: ["lobby", "create", "squad"] },
-  { view: "cards", label: "Cards", icon: Layers, match: ["cards"] },
-  { view: "leaderboard", label: "Ranks", icon: Trophy, match: ["leaderboard", "friends"] },
   { view: "shop", label: "Shop", icon: ShoppingBag, match: ["shop"] },
+  { view: "cards", label: "Cards", icon: Layers, match: ["cards"] },
+  { view: "lobby", label: "Play", icon: Gamepad2, match: ["lobby", "create", "squad"] },
+  { view: "leaderboard", label: "Ranks", icon: Trophy, match: ["leaderboard", "friends"] },
   { view: "profile", label: "Me", icon: User, match: ["profile", "invite", "admin", "quests", "customize"] },
 ];
 
@@ -23,6 +25,7 @@ export function BottomNav() {
       {TABS.map((t) => {
         const active = t.match.includes(view);
         const Icon = t.icon;
+        const primary = t.view === "lobby";
         return (
           <button
             key={t.view}
@@ -30,9 +33,10 @@ export function BottomNav() {
             className={cn(
               "flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] transition-colors",
               active ? "text-gold" : "text-muted-foreground",
+              primary && !active && "text-foreground",
             )}
           >
-            <Icon className="size-5" />
+            <Icon className={primary ? "size-7" : "size-5"} />
             {t.label}
           </button>
         );

@@ -65,6 +65,8 @@ class RoomRuntime:
                 name_color=user.name_color or "",
                 avatar_color=effective_avatar_color(user),
                 skins=equipped_map(user),
+                # joining a game already under way -> pay to enter
+                owes_bb=self.game.hand_no > 0,
                 bot_personality=user.bot_personality, bot_skill=user.bot_skill,
             ))
             if user.is_bot:
@@ -234,6 +236,7 @@ class RoomRuntime:
                     name_color=bot.name_color or "",
                     avatar_color=effective_avatar_color(bot),
                     skins=equipped_map(bot),
+                    owes_bb=self.game.hand_no > 0,
                     bot_personality=bot.bot_personality, bot_skill=bot.bot_skill,
                 ))
                 self._bot_ids.add(bot.id)
