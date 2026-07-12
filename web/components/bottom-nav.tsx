@@ -26,17 +26,41 @@ export function BottomNav() {
         const active = t.match.includes(view);
         const Icon = t.icon;
         const primary = t.view === "lobby";
+
         return (
           <button
             key={t.view}
             onClick={() => go(t.view)}
             className={cn(
-              "flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] transition-colors",
+              "relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] transition-colors",
               active ? "text-gold" : "text-muted-foreground",
-              primary && !active && "text-foreground",
             )}
           >
-            <Icon className={primary ? "size-7" : "size-5"} />
+            {primary ? (
+              <>
+                {/* Raised into a notch. The ring is painted in the page background,
+                    so it punches a clean curve through the nav's top border — that's
+                    the notch, no SVG needed. The button is absolutely positioned, so
+                    it can't push the label off the baseline the other tabs share. */}
+                <span
+                  className={cn(
+                    "absolute -top-6 left-1/2 grid size-14 -translate-x-1/2 place-items-center rounded-full ring-4 ring-background transition-transform active:scale-95",
+                    active
+                      ? "bg-gradient-to-br from-gold to-[#b8860b]"
+                      : "bg-gradient-to-br from-secondary to-card",
+                  )}
+                >
+                  <Icon
+                    className={cn("size-7", active ? "text-black" : "text-gold")}
+                  />
+                </span>
+                {/* invisible spacer the exact height of a normal tab icon, so every
+                    label sits on the same line */}
+                <span className="size-5" aria-hidden />
+              </>
+            ) : (
+              <Icon className="size-5" />
+            )}
             {t.label}
           </button>
         );
