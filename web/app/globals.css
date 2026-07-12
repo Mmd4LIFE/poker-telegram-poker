@@ -199,3 +199,26 @@ body {
 .pcm-pop { animation: pcm-pop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .pcm-glow { animation: pcm-glow 1.4s ease-in-out infinite; }
 .pcm-rays { animation: pcm-rays 8s linear infinite; }
+
+/* Foil skins (legendary/mythic): a slow sheen sweeping across the card face. */
+.skin-foil::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(
+    115deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 60%
+  );
+  animation: pcm-foil 3.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes pcm-foil {
+  0% {
+    transform: translateX(-60%);
+  }
+  100% {
+    transform: translateX(60%);
+  }
+}

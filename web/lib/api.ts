@@ -89,6 +89,34 @@ export const api = {
   adminProducts: () => req("GET", "/admin/products"),
   adminUpdateProduct: (code: string, b: unknown) => req("PATCH", `/admin/products/${code}`, b),
   squadEdit: (b: unknown) => req("PATCH", "/squads", b),
+
+  // --- card skins ---
+  cardDesigns: () => req("GET", "/cards/designs"),
+  collection: () => req("GET", "/cards/collection"),
+  cardShop: (q: { design?: string; card?: string } = {}) =>
+    req(
+      "GET",
+      "/cards/shop" +
+        (q.design ? `?design=${q.design}` : q.card ? `?card=${q.card}` : ""),
+    ),
+  buyCard: (design: string, card: string, currency: string) =>
+    req("POST", "/cards/buy", { design, card, currency }),
+  equipCard: (card: string, skin_id: number | null) =>
+    req("POST", "/cards/equip", { card, skin_id }),
+  skinDetail: (id: number) => req("GET", `/cards/skins/${id}`),
+  adminCards: () => req("GET", "/admin/cards"),
+  adminUpdateDesign: (code: string, b: unknown) => req("PATCH", `/admin/cards/${code}`, b),
+
+  // --- market ---
+  market: (q: Record<string, string>) =>
+    req("GET", "/market?" + new URLSearchParams(q).toString()),
+  marketStats: (design: string, card: string) =>
+    req("GET", `/market/stats?design=${design}&card=${card}`),
+  marketList: (skin_id: number, price: number, currency: string) =>
+    req("POST", "/market/list", { skin_id, price, currency }),
+  marketCancel: (listing_id: number) => req("POST", "/market/cancel", { listing_id }),
+  marketBuy: (listing_id: number) => req("POST", "/market/buy", { listing_id }),
+  marketMine: () => req("GET", "/market/mine"),
   friends: () => req("GET", "/friends"),
   friendSearch: (q: string) => req("GET", "/friends/search?q=" + encodeURIComponent(q)),
   friendRequest: (id: number) => req("POST", "/friends/request", { user_id: id }),

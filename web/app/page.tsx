@@ -5,6 +5,7 @@ import { Loader2, Spade, Heart, Diamond, Club } from "lucide-react";
 import { api } from "@/lib/api";
 import { initTelegram, startParam } from "@/lib/telegram";
 import { AppProvider } from "@/lib/store";
+import { SkinProvider } from "@/lib/skins";
 import type { UserProfile } from "@/lib/types";
 import { AppShell } from "@/components/app-shell";
 
@@ -52,7 +53,9 @@ export default function Home() {
 
   return (
     <AppProvider initialUser={user}>
+      <SkinProvider>
       <AppShell startParam={startParam()} />
+      </SkinProvider>
     </AppProvider>
   );
 }

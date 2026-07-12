@@ -131,6 +131,72 @@ PRODUCTS = [
 ]
 
 
+# --- Card skin designs ------------------------------------------------------
+# (code, name, rarity, base_coins, base_gems, mint_per_card, palette)
+# base_* is the price of a DEUCE; the rank curve in services/cards.py scales it
+# up to ~4.5x for an Ace. mint_per_card is how many copies of EACH card will
+# ever exist -- once they're gone, the market is the only source.
+CARD_DESIGNS = [
+    ("midnight", "Midnight", "common", 4_000, 0, 8000, {
+        "bg": "linear-gradient(160deg,#1b2a4a,#0d1526)", "fg": "#dfe8fb",
+        "red": "#ff7b93", "border": "#2f4470"}),
+    ("sand", "Desert Sand", "common", 4_000, 0, 8000, {
+        "bg": "linear-gradient(160deg,#efdcb6,#d7bd8b)", "fg": "#3a2e1c",
+        "red": "#b3392f", "border": "#c9ae7c"}),
+    ("emerald", "Emerald", "rare", 12_000, 0, 2500, {
+        "bg": "linear-gradient(160deg,#0f5132,#062c1c)", "fg": "#c8f7dd",
+        "red": "#7cffb2", "border": "#2ecc71", "glow": "0 0 10px rgba(46,204,113,.35)"}),
+    ("crimson", "Crimson", "rare", 12_000, 0, 2500, {
+        "bg": "linear-gradient(160deg,#7a1027,#3a0512)", "fg": "#ffd9e0",
+        "red": "#ff5a75", "border": "#ff4d6d", "glow": "0 0 10px rgba(255,77,109,.35)"}),
+    ("azure", "Azure", "rare", 12_000, 0, 2500, {
+        "bg": "linear-gradient(160deg,#0b3d6b,#04203c)", "fg": "#d6ecff",
+        "red": "#7fb6ff", "border": "#3fa9ff", "glow": "0 0 10px rgba(63,169,255,.35)"}),
+    ("carbon", "Carbon", "epic", 30_000, 0, 600, {
+        "bg": "repeating-linear-gradient(45deg,#1a1a1d,#1a1a1d 4px,#232327 4px,#232327 8px)",
+        "fg": "#e8e8ea", "red": "#ff5c5c", "border": "#4a4a52"}),
+    ("neon", "Neon", "epic", 35_000, 0, 600, {
+        "bg": "linear-gradient(160deg,#12002e,#2b0a4d)", "fg": "#7CFC00",
+        "red": "#ff2ed1", "border": "#a06bff", "glow": "0 0 14px rgba(160,107,255,.55)"}),
+    ("vapor", "Vapor", "epic", 35_000, 0, 600, {
+        "bg": "linear-gradient(160deg,#ff6bd6,#38e0d0)", "fg": "#2a0f3d",
+        "red": "#ff2d55", "border": "#ffd6f5"}),
+    ("royal", "Royal Gold", "legendary", 90_000, 0, 150, {
+        "bg": "linear-gradient(160deg,#3a2c07,#0f0b02)", "fg": "#f5c518",
+        "red": "#ff9e3f", "border": "#f5c518", "glow": "0 0 16px rgba(245,197,24,.5)",
+        "foil": True}),
+    ("obsidian", "Obsidian", "legendary", 90_000, 0, 150, {
+        "bg": "linear-gradient(160deg,#0b0b10,#000000)", "fg": "#c9d1ff",
+        "red": "#8f9bff", "border": "#5661b3", "glow": "0 0 16px rgba(86,97,179,.55)",
+        "foil": True}),
+    ("inferno", "Inferno", "mythic", 0, 30, 40, {
+        "bg": "linear-gradient(160deg,#ff5f1f,#7a0d0d)", "fg": "#fff3d6",
+        "red": "#ffd400", "border": "#ffb703", "glow": "0 0 18px rgba(255,95,31,.6)",
+        "foil": True}),
+    ("prism", "Prism", "mythic", 0, 45, 25, {
+        "bg": "linear-gradient(120deg,#ff6bd6,#f5c518,#7CFC00,#38e0d0,#a06bff)",
+        "fg": "#12121a", "red": "#c1121f", "border": "#ffffff",
+        "glow": "0 0 20px rgba(255,255,255,.5)", "foil": True}),
+]
+
+
+async def _upsert_design(session, row) -> None:
+    from app.models import CardDesign
+    obj = (await session.execute(
+        select(CardDesign).where(CardDesign.code == row[0])
+    )).scalar_one_or_none()
+    if obj:
+        # never clobber admin-tuned price/mint/active -- only refresh the look
+        obj.name, obj.rarity, obj.palette = row[1], row[2], row[6]
+        return
+    session.add(CardDesign(
+        code=row[0], name=row[1], rarity=row[2],
+        base_price_coins=row[3], base_price_gems=row[4], mint_per_card=row[5],
+        palette=row[6], tradable=True, active=True,
+        sort=CARD_DESIGNS.index(row),
+    ))
+
+
 async def seed_bots(session) -> None:
     existing = {
         u.first_name: u for u in (await session.execute(
@@ -231,6 +297,8 @@ async def main() -> None:
             await _upsert_challenge(session, row)
         for row in BOXES:
             await _upsert_box(session, row)
+        for row in CARD_DESIGNS:
+            await _upsert_design(session, row)
         await session.commit()
     logger.info("Seeding complete ✔")
 

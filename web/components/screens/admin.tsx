@@ -36,10 +36,12 @@ export function AdminScreen() {
           <TabsTrigger value="overview" className="flex-1">Sales</TabsTrigger>
           <TabsTrigger value="boxes" className="flex-1">Boxes</TabsTrigger>
           <TabsTrigger value="packs" className="flex-1">Packs</TabsTrigger>
+          <TabsTrigger value="cards" className="flex-1">Cards</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
         <TabsContent value="boxes"><Boxes /></TabsContent>
         <TabsContent value="packs"><Packs /></TabsContent>
+        <TabsContent value="cards"><Cards /></TabsContent>
       </Tabs>
     </>
   );
@@ -272,5 +274,115 @@ function PackRow({ p, onSave }: any) {
         </Button>
       </div>
     </Card>
+  );
+}
+
+
+/* Card-skin supply + market turnover. The fee column is coins/gems DESTROYED —
+   that's the sink offsetting box payouts. */
+function Cards() {
+  const [d, setD] = useState<any>(null);
+  const [edit, setEdit] = useState<Record<string, any>>({});
+
+  const load = useCallback(() => api.adminCards().then(setD).catch(() => {}), []);
+  useEffect(() => { load(); }, [load]);
+
+  async function save(code: string) {
+    const patch = edit[code];
+    if (!patch) return;
+    try {
+      await api.adminUpdateDesign(code, patch);
+      toast.success("Saved");
+      setEdit((e) => ({ ...e, [code]: undefined }));
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  if (!d) return <p className="text-sm text-muted-foreground">Loading…</p>;
+
+  return (
+    <>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        {(["coins", "gems"] as const).map((c) => (
+          <Card key={c} className="p-3">
+            <div className="text-[10px] uppercase text-muted-foreground">{c} market</div>
+            <div className="text-lg font-extrabold">{fmt(d.market[c].volume)}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {d.market[c].sales} sales · {fmt(d.market[c].burned)} burned
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {d.designs.map((x: any) => {
+        const e = edit[x.code] || {};
+        return (
+          <Card key={x.code} className="mb-2 p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold">{x.name}</div>
+                <div className="text-[11px] uppercase text-muted-foreground">
+                  {x.rarity} · {x.listed} listed
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-bold">
+                  {x.minted}/{fmt(x.supply_total)}
+                </div>
+                <div className={cn("text-[11px]", x.sold_out_pct > 90 ? "text-lose" : "text-muted-foreground")}>
+                  {x.sold_out_pct}% minted
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              deuce {fmt(x.base_price_coins) || x.base_price_gems + "g"} → ace{" "}
+              {x.ace_price_coins ? fmt(x.ace_price_coins) : x.ace_price_gems + "g"}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <Input
+                className="h-8 text-xs"
+                type="number"
+                placeholder={"base " + (x.base_price_gems ? "gems" : "coins")}
+                value={
+                  x.base_price_gems
+                    ? (e.base_price_gems ?? "")
+                    : (e.base_price_coins ?? "")
+                }
+                onChange={(ev) =>
+                  setEdit((p) => ({
+                    ...p,
+                    [x.code]: {
+                      ...e,
+                      [x.base_price_gems ? "base_price_gems" : "base_price_coins"]:
+                        Number(ev.target.value),
+                    },
+                  }))
+                }
+              />
+              <Input
+                className="h-8 text-xs"
+                type="number"
+                placeholder={"mint " + x.mint_per_card}
+                value={e.mint_per_card ?? ""}
+                onChange={(ev) =>
+                  setEdit((p) => ({
+                    ...p,
+                    [x.code]: { ...e, mint_per_card: Number(ev.target.value) },
+                  }))
+                }
+              />
+              <Button size="sm" className="h-8" onClick={() => save(x.code)}>
+                Save
+              </Button>
+            </div>
+          </Card>
+        );
+      })}
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Mint can be raised but never cut below the highest serial already minted.
+      </p>
+    </>
   );
 }

@@ -35,6 +35,8 @@ class User(Base, TimestampMixin):
     avatar_colors: Mapped[dict] = mapped_column(JSONB, default=dict)
     # Owned cosmetics, e.g. ["a:crown", "c:#f5c518", "ac:#3fa9ff"] (colors owned globally)
     owned_cosmetics: Mapped[list] = mapped_column(JSONB, default=list)
+    # {card: {"id": skin_id, "d": design_code}} -- the skin worn on each of the 52
+    equipped_skins: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     # Opaque referral code used in invite links (instead of the numeric id)
     referral_code: Mapped[str | None] = mapped_column(

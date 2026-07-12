@@ -38,7 +38,10 @@ class Settings(BaseSettings):
 
     # Rooms
     MAX_ACTIVE_ROOMS_PER_USER: int = 3   # tables a player may host at once
-    ROOM_IDLE_CLOSE_HOURS: float = 1.0   # auto-close tables idle this long
+    ROOM_IDLE_CLOSE_HOURS: float = 1.0
+
+    # Card market: house cut on every sale, burned (a coin/gem sink).
+    MARKET_FEE_PCT: int = 5   # auto-close tables idle this long
 
     # Loot boxes
     BOX_DAILY_LIMIT: int = 20   # max box opens per user per day (0 = unlimited)

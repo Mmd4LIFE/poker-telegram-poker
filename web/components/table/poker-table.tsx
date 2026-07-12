@@ -314,7 +314,7 @@ export function PokerTable({ code }: { code: string }) {
             {p.user_id !== meId && (
               <div className="mt-0.5 flex justify-center gap-0.5">
                 {(p.hole?.length ? p.hole : []).map((c: string, k: number) => (
-                  <PlayingCard key={k} card={c} size="sm" />
+                  <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
                 ))}
               </div>
             )}

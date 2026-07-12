@@ -13,7 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_admin
 from app.config import settings
 from app.database import get_session
-from app.models import Box, Product, Purchase, Transaction, User, UserBox
+from app.models import (
+    Box,
+    CardDesign,
+    CardSkin,
+    MarketListing,
+    Product,
+    Purchase,
+    Transaction,
+    User,
+    UserBox,
+)
+from app.services import cards as CARDS
 from app.services.economy_balance import box_stats, suggest_price
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -218,3 +229,129 @@ async def admin_update_product(
         p.is_active = body.is_active
     await session.flush()
     return {"code": p.code, "price": p.price, "discount_pct": p.discount_pct}
+
+
+# --- card skin economy ------------------------------------------------------
+
+
+@router.get("/cards")
+async def admin_cards(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Supply burn-down per design plus market turnover and fees destroyed."""
+    designs = list(
+        (await session.scalars(select(CardDesign).order_by(CardDesign.sort))).all()
+    )
+    out = []
+    for d in designs:
+        minted = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(CardSkin)
+                .where(CardSkin.design_code == d.code)
+            )
+            or 0
+        )
+        listed = int(
+            await session.scalar(
+                select(func.count()).where(
+                    MarketListing.design_code == d.code,
+                    MarketListing.status == "active",
+                )
+            )
+            or 0
+        )
+        supply = d.mint_per_card * 52
+        out.append(
+            {
+                "code": d.code,
+                "name": d.name,
+                "rarity": d.rarity,
+                "base_price_coins": d.base_price_coins,
+                "base_price_gems": d.base_price_gems,
+                "mint_per_card": d.mint_per_card,
+                "supply_total": supply,
+                "minted": minted,
+                "sold_out_pct": round(100 * minted / supply, 1) if supply else 0,
+                "listed": listed,
+                "active": d.active,
+                "tradable": d.tradable,
+                "ace_price_coins": CARDS.price_of(d, "As")[0],
+                "ace_price_gems": CARDS.price_of(d, "As")[1],
+            }
+        )
+
+    market = {}
+    for cur in ("coins", "gems"):
+        vol = int(
+            await session.scalar(
+                select(func.coalesce(func.sum(MarketListing.price), 0)).where(
+                    MarketListing.status == "sold", MarketListing.currency == cur
+                )
+            )
+            or 0
+        )
+        burned = int(
+            await session.scalar(
+                select(func.coalesce(func.sum(MarketListing.fee), 0)).where(
+                    MarketListing.status == "sold", MarketListing.currency == cur
+                )
+            )
+            or 0
+        )
+        sales = int(
+            await session.scalar(
+                select(func.count()).where(
+                    MarketListing.status == "sold", MarketListing.currency == cur
+                )
+            )
+            or 0
+        )
+        market[cur] = {"volume": vol, "burned": burned, "sales": sales}
+
+    return {"designs": out, "market": market, "fee_pct": settings.MARKET_FEE_PCT}
+
+
+class DesignUpdate(BaseModel):
+    base_price_coins: int | None = None
+    base_price_gems: int | None = None
+    mint_per_card: int | None = None
+    active: bool | None = None
+    tradable: bool | None = None
+
+
+@router.patch("/cards/{code}")
+async def admin_update_design(
+    code: str,
+    body: DesignUpdate,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    d = (
+        await session.execute(select(CardDesign).where(CardDesign.code == code))
+    ).scalar_one_or_none()
+    if not d:
+        raise HTTPException(404, "Design not found")
+    if body.base_price_coins is not None:
+        d.base_price_coins = max(0, body.base_price_coins)
+    if body.base_price_gems is not None:
+        d.base_price_gems = max(0, body.base_price_gems)
+    if body.mint_per_card is not None:
+        # Never cut the mint below what's already been minted -- that would make
+        # existing serials invalid (e.g. #700 of a mint of 500).
+        minted = int(
+            await session.scalar(
+                select(func.coalesce(func.max(CardSkin.serial), 0)).where(
+                    CardSkin.design_code == d.code
+                )
+            )
+            or 0
+        )
+        d.mint_per_card = max(minted, body.mint_per_card)
+    if body.active is not None:
+        d.active = body.active
+    if body.tradable is not None:
+        d.tradable = body.tradable
+    await session.flush()
+    return {"code": d.code, "mint_per_card": d.mint_per_card, "active": d.active}

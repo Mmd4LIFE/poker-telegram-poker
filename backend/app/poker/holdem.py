@@ -42,6 +42,9 @@ class Seat:
     avatar: str = "user"
     name_color: str = ""
     avatar_color: str = ""
+    # {card: design_code} -- static, public cosmetic info. Sent in full for every
+    # seat: sending only the skins of the cards a player HOLDS would leak their hand.
+    skins: dict = field(default_factory=dict)
     bot_personality: str | None = None
     bot_skill: float = 0.5
 
@@ -504,6 +507,7 @@ class HoldemGame:
                 "name_color": s.name_color,
                 "avatar": s.avatar,
                 "avatar_color": s.avatar_color,
+                "skins": s.skins or {},
                 "seat": s.seat,
                 "stack": s.stack,
                 "bet": s.bet,

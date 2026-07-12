@@ -15,6 +15,7 @@ from app.game.connection import hub
 from app.models import Hand, PlayerHand, Room, RoomPlayer, User
 from app.poker import ai
 from app.poker.holdem import HoldemGame, Seat, Street
+from app.services.cards import equipped_map
 from app.services.cosmetics import effective_avatar_color
 from app.services.progression import record_hand
 
@@ -63,6 +64,7 @@ class RoomRuntime:
                 stack=stack, is_bot=user.is_bot, avatar=user.avatar or "user",
                 name_color=user.name_color or "",
                 avatar_color=effective_avatar_color(user),
+                skins=equipped_map(user),
                 bot_personality=user.bot_personality, bot_skill=user.bot_skill,
             ))
             if user.is_bot:
@@ -231,6 +233,7 @@ class RoomRuntime:
                     stack=buy, is_bot=True, avatar=bot.avatar or "bot",
                     name_color=bot.name_color or "",
                     avatar_color=effective_avatar_color(bot),
+                    skins=equipped_map(bot),
                     bot_personality=bot.bot_personality, bot_skill=bot.bot_skill,
                 ))
                 self._bot_ids.add(bot.id)
