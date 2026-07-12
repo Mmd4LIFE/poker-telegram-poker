@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { initTelegram, startParam } from "@/lib/telegram";
 import { AppProvider } from "@/lib/store";
 import { SkinProvider } from "@/lib/skins";
+import { NotificationProvider } from "@/components/notifications";
 import type { UserProfile } from "@/lib/types";
 import { AppShell } from "@/components/app-shell";
 
@@ -54,7 +55,9 @@ export default function Home() {
   return (
     <AppProvider initialUser={user}>
       <SkinProvider>
+        <NotificationProvider>
       <AppShell startParam={startParam()} />
+        </NotificationProvider>
       </SkinProvider>
     </AppProvider>
   );

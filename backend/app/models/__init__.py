@@ -16,7 +16,12 @@ from app.models.cards import (  # noqa: F401
     CardSkin,
     MarketListing,
 )
-from app.models.marketing import Broadcast, Segment, SegmentUser  # noqa: F401
+from app.models.marketing import (  # noqa: F401
+    Broadcast,
+    Notification,
+    Segment,
+    SegmentUser,
+)
 
 __all__ = [
     "User",
@@ -44,4 +49,5 @@ __all__ = [
     "Segment",
     "SegmentUser",
     "Broadcast",
+    "Notification",
 ]

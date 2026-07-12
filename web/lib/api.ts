@@ -61,6 +61,8 @@ export const api = {
   daily: () => req("POST", "/daily"),
   dailyStatus: () => req("GET", "/daily"),
   setTz: (offset_min: number) => req("POST", "/me/tz", { offset_min }),
+  notifications: () => req("GET", "/notifications"),
+  readNotifications: () => req("POST", "/notifications/read"),
   wallet: () => req("GET", "/wallet/history"),
   leaderboard: (metric: string) => req("GET", "/leaderboard?metric=" + metric),
   listRooms: () => req<RoomSummary[]>("GET", "/rooms"),

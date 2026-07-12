@@ -5,18 +5,20 @@ import { fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
+import { NotificationBell } from "@/components/notifications";
 
 export function WalletBar() {
   const { user } = useApp();
   if (!user) return null;
   return (
-    <div className="flex items-center gap-3 mb-4">
+    <div className="mb-4 flex items-center gap-3">
       <Avatar className="size-11 border border-white/10">
         <AvatarFallback className="bg-secondary text-gold">
           <AvatarIcon code={user.avatar} color={user.avatar_color} className="size-5" />
         </AvatarFallback>
       </Avatar>
-      <div className="flex-1 min-w-0">
+
+      <div className="min-w-0 flex-1">
         <div
           className="truncate font-semibold"
           style={user.name_color ? { color: user.name_color } : undefined}
@@ -31,12 +33,19 @@ export function WalletBar() {
           />
         </div>
       </div>
-      <div className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-sm font-bold text-gold">
-        <Coins className="size-4" /> {fmt(user.coins)}
+
+      {/* Balances stacked in one column: side by side they crowded the name on
+          narrow phones, and the bell needs the width. */}
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        <span className="flex items-center gap-1 text-sm font-bold text-gold">
+          <Coins className="size-3.5" /> {fmt(user.coins)}
+        </span>
+        <span className="flex items-center gap-1 text-sm font-bold text-gem">
+          <Gem className="size-3.5" /> {user.gems}
+        </span>
       </div>
-      <div className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-sm font-bold text-gem">
-        <Gem className="size-4" /> {user.gems}
-      </div>
+
+      <NotificationBell />
     </div>
   );
 }

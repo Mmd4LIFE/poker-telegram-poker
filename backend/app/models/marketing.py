@@ -71,3 +71,26 @@ class Broadcast(Base):
     finished_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class Notification(Base):
+    """In-app notification. One row per user per event (both sides of a trade)."""
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(24), index=True)  # trade_sold|trade_bought
+    title: Mapped[str] = mapped_column(String(128))
+    body: Mapped[str] = mapped_column(String(256), default="")
+    # enough to render the card art and deep-link into the trade
+    meta: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+    read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )

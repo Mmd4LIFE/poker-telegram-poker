@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.config import settings
 from app.database import get_session
-from app.models import CardDesign, CardSkin, MarketListing, User
+from app.models import CardDesign, CardSkin, MarketListing, Notification, User
 from app.services import cards as C
 from app.services.economy import InsufficientFunds, adjust_balance, credit
 
@@ -397,6 +397,42 @@ async def buy(
     l.buyer_id = buyer.id
     l.fee = fee
     l.closed_at = datetime.now(timezone.utc)
+
+    # Both sides get told — the seller especially, since a sale happens while
+    # they're not looking.
+    d = await session.scalar(
+        select(CardDesign).where(CardDesign.code == l.design_code)
+    )
+    label = f"{d.name if d else l.design_code} {l.card} #{l.serial}"
+    unit = "coins" if l.currency == "coins" else "gems"
+    meta = {
+        "listing_id": l.id,
+        "design": l.design_code,
+        "card": l.card,
+        "serial": l.serial,
+        "uid": skin.uid,
+        "price": l.price,
+        "currency": l.currency,
+    }
+    session.add(
+        Notification(
+            user_id=seller.id,
+            kind="trade_sold",
+            title=f"Sold {label}",
+            body=f"{buyer.display_name} bought it — you received "
+            f"{payout:,} {unit} after the {pct}% fee.",
+            meta=meta,
+        )
+    )
+    session.add(
+        Notification(
+            user_id=buyer.id,
+            kind="trade_bought",
+            title=f"Bought {label}",
+            body=f"From {seller.display_name} for {l.price:,} {unit}.",
+            meta=meta,
+        )
+    )
 
     await session.commit()
     return {

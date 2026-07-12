@@ -109,3 +109,61 @@ async def leaderboard(
         "degree": u.degree,
         "value": getattr(u, metric),
     } for i, u in enumerate(rows)]
+
+
+# --- in-app notifications ---------------------------------------------------
+
+
+@router.get("/notifications")
+async def notifications(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models import Notification
+
+    rows = list(
+        (
+            await session.scalars(
+                select(Notification)
+                .where(Notification.user_id == user.id)
+                .order_by(Notification.id.desc())
+                .limit(50)
+            )
+        ).all()
+    )
+    return {
+        "unread": sum(1 for n in rows if n.read_at is None),
+        "items": [
+            {
+                "id": n.id,
+                "kind": n.kind,
+                "title": n.title,
+                "body": n.body,
+                "meta": n.meta or {},
+                "read": n.read_at is not None,
+                "at": n.created_at,
+            }
+            for n in rows
+        ],
+    }
+
+
+@router.post("/notifications/read")
+async def read_notifications(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Opening the bell marks everything read."""
+    from datetime import datetime, timezone
+
+    from sqlalchemy import update
+
+    from app.models import Notification
+
+    await session.execute(
+        update(Notification)
+        .where(Notification.user_id == user.id, Notification.read_at.is_(None))
+        .values(read_at=datetime.now(timezone.utc))
+    )
+    await session.commit()
+    return {"unread": 0}
