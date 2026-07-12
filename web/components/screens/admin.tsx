@@ -546,8 +546,20 @@ function Reach() {
             Send
           </Button>
         </div>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {(d.variables || []).map((v: string) => (
+            <button
+              key={v}
+              onClick={() => setText((t) => t + `{${v}}`)}
+              className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-gold"
+            >
+              {"{" + v + "}"}
+            </button>
+          ))}
+        </div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          The segment is recalculated at send time, so the audience is never stale.
+          Tap a variable to insert it — each recipient gets their own values. The
+          segment is recalculated at send time, so the audience is never stale.
         </p>
       </Card>
 
@@ -696,7 +708,7 @@ function Reach() {
             </span>
           </div>
           <div className="mt-2 text-[10px] text-muted-foreground">
-            Keep-streak message — {"{streak} {next_day} {next_coins} {next_gems} {name}"}
+            Keep-streak message — {(rem.keep_variables || []).map((v: string) => `{${v}}`).join(" ")}
           </div>
           <textarea
             rows={3}

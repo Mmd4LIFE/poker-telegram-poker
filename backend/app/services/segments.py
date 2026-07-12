@@ -144,22 +144,26 @@ async def compute(session: AsyncSession, seg: Segment) -> int:
     return len(ids)
 
 
-async def recipients(session: AsyncSession, seg: Segment | None) -> list[int]:
-    """Telegram ids to send to. Recomputes the segment first so it's never stale."""
+async def recipient_users(session: AsyncSession, seg: Segment | None) -> list[User]:
+    """Users to send to. Recomputes the segment first so the audience is never stale.
+
+    Returns full User rows (not just ids) because broadcast templates substitute
+    {name}, {coins}, {level}… per recipient.
+    """
     if seg is None:
-        rows = await session.execute(
-            select(User.telegram_id).where(
+        rows = await session.scalars(
+            select(User).where(
                 User.telegram_id.is_not(None),
                 User.is_bot.is_(False),
                 User.is_banned.is_(False),
             )
         )
-        return [int(t) for (t,) in rows.all() if t]
+        return list(rows.all())
 
     await compute(session, seg)
-    rows = await session.execute(
-        select(User.telegram_id)
+    rows = await session.scalars(
+        select(User)
         .join(SegmentUser, SegmentUser.user_id == User.id)
         .where(SegmentUser.segment_id == seg.id, User.telegram_id.is_not(None))
     )
-    return [int(t) for (t,) in rows.all() if t]
+    return list(rows.all())

@@ -59,6 +59,39 @@ async def set_config(session, patch: dict) -> dict:
     return cfg
 
 
+class _Safe(dict):
+    """Unknown placeholder -> leave it visible rather than blowing up the send."""
+
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
+
+def vars_for(user: User) -> dict:
+    """The substitutions available in reminder texts AND broadcasts."""
+    return {
+        "name": user.display_name,
+        "level": user.level,
+        "coins": f"{user.coins:,}",
+        "gems": user.gems,
+        "streak": user.daily_streak,
+    }
+
+
+# Advertised to the admin UI so it can list what you can type.
+VARIABLES = ["name", "level", "coins", "gems", "streak"]
+KEEP_VARIABLES = VARIABLES + ["next_day", "next_coins", "next_gems"]
+
+
+def render(text: str, data: dict) -> str:
+    """Substitute {placeholders}. A typo in an admin-authored template must never
+    take the nightly sweep down, so anything unexpected falls back to raw text."""
+    try:
+        return str(text).format_map(_Safe(data))
+    except Exception:  # noqa: BLE001 — stray brace, bad format spec, etc.
+        logger.warning("template render failed, sending raw")
+        return str(text)
+
+
 async def _send(tg_id: int, text: str) -> bool:
     from app.bot.instance import get_bot
 
@@ -95,16 +128,16 @@ async def _due(user: User, cfg: dict) -> str | None:
 
 
 def _render(kind: str, user: User, cfg: dict) -> str:
+    data = vars_for(user)
     if kind == "keep":
         nxt = D.reward_for(user.daily_streak + 1)
-        return str(cfg["keep_text"]).format(
-            name=user.display_name,
-            streak=user.daily_streak,
+        data.update(
             next_day=nxt["day"],
             next_coins=f"{nxt['coins']:,}",
             next_gems=nxt["gems"],
         )
-    return str(cfg["miss_text"]).format(name=user.display_name)
+        return render(cfg["keep_text"], data)
+    return render(cfg["miss_text"], data)
 
 
 async def run_reminders_once() -> int:
@@ -163,15 +196,17 @@ async def run_broadcast(broadcast_id: int) -> None:
         if not b or b.status != "queued":
             return
         seg = await session.get(Segment, b.segment_id) if b.segment_id else None
-        targets = await S.recipients(session, seg)  # recomputes the segment
+        users = await S.recipient_users(session, seg)  # recomputes the segment
+        # Snapshot what templates need now: the session closes before we send.
+        targets = [(u.telegram_id, vars_for(u)) for u in users if u.telegram_id]
         b.status = "sending"
         b.total = len(targets)
         await session.commit()
         text = b.text
 
     sent = failed = 0
-    for i, tg_id in enumerate(targets, 1):
-        if await _send(tg_id, text):
+    for i, (tg_id, data) in enumerate(targets, 1):
+        if await _send(tg_id, render(text, data)):
             sent += 1
         else:
             failed += 1

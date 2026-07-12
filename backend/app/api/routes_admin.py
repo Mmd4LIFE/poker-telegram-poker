@@ -405,6 +405,7 @@ async def admin_segments(
         "segments": [_seg_out(s) for s in rows],
         "fields": SEG.FIELDS,
         "total_users": total,
+        "variables": NOTIFY.VARIABLES,
     }
 
 
@@ -556,7 +557,12 @@ async def admin_reminder(
     _: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    return await NOTIFY.get_config(session)
+    cfg = await NOTIFY.get_config(session)
+    return {
+        **cfg,
+        "variables": NOTIFY.VARIABLES,
+        "keep_variables": NOTIFY.KEEP_VARIABLES,
+    }
 
 
 @router.patch("/reminder")
