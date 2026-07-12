@@ -116,3 +116,31 @@ def unequip_skin(user: User, skin: CardSkin) -> None:
     if cur and cur.get("id") == skin.id:
         eq.pop(skin.card, None)
         user.equipped_skins = eq
+
+
+# --- runtime settings (admin-tunable, DB-backed) -----------------------------
+
+MARKET_FEE_KEY = "market_fee_pct"
+
+
+async def market_fee_pct(session: AsyncSession) -> int:
+    """House cut on market sales. Falls back to the env default if never set."""
+    from app.config import settings
+    from app.models import AppSetting
+
+    row = await session.get(AppSetting, MARKET_FEE_KEY)
+    if row and isinstance(row.value, dict) and "pct" in row.value:
+        return int(row.value["pct"])
+    return int(settings.MARKET_FEE_PCT)
+
+
+async def set_market_fee_pct(session: AsyncSession, pct: int) -> int:
+    from app.models import AppSetting
+
+    pct = max(0, min(50, int(pct)))
+    row = await session.get(AppSetting, MARKET_FEE_KEY)
+    if row:
+        row.value = {"pct": pct}
+    else:
+        session.add(AppSetting(key=MARKET_FEE_KEY, value={"pct": pct}))
+    return pct

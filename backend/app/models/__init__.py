@@ -10,7 +10,12 @@ from app.models.progression import (  # noqa: F401
 )
 from app.models.squad import Squad, SquadMember, SquadMessage  # noqa: F401
 from app.models.social import Friendship, PlayerHand  # noqa: F401
-from app.models.cards import CardDesign, CardSkin, MarketListing  # noqa: F401
+from app.models.cards import (  # noqa: F401
+    AppSetting,
+    CardDesign,
+    CardSkin,
+    MarketListing,
+)
 
 __all__ = [
     "User",
@@ -34,4 +39,5 @@ __all__ = [
     "CardDesign",
     "CardSkin",
     "MarketListing",
+    "AppSetting",
 ]

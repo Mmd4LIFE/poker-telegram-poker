@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_session
-from app.models import CardDesign, CardSkin, MarketListing, User
+from app.models import CardDesign, CardSkin, MarketListing, Transaction, User
 from app.services import cards as C
 from app.services.economy import InsufficientFunds, debit
 
@@ -268,6 +268,41 @@ async def equip(
     C.equip(user, body.card, skin)
     await session.commit()
     return {"card": body.card, "design": skin.design_code, "serial": skin.serial}
+
+
+@router.get("/purchases")
+async def purchases(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Everything this user minted from the shop, newest first."""
+    rows = list(
+        (
+            await session.scalars(
+                select(Transaction)
+                .where(
+                    Transaction.user_id == user.id,
+                    Transaction.kind == "card_skin_buy",
+                )
+                .order_by(Transaction.created_at.desc())
+                .limit(60)
+            )
+        ).all()
+    )
+    out = []
+    for t in rows:
+        design, _, card = (t.ref or "").partition(":")
+        out.append(
+            {
+                "design": design,
+                "card": card,
+                "serial": (t.meta or {}).get("serial"),
+                "price": abs(t.amount),
+                "currency": t.currency,
+                "at": t.created_at,
+            }
+        )
+    return {"purchases": out}
 
 
 @router.get("/skins/{skin_id}")

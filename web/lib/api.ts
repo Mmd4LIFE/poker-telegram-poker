@@ -104,8 +104,10 @@ export const api = {
   equipCard: (card: string, skin_id: number | null) =>
     req("POST", "/cards/equip", { card, skin_id }),
   skinDetail: (id: number) => req("GET", `/cards/skins/${id}`),
+  cardPurchases: () => req("GET", "/cards/purchases"),
   adminCards: () => req("GET", "/admin/cards"),
   adminUpdateDesign: (code: string, b: unknown) => req("PATCH", `/admin/cards/${code}`, b),
+  adminMarketFee: (fee_pct: number) => req("PATCH", "/admin/market", { fee_pct }),
 
   // --- market ---
   marketGroups: (q: Record<string, string>) =>

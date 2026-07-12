@@ -310,7 +310,11 @@ async def admin_cards(
         )
         market[cur] = {"volume": vol, "burned": burned, "sales": sales}
 
-    return {"designs": out, "market": market, "fee_pct": settings.MARKET_FEE_PCT}
+    return {
+        "designs": out,
+        "market": market,
+        "fee_pct": await CARDS.market_fee_pct(session),
+    }
 
 
 class DesignUpdate(BaseModel):
@@ -355,3 +359,19 @@ async def admin_update_design(
         d.tradable = body.tradable
     await session.flush()
     return {"code": d.code, "mint_per_card": d.mint_per_card, "active": d.active}
+
+
+class MarketSettings(BaseModel):
+    fee_pct: int
+
+
+@router.patch("/market")
+async def admin_market_settings(
+    body: MarketSettings,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """The market fee is burned, so this dial controls how hard the sink pulls."""
+    pct = await CARDS.set_market_fee_pct(session, body.fee_pct)
+    await session.flush()
+    return {"fee_pct": pct}

@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronLeft,
+  ChevronRight,
   Coins,
   Flame,
   Gem,
   Loader2,
+  Receipt,
   Store,
   Tag,
 } from "lucide-react";
@@ -74,29 +76,28 @@ function Collection({
 
   const byCard: Record<string, any> = {};
   for (const c of data.cards) byCard[c.card] = c;
-  const pct = Math.round((100 * data.skinned) / data.deck_size);
+
+  // Ace first and biggest; the rest run K down to 2 in two rows of six.
+  const REST = ["K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
+
+  const Slot = ({ code, size }: { code: string; size: "md" | "xl" }) => {
+    const item = byCard[code];
+    const skinned = item?.equipped !== DEFAULT_DESIGN;
+    return (
+      <button onClick={() => onPick(code)} className="relative active:scale-95">
+        <PlayingCard card={code} size={size} design={item?.equipped} />
+        {item?.owned?.length > 1 && (
+          <span className="absolute -right-1 -top-1 rounded-full bg-gold px-1 text-[9px] font-extrabold text-black">
+            {item.owned.length}
+          </span>
+        )}
+        {!skinned && <span className="absolute inset-0 rounded-md bg-black/45" />}
+      </button>
+    );
+  };
 
   return (
     <>
-      <Card className="mb-4 p-4">
-        <div className="flex items-end justify-between">
-          <div>
-            <div className="text-2xl font-extrabold">
-              {data.skinned}
-              <span className="text-base font-bold text-muted-foreground">
-                /{data.deck_size}
-              </span>
-            </div>
-            <div className="text-xs text-muted-foreground">cards skinned</div>
-          </div>
-          <div className="text-right">
-            <div className="text-lg font-extrabold text-gold">{data.owned_total}</div>
-            <div className="text-xs text-muted-foreground">skins owned</div>
-          </div>
-        </div>
-        <Progress value={pct} className="mt-3" />
-      </Card>
-
       {SUITS.map((s) => (
         <div key={s} className="mb-4">
           <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -105,37 +106,19 @@ function Collection({
             </span>
             {SUIT_NAME[s]}
             <span className="ml-auto font-normal normal-case text-muted-foreground/70">
-              &times;{SUIT_MULT[s].toFixed(2)} price
+              &times;{SUIT_MULT[s].toFixed(2)}
             </span>
           </h3>
-          {/* 13 ranks in two rows (7 + 6) — everything visible, nothing to scroll */}
-          <div className="grid grid-cols-7 justify-items-center gap-1.5">
-            {RANKS.map((r) => {
-              const code = r + s;
-              const item = byCard[code];
-              const skinned = item?.equipped !== DEFAULT_DESIGN;
-              return (
-                <button
-                  key={code}
-                  onClick={() => onPick(code)}
-                  className="relative active:scale-95"
-                >
-                  <PlayingCard card={code} size="md" design={item?.equipped} />
-                  {item?.owned?.length > 1 && (
-                    <span className="absolute -right-1 -top-1 rounded-full bg-gold px-1 text-[9px] font-extrabold text-black">
-                      {item.owned.length}
-                    </span>
-                  )}
-                  {!skinned && <span className="absolute inset-0 rounded-md bg-black/45" />}
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-2">
+            <Slot code={"A" + s} size="xl" />
+            <div className="grid flex-1 grid-cols-6 justify-items-center gap-1">
+              {REST.map((r) => (
+                <Slot key={r + s} code={r + s} size="md" />
+              ))}
+            </div>
           </div>
         </div>
       ))}
-      <p className="mt-1 text-center text-[11px] text-muted-foreground">
-        Dimmed cards still use the classic look. Tap any card to skin it.
-      </p>
     </>
   );
 }
@@ -143,12 +126,25 @@ function Collection({
 /* --------------------------------------------------------------------- shop */
 
 function ShopTab({ onBought }: { onBought: () => void }) {
-  const { reload } = useSkins();
+  const { designs: dmap, reload } = useSkins();
   const { refresh } = useApp();
   const [designs, setDesigns] = useState<any[] | null>(null);
   const [open, setOpen] = useState<any>(null); // design detail
   const [cards, setCards] = useState<any[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[] | null>(null); // null = page closed
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  async function openHistory() {
+    setHistoryOpen(true);
+    setHistory(null);
+    try {
+      const r: any = await api.cardPurchases();
+      setHistory(r.purchases);
+    } catch {
+      setHistory([]);
+    }
+  }
 
   useEffect(() => {
     api.cardShop().then((r: any) => setDesigns(r.designs)).catch(() => {});
@@ -182,32 +178,66 @@ function ShopTab({ onBought }: { onBought: () => void }) {
     }
   }
 
+  if (historyOpen) {
+    return (
+      <>
+        <button
+          onClick={() => setHistoryOpen(false)}
+          className="mb-3 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+        >
+          <ChevronLeft className="size-4" /> Shop
+        </button>
+        <h2 className="mb-2 text-lg font-extrabold">My purchases</h2>
+        {!history ? (
+          <Loader2 className="mx-auto mt-6 size-6 animate-spin text-gold" />
+        ) : history.length === 0 ? (
+          <Card className="items-center p-6 text-center text-sm text-muted-foreground">
+            You haven&apos;t minted any skins yet.
+          </Card>
+        ) : (
+          <Card className="p-3">
+            {history.map((h: any, i: number) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
+              >
+                <PlayingCard card={h.card} size="sm" design={h.design} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">
+                    {dmap[h.design]?.name || h.design}
+                    {h.serial ? (
+                      <span className="ml-1 text-muted-foreground">#{h.serial}</span>
+                    ) : null}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {h.at ? new Date(h.at).toLocaleDateString() : ""}
+                  </div>
+                </div>
+                <Price
+                  coins={h.currency === "coins" ? h.price : 0}
+                  gems={h.currency === "gems" ? h.price : 0}
+                />
+              </div>
+            ))}
+          </Card>
+        )}
+      </>
+    );
+  }
+
   if (!designs) return <Loader2 className="mx-auto mt-8 size-6 animate-spin text-gold" />;
 
   return (
     <>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Every skin is minted in a fixed quantity. When a mint sells out, the market
-        is the only way in.
-      </p>
-      <Card className="mb-3 gap-1.5 p-3">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-          What drives the price
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Rank: a deuce is &times;1.00, a King &times;3.40, an Ace &times;4.50.
-        </div>
-        <div className="flex gap-3 text-xs">
-          {SUITS.map((s) => (
-            <span key={s} className="flex items-center gap-1 font-semibold">
-              <span className={s === "h" || s === "d" ? "text-[#ff5a75]" : ""}>
-                {SUIT_GLYPH[s]}
-              </span>
-              &times;{SUIT_MULT[s].toFixed(2)}
-            </span>
-          ))}
-        </div>
-      </Card>
+      <button
+        onClick={openHistory}
+        className="mb-3 flex w-full items-center gap-2 rounded-xl border border-white/5 bg-secondary/50 p-3 active:scale-[0.99]"
+      >
+        <Receipt className="size-4 text-gold" />
+        <span className="flex-1 text-left text-sm font-bold">My purchases</span>
+        <ChevronRight className="size-4 text-muted-foreground" />
+      </button>
+
       <div className="grid grid-cols-2 gap-3">
         {designs.map((d: any) => {
           const left = d.supply_total - d.minted_total;
@@ -311,6 +341,7 @@ function MarketTab() {
 
   const [mine, setMine] = useState<any>(null);
   const [showMine, setShowMine] = useState(false); // collapsed by default
+  const [trades, setTrades] = useState(false); // my-trades page
   const [busy, setBusy] = useState<number | null>(null);
 
   const loadGroups = useCallback(async () => {
@@ -437,9 +468,75 @@ function MarketTab() {
     );
   }
 
+  /* ---- my trades: everything I've bought and sold here ---- */
+  if (trades) {
+    const h: any[] = mine?.history ?? [];
+    return (
+      <>
+        <button
+          onClick={() => setTrades(false)}
+          className="mb-3 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+        >
+          <ChevronLeft className="size-4" /> Market
+        </button>
+        <h2 className="mb-2 text-lg font-extrabold">My trades</h2>
+        {h.length === 0 ? (
+          <Card className="items-center p-6 text-center text-sm text-muted-foreground">
+            No trades yet.
+          </Card>
+        ) : (
+          <Card className="p-3">
+            {h.map((t: any, i: number) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
+              >
+                <PlayingCard card={t.card} size="sm" design={t.design} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">
+                    {designs[t.design]?.name || t.design}
+                    <span className="ml-1 text-muted-foreground">#{t.serial}</span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {t.at ? new Date(t.at).toLocaleDateString() : ""}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span
+                    className={`text-[10px] font-bold uppercase ${t.side === "sold" ? "text-win" : "text-muted-foreground"}`}
+                  >
+                    {t.side}
+                  </span>
+                  <Price
+                    coins={t.currency === "coins" ? t.net : 0}
+                    gems={t.currency === "gems" ? t.net : 0}
+                  />
+                </div>
+              </div>
+            ))}
+          </Card>
+        )}
+        {mine?.fee_pct != null && (
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            Sales are shown net of the {mine.fee_pct}% market fee.
+          </p>
+        )}
+      </>
+    );
+  }
+
   /* ---- the grid: one tile per design+card, showing its floor ---- */
   return (
     <>
+      <button
+        onClick={() => setTrades(true)}
+        className="mb-3 flex w-full items-center gap-2 rounded-xl border border-white/5 bg-secondary/50 p-3 active:scale-[0.99]"
+      >
+        <Receipt className="size-4 text-gold" />
+        <span className="flex-1 text-left text-sm font-bold">My trades</span>
+        <ChevronRight className="size-4 text-muted-foreground" />
+      </button>
+
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
         <select
           value={rarity}
@@ -523,9 +620,8 @@ function MarketTab() {
         </Card>
       )}
 
-      <h3 className="mb-1.5 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        <span>{groups?.length ?? 0} on sale</span>
-        <span className="font-normal normal-case">5% fee burned on each sale</span>
+      <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        {groups?.length ?? 0} on sale
       </h3>
 
       {!groups ? (
@@ -583,6 +679,7 @@ function CardSheet({
   const { refresh } = useApp();
   const [data, setData] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [feeInfo, setFeeInfo] = useState<number | null>(null);
   const [selling, setSelling] = useState<any>(null);
   const [price, setPrice] = useState("");
   const [cur, setCur] = useState("coins");
@@ -647,6 +744,12 @@ function CardSheet({
     } catch {
       /* ignore */
     }
+    try {
+      const m: any = await api.marketMine(); // carries the live fee %
+      setFeeInfo(m.fee_pct);
+    } catch {
+      /* ignore */
+    }
   }
 
   async function confirmSell() {
@@ -668,7 +771,8 @@ function CardSheet({
     }
   }
 
-  const fee = Math.max(1, Math.floor((Number(price) || 0) * 0.05));
+  const feePct = feeInfo ?? 5;
+  const fee = Math.max(1, Math.floor(((Number(price) || 0) * feePct) / 100));
 
   return (
     <>
@@ -853,7 +957,7 @@ function CardSheet({
               />
               <div className="flex items-center justify-between rounded-lg bg-secondary p-2 text-xs">
                 <span className="flex items-center gap-1 text-muted-foreground">
-                  <Flame className="size-3.5 text-lose" /> 5% fee burned
+                  <Flame className="size-3.5 text-lose" /> {feePct}% fee burned
                 </span>
                 <span className="font-bold">
                   you get {fmt(Math.max(0, (Number(price) || 0) - fee))} {cur}

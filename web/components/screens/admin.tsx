@@ -283,6 +283,7 @@ function PackRow({ p, onSave }: any) {
 function Cards() {
   const [d, setD] = useState<any>(null);
   const [edit, setEdit] = useState<Record<string, any>>({});
+  const [fee, setFee] = useState("");
 
   const load = useCallback(() => api.adminCards().then(setD).catch(() => {}), []);
   useEffect(() => { load(); }, [load]);
@@ -300,10 +301,42 @@ function Cards() {
     }
   }
 
+  async function saveFee() {
+    try {
+      await api.adminMarketFee(Number(fee));
+      toast.success("Market fee updated");
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   if (!d) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   return (
     <>
+      <Card className="mb-3 p-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          Market fee
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <Input
+            className="h-8 text-xs"
+            type="number"
+            placeholder={`${d.fee_pct}%`}
+            value={fee}
+            onChange={(e) => setFee(e.target.value)}
+          />
+          <Button size="sm" className="h-8" onClick={saveFee}>
+            Save
+          </Button>
+        </div>
+        <div className="mt-1 text-[11px] text-muted-foreground">
+          Currently {d.fee_pct}% — burned on every sale, so this is the dial on how
+          hard the market drains coins out of the economy.
+        </div>
+      </Card>
+
       <div className="mb-3 grid grid-cols-2 gap-2">
         {(["coins", "gems"] as const).map((c) => (
           <Card key={c} className="p-3">

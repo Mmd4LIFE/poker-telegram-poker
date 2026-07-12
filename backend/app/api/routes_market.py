@@ -28,8 +28,8 @@ MIN_PRICE = {"coins": 100, "gems": 1}
 MAX_PRICE = {"coins": 5_000_000_000, "gems": 1_000_000}
 
 
-def _fee(price: int) -> int:
-    return max(1, price * settings.MARKET_FEE_PCT // 100) if price else 0
+def _fee(price: int, pct: int) -> int:
+    return max(1, price * pct // 100) if price else 0
 
 
 def _listing_out(l: MarketListing, seller: User | None = None) -> dict:
@@ -104,7 +104,7 @@ async def browse(
             {**_listing_out(l, smap.get(l.seller_id)), "is_mine": l.seller_id == user.id}
             for l in rows
         ],
-        "fee_pct": settings.MARKET_FEE_PCT,
+        "fee_pct": await C.market_fee_pct(session),
     }
 
 
@@ -174,7 +174,7 @@ async def groups(
         out.sort(key=lambda g: -g["listed"])
     else:
         out.sort(key=key, reverse=sort == "-floor")
-    return {"groups": out, "fee_pct": settings.MARKET_FEE_PCT}
+    return {"groups": out, "fee_pct": await C.market_fee_pct(session)}
 
 
 @router.get("/stats")
@@ -295,10 +295,12 @@ async def create_listing(
     )
     session.add(listing)
     await session.commit()
+    pct = await C.market_fee_pct(session)
     return {
         **_listing_out(listing, user),
-        "you_receive": body.price - _fee(body.price),
-        "fee": _fee(body.price),
+        "you_receive": body.price - _fee(body.price, pct),
+        "fee": _fee(body.price, pct),
+        "fee_pct": pct,
     }
 
 
@@ -353,7 +355,8 @@ async def buy(
     if seller is None or buyer is None:
         raise HTTPException(409, "Seller is gone")
 
-    fee = _fee(l.price)
+    pct = await C.market_fee_pct(session)
+    fee = _fee(l.price, pct)
     payout = l.price - fee
     try:
         await adjust_balance(
@@ -450,5 +453,5 @@ async def mine(
             }
             for l in history
         ],
-        "fee_pct": settings.MARKET_FEE_PCT,
+        "fee_pct": await C.market_fee_pct(session),
     }
