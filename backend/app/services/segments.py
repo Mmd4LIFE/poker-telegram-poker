@@ -51,11 +51,16 @@ FIELDS: list[dict] = [
 
 
 def base_query():
-    """Everyone reachable by the bot. Bots and banned users are never included."""
+    """Everyone the bot can actually DM.
+
+    bot_started is the gate: Telegram silently rejects messages to users who never
+    pressed Start, so including them would just inflate the failure count.
+    """
     return select(User.id).where(
         User.telegram_id.is_not(None),
         User.is_bot.is_(False),
         User.is_banned.is_(False),
+        User.bot_started.is_(True),
     )
 
 
@@ -156,6 +161,7 @@ async def recipient_users(session: AsyncSession, seg: Segment | None) -> list[Us
                 User.telegram_id.is_not(None),
                 User.is_bot.is_(False),
                 User.is_banned.is_(False),
+                User.bot_started.is_(True),
             )
         )
         return list(rows.all())

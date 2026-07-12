@@ -9,6 +9,7 @@ export interface UserProfile {
   avatar_color: string;
   referral_code: string | null;
   bot_username: string;
+  bot_started: boolean;
   coins: number;
   gems: number;
   level: number;

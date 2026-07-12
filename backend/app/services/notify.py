@@ -164,6 +164,7 @@ async def run_reminders_once() -> int:
                         User.telegram_id.is_not(None),
                         User.is_bot.is_(False),
                         User.is_banned.is_(False),
+                        User.bot_started.is_(True),
                     )
                 )
             ).all()
@@ -173,6 +174,9 @@ async def run_reminders_once() -> int:
             if not kind:
                 continue
             ok = await _send(u.telegram_id, _render(kind, u, cfg))
+            if not ok:
+                # blocked or never really started — stop wasting sends on them
+                u.bot_started = False
             u.last_reminder_at = datetime.now(timezone.utc)
             if kind == "miss":
                 u.miss_notices = (u.miss_notices or 0) + 1

@@ -10,6 +10,7 @@ import { useApp } from "@/lib/store";
 import { haptic } from "@/lib/telegram";
 import type { RoomSummary } from "@/lib/types";
 import { WalletBar } from "@/components/wallet-bar";
+import { NotifyGate } from "@/components/notify-gate";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -99,6 +100,7 @@ export function LobbyScreen() {
   return (
     <>
       <WalletBar />
+      <NotifyGate />
       {current && (
         <Card
           onClick={() => enterTable(current.code)}

@@ -25,7 +25,9 @@ async def my_referral(
     username = get_bot_username()
     code = await ensure_referral_code(session, user)
     deep = f"ref-{code}"
-    link = f"https://t.me/{username}?startapp={deep}" if username else None
+    # ?start= (not ?startapp=) so the invitee lands in the BOT CHAT and must press
+    # Start. That creates the conversation, without which we can never DM them.
+    link = f"https://t.me/{username}?start={deep}" if username else None
 
     # recent invited friends
     friends = (await session.execute(

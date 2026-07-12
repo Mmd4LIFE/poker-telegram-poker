@@ -36,6 +36,7 @@ class UserProfile(BaseModel):
     avatar_color: str
     referral_code: str | None
     bot_username: str
+    bot_started: bool = False
     coins: int
     gems: int
     level: int
@@ -71,6 +72,7 @@ class UserProfile(BaseModel):
             handle=u.handle, username=u.username, avatar=u.avatar,
             name_color=u.name_color or "", avatar_color=effective_avatar_color(u),
             referral_code=u.referral_code, bot_username=get_bot_username(),
+            bot_started=bool(u.bot_started),
             coins=u.coins, gems=u.gems,
             level=u.level, xp=u.xp, degree=u.degree, degree_label=label,
             level_progress=prog["progress"], next_level_xp=prog["next_level_xp"],

@@ -15,11 +15,27 @@ from aiogram.types import (
 
 from app.config import settings
 from app.database import SessionLocal
+from app.services.economy import credit
 from app.services.payments import fulfill_stars_payment
 from app.services.users import get_or_create_from_telegram
 
 logger = logging.getLogger("poker.bot")
 router = Router()
+
+
+async def _mark_started(session, user) -> int:
+    """Pressing Start is what makes a user reachable. Pay them once for it.
+
+    Users who only ever open the Mini App (e.g. via an invite deep link) never
+    create a bot conversation, and Telegram will not let us message them at all.
+    """
+    if user.bot_started:
+        return 0
+    user.bot_started = True
+    bonus = settings.BOT_START_BONUS
+    if bonus:
+        await credit(session, user, bonus, "bot_start_bonus")
+    return bonus
 
 
 def _app_url(param: str | None = None) -> str:
@@ -52,11 +68,14 @@ WELCOME = (
 async def start_deeplink(message: Message, command: CommandObject):
     param = command.args
     async with SessionLocal() as session:
-        _, created = await get_or_create_from_telegram(
+        user, created = await get_or_create_from_telegram(
             session, message.from_user.model_dump(), referral=param
         )
+        bonus = await _mark_started(session, user)
         await session.commit()
     text = WELCOME
+    if bonus and not created:
+        text += f"\n\n🔔 <b>Notifications on — +{bonus:,} coins.</b>"
     is_ref = bool(param) and (param.startswith("ref-") or param.startswith("ref_")
                               or param.startswith("sq-") or param.startswith("rm-"))
     if created and is_ref:
@@ -69,11 +88,16 @@ async def start_deeplink(message: Message, command: CommandObject):
 @router.message(CommandStart())
 async def start(message: Message):
     async with SessionLocal() as session:
-        _, created = await get_or_create_from_telegram(session, message.from_user.model_dump())
+        user, created = await get_or_create_from_telegram(
+            session, message.from_user.model_dump()
+        )
+        bonus = await _mark_started(session, user)
         await session.commit()
     text = WELCOME
     if created:
         text += f"\n\n🎁 <b>Welcome bonus:</b> {settings.SIGNUP_BONUS_COINS:,} coins added!"
+    elif bonus:
+        text += f"\n\n🔔 <b>Notifications on — +{bonus:,} coins.</b>"
     await message.answer(text, reply_markup=_webapp_kb())
 
 

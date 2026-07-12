@@ -19,6 +19,7 @@ import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { notify } from "@/lib/telegram";
 import { WalletBar } from "@/components/wallet-bar";
+import { NotifyGate } from "@/components/notify-gate";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -78,6 +79,7 @@ export function ProfileScreen() {
   return (
     <>
       <WalletBar />
+      <NotifyGate />
 
       <Card className="items-center p-6 text-center">
         <Avatar className="mx-auto size-20 border-2 border-gold/40">

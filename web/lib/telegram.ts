@@ -84,7 +84,11 @@ export function inviteLink(
       : kind === "room"
         ? `rm-${code}-${ref}`
         : `ref-${ref}`;
-  return `https://t.me/${user.bot_username}?startapp=${param}`;
+  // ?start= (not ?startapp=) deliberately: startapp launches the Mini App directly
+  // and NEVER creates a bot conversation, leaving the invitee permanently
+  // unreachable by reminders and broadcasts. ?start= lands them in the bot chat
+  // with a Start button; the bot then hands them straight into the app.
+  return `https://t.me/${user.bot_username}?start=${param}`;
 }
 
 export function shareInvite(
@@ -97,4 +101,9 @@ export function shareInvite(
   openTelegramLink(
     `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
   );
+}
+
+/** Open the bot chat so the user can press Start (making them DM-reachable). */
+export function openBotChat(botUsername: string, param = "notify") {
+  openTelegramLink(`https://t.me/${botUsername}?start=${param}`);
 }

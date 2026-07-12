@@ -41,7 +41,10 @@ class Settings(BaseSettings):
     ROOM_IDLE_CLOSE_HOURS: float = 1.0
 
     # Card market: house cut on every sale, burned (a coin/gem sink).
-    MARKET_FEE_PCT: int = 5   # auto-close tables idle this long
+    MARKET_FEE_PCT: int = 5
+
+    # One-off reward for pressing Start (i.e. becoming reachable by the bot).
+    BOT_START_BONUS: int = 2_000   # auto-close tables idle this long
 
     # Loot boxes
     BOX_DAILY_LIMIT: int = 20   # max box opens per user per day (0 = unlimited)

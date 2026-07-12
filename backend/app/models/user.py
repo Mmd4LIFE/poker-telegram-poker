@@ -87,6 +87,9 @@ class User(Base, TimestampMixin):
     )
     # how many "it's ok to miss" nudges we've sent since the streak broke (max 2)
     miss_notices: Mapped[int] = mapped_column(Integer, default=0)
+    # A bot cannot DM a user who never pressed Start. Mini-App-only users are
+    # unreachable, so reminders/broadcasts must skip them until they do.
+    bot_started: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     last_daily_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
