@@ -105,9 +105,10 @@ async def claim(session: AsyncSession, user: User) -> dict:
             currency="gems",
             meta={"streak": user.daily_streak},
         )
+    # status() last would clobber `reward` with its own dict — spread it first.
     return {
+        **status(user),
         "claimed": True,
         "reward": rung["coins"],
         "gems": rung["gems"],
-        **status(user),
     }
