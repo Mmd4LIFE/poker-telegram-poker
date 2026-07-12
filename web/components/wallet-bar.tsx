@@ -8,41 +8,50 @@ import { AvatarIcon } from "@/lib/avatars";
 import { NotificationBell } from "@/components/notifications";
 
 export function WalletBar() {
-  const { user } = useApp();
+  const { user, go } = useApp();
   if (!user) return null;
   return (
     <div className="mb-4 flex items-center gap-3">
-      <Avatar className="size-11 border border-white/10">
-        <AvatarFallback className="bg-secondary text-gold">
-          <AvatarIcon code={user.avatar} color={user.avatar_color} className="size-5" />
-        </AvatarFallback>
-      </Avatar>
-
-      <div className="min-w-0 flex-1">
-        <div
-          className="truncate font-semibold"
-          style={user.name_color ? { color: user.name_color } : undefined}
-        >
-          {user.display_name}
-        </div>
-        <div className="text-[11px] text-muted-foreground">Level {user.level}</div>
-        <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
+      {/* avatar + name are the way into your profile */}
+      <button
+        onClick={() => go("profile")}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left active:opacity-70"
+      >
+        <Avatar className="size-11 shrink-0 border border-white/10">
+          <AvatarFallback className="bg-secondary text-gold">
+            <AvatarIcon
+              code={user.avatar}
+              color={user.avatar_color}
+              className="size-5"
+            />
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-gold to-[var(--color-gem)]"
-            style={{ width: `${Math.round((user.level_progress || 0) * 100)}%` }}
-          />
+            className="truncate font-semibold"
+            style={user.name_color ? { color: user.name_color } : undefined}
+          >
+            {user.display_name}
+          </div>
+          <div className="text-[11px] text-muted-foreground">Level {user.level}</div>
+          <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-gold to-[var(--color-gem)]"
+              style={{ width: `${Math.round((user.level_progress || 0) * 100)}%` }}
+            />
+          </div>
         </div>
-      </div>
+      </button>
 
-      {/* Balances stacked in one column: side by side they crowded the name on
-          narrow phones, and the bell needs the width. */}
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
-        <span className="flex items-center gap-1 text-sm font-bold text-gold">
-          <Coins className="size-3.5" /> {fmt(user.coins)}
+      {/* Grid, not a right-aligned stack: the icons must sit in one column, which
+          they can't if the rows are right-aligned and the numbers differ in width. */}
+      <div className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-1 gap-y-0.5">
+        <Coins className="size-3.5 text-gold" />
+        <span className="text-sm font-bold tabular-nums text-gold">
+          {fmt(user.coins)}
         </span>
-        <span className="flex items-center gap-1 text-sm font-bold text-gem">
-          <Gem className="size-3.5" /> {user.gems}
-        </span>
+        <Gem className="size-3.5 text-gem" />
+        <span className="text-sm font-bold tabular-nums text-gem">{user.gems}</span>
       </div>
 
       <NotificationBell />

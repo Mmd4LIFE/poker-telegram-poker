@@ -22,7 +22,6 @@ import { WalletBar } from "@/components/wallet-bar";
 import { NotifyGate } from "@/components/notify-gate";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
 
@@ -100,12 +99,22 @@ export function ProfileScreen() {
           <Palette className="size-4" /> Customize profile
         </Button>
         <div className="mt-4 flex w-full items-center justify-between text-sm">
-          <span>Level {user.level}</span>
+          <span className="font-semibold">Level {user.level}</span>
           <span className="text-muted-foreground">
             {fmt(user.xp)} / {fmt(user.next_level_xp)} XP
           </span>
         </div>
-        <Progress value={pct} className="mt-2" />
+        {/* explicit bar: the shadcn Progress track is h-1 on a muted background and
+            all but disappears inside this card */}
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-gold to-[var(--color-gem)] transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="mt-1.5 w-full text-right text-[11px] text-muted-foreground">
+          {pct}% to level {user.level + 1}
+        </div>
       </Card>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
