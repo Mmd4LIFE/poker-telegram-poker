@@ -1,8 +1,18 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Bell, Coins, Gem, Inbox, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  Bell,
+  ChevronRight,
+  Coins,
+  Gem,
+  Inbox,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { api, fmt } from "@/lib/api";
+import { TradeSheet } from "@/components/market/trade-sheet";
+import { useApp } from "@/lib/store";
 import { PlayingCard } from "@/components/table/playing-card";
 import { Card } from "@/components/ui/card";
 import {
@@ -33,9 +43,23 @@ export function useNotifications() {
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { openUser } = useApp();
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<any[]>([]);
   const [sheet, setSheet] = useState(false);
+  const [trade, setTrade] = useState<any>(null);
+
+  // A trade notification is a receipt — tapping it should open the receipt.
+  async function openTrade(n: any) {
+    const id = n?.meta?.listing_id;
+    if (!id) return;
+    try {
+      setTrade(await api.marketTrade(id));
+      setSheet(false); // never stack two sheets
+    } catch {
+      /* the listing may have been pruned — just do nothing */
+    }
+  }
 
   const reload = useCallback(async () => {
     try {
@@ -98,10 +122,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 {items.map((n) => {
                   const sold = n.kind === "trade_sold";
                   const m = n.meta || {};
+                  const clickable = !!m.listing_id;
                   return (
-                    <div
+                    <button
                       key={n.id}
-                      className="flex items-start gap-3 border-b border-white/5 py-3 last:border-0"
+                      disabled={!clickable}
+                      onClick={() => openTrade(n)}
+                      className="flex w-full items-start gap-3 border-b border-white/5 py-3 text-left last:border-0 active:opacity-70"
                     >
                       {m.card ? (
                         <PlayingCard card={m.card} size="sm" design={m.design} />
@@ -145,7 +172,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                           {m.currency === "gems" ? m.price : fmt(m.price)}
                         </span>
                       ) : null}
-                    </div>
+                      {clickable && (
+                        <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
                   );
                 })}
               </Card>
@@ -153,6 +183,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           </div>
         </SheetContent>
       </Sheet>
+
+      <TradeSheet
+        trade={trade}
+        onClose={() => setTrade(null)}
+        onUser={(id) => {
+          setTrade(null);
+          openUser(id);
+        }}
+      />
     </Ctx.Provider>
   );
 }

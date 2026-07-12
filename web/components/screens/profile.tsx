@@ -55,7 +55,6 @@ export function ProfileScreen() {
   }, [refresh]);
 
   if (!user) return null;
-  const pct = Math.round((user.level_progress || 0) * 100);
 
   async function claimDaily() {
     setBusy(true);
@@ -98,22 +97,13 @@ export function ProfileScreen() {
         <Button variant="outline" size="sm" className="mt-3" onClick={() => go("customize")}>
           <Palette className="size-4" /> Customize profile
         </Button>
+        {/* No bar here — the wallet bar above already shows one. Two progress bars
+            on one screen for the same value is just noise. */}
         <div className="mt-4 flex w-full items-center justify-between text-sm">
           <span className="font-semibold">Level {user.level}</span>
           <span className="text-muted-foreground">
             {fmt(user.xp)} / {fmt(user.next_level_xp)} XP
           </span>
-        </div>
-        {/* explicit bar: the shadcn Progress track is h-1 on a muted background and
-            all but disappears inside this card */}
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-gold to-[var(--color-gem)] transition-all"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <div className="mt-1.5 w-full text-right text-[11px] text-muted-foreground">
-          {pct}% to level {user.level + 1}
         </div>
       </Card>
 

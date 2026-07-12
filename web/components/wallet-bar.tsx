@@ -10,6 +10,7 @@ import { NotificationBell } from "@/components/notifications";
 export function WalletBar() {
   const { user, go } = useApp();
   if (!user) return null;
+  const pct = Math.round((user.level_progress || 0) * 100);
   return (
     <div className="mb-4 flex items-center gap-3">
       {/* avatar + name are the way into your profile */}
@@ -33,11 +34,14 @@ export function WalletBar() {
           >
             {user.display_name}
           </div>
-          <div className="text-[11px] text-muted-foreground">Level {user.level}</div>
+          <div className="text-[11px] text-muted-foreground">
+            Level {user.level}
+            <span className="ml-1 text-muted-foreground/70">{pct}%</span>
+          </div>
           <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
             <div
               className="h-full rounded-full bg-gradient-to-r from-gold to-[var(--color-gem)]"
-              style={{ width: `${Math.round((user.level_progress || 0) * 100)}%` }}
+              style={{ width: `${pct}%` }}
             />
           </div>
         </div>
