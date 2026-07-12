@@ -1101,17 +1101,23 @@ function TradeSheet({
     <Sheet open={!!t} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto rounded-t-2xl">
         <SheetHeader>
-          <SheetTitle className="text-left">Trade</SheetTitle>
+          <SheetTitle>Trade</SheetTitle>
         </SheetHeader>
 
-        <div className="flex items-center gap-3 pb-3">
-          <PlayingCard card={t.card} size="xl" design={t.design} />
-          <div className="min-w-0 flex-1">
-            <div className="text-lg font-extrabold">{t.design_name || d?.name}</div>
-            <div className={`text-[10px] font-bold uppercase ${RARITY_COLOR[t.rarity]}`}>
+        {/* SheetContent has no horizontal padding of its own — the body supplies it,
+            same as the player sheet. Without this the card art gets clipped. */}
+        <div className="px-4 pb-6">
+          <div className="flex flex-col items-center text-center">
+            <PlayingCard card={t.card} size="xl" design={t.design} />
+            <div className="mt-2 text-xl font-extrabold">
+              {t.design_name || d?.name}
+            </div>
+            <div
+              className={`text-[10px] font-bold uppercase ${RARITY_COLOR[t.rarity]}`}
+            >
               {t.rarity}
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2 flex items-center justify-center gap-1.5">
               <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
                 #{t.serial}
                 {t.mint ? (
@@ -1137,7 +1143,7 @@ function TradeSheet({
                   navigator.clipboard?.writeText(t.uid);
                   toast("Item ID copied");
                 }}
-                className="mt-1.5 flex items-center gap-1 font-mono text-[11px] text-muted-foreground active:opacity-70"
+                className="mt-2 flex items-center gap-1 font-mono text-[11px] text-muted-foreground active:opacity-70"
               >
                 <Hash className="size-3" />
                 {t.uid}
@@ -1145,41 +1151,42 @@ function TradeSheet({
               </button>
             )}
           </div>
+
+          <Card className="mt-4 p-4">
+            <Party label="Seller" p={t.seller} onUser={onUser} />
+            <Party label="Buyer" p={t.buyer} onUser={onUser} />
+          </Card>
+
+          <Card className="mt-3 p-4">
+            <Row label="Price">
+              <Price
+                coins={t.currency === "coins" ? t.price : 0}
+                gems={t.currency === "gems" ? t.price : 0}
+              />
+            </Row>
+            <Row label="Market fee">
+              <span className="flex items-center gap-1 text-sm font-bold text-lose">
+                <Flame className="size-3.5" />−
+                {t.currency === "coins" ? fmt(t.fee) : t.fee}
+              </span>
+            </Row>
+            <Row label={t.side === "sold" ? "You received" : "Seller received"}>
+              <Price
+                coins={t.currency === "coins" ? t.net : 0}
+                gems={t.currency === "gems" ? t.net : 0}
+              />
+            </Row>
+            <Row label="Date">
+              <span className="text-xs text-muted-foreground">
+                {t.at ? new Date(t.at).toLocaleString() : "—"}
+              </span>
+            </Row>
+          </Card>
+
+          <p className="mt-3 text-center text-[11px] text-muted-foreground">
+            The fee is burned, not paid to anyone.
+          </p>
         </div>
-
-        <Card className="mb-3 p-3">
-          <Party label="Seller" p={t.seller} onUser={onUser} />
-          <Party label="Buyer" p={t.buyer} onUser={onUser} />
-        </Card>
-
-        <Card className="p-3">
-          <Row label="Price">
-            <Price
-              coins={t.currency === "coins" ? t.price : 0}
-              gems={t.currency === "gems" ? t.price : 0}
-            />
-          </Row>
-          <Row label="Market fee">
-            <span className="flex items-center gap-1 text-sm font-bold text-lose">
-              <Flame className="size-3.5" />−
-              {t.currency === "coins" ? fmt(t.fee) : t.fee}
-            </span>
-          </Row>
-          <Row label={t.side === "sold" ? "You received" : "Seller received"}>
-            <Price
-              coins={t.currency === "coins" ? t.net : 0}
-              gems={t.currency === "gems" ? t.net : 0}
-            />
-          </Row>
-          <Row label="Date">
-            <span className="text-xs text-muted-foreground">
-              {t.at ? new Date(t.at).toLocaleString() : "—"}
-            </span>
-          </Row>
-        </Card>
-        <p className="mt-2 pb-2 text-center text-[11px] text-muted-foreground">
-          The fee is burned, not paid to anyone.
-        </p>
       </SheetContent>
     </Sheet>
   );
