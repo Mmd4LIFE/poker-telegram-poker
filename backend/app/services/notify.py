@@ -67,19 +67,37 @@ class _Safe(dict):
 
 
 def vars_for(user: User) -> dict:
-    """The substitutions available in reminder texts AND broadcasts."""
+    """Every substitution, available in reminders AND broadcasts alike.
+
+    One variable set for both, deliberately: the admin edits reminder text and
+    broadcast text in identical-looking boxes, so a placeholder that works in one
+    must work in the other.
+    """
+    nxt = D.reward_for(user.daily_streak + 1)  # the rung a claim right now would pay
     return {
         "name": user.display_name,
         "level": user.level,
         "coins": f"{user.coins:,}",
         "gems": user.gems,
         "streak": user.daily_streak,
+        "next_day": nxt["day"],
+        "next_coins": f"{nxt['coins']:,}",
+        "next_gems": nxt["gems"],
     }
 
 
 # Advertised to the admin UI so it can list what you can type.
-VARIABLES = ["name", "level", "coins", "gems", "streak"]
-KEEP_VARIABLES = VARIABLES + ["next_day", "next_coins", "next_gems"]
+VARIABLES = [
+    "name",
+    "level",
+    "coins",
+    "gems",
+    "streak",
+    "next_day",
+    "next_coins",
+    "next_gems",
+]
+KEEP_VARIABLES = VARIABLES
 
 
 def render(text: str, data: dict) -> str:
@@ -129,15 +147,7 @@ async def _due(user: User, cfg: dict) -> str | None:
 
 def _render(kind: str, user: User, cfg: dict) -> str:
     data = vars_for(user)
-    if kind == "keep":
-        nxt = D.reward_for(user.daily_streak + 1)
-        data.update(
-            next_day=nxt["day"],
-            next_coins=f"{nxt['coins']:,}",
-            next_gems=nxt["gems"],
-        )
-        return render(cfg["keep_text"], data)
-    return render(cfg["miss_text"], data)
+    return render(cfg["keep_text"] if kind == "keep" else cfg["miss_text"], data)
 
 
 async def run_reminders_once() -> int:
