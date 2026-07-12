@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Coins,
@@ -461,6 +460,57 @@ function MarketTab() {
     );
   }
 
+  /* ---- my listings: what I currently have up for sale ---- */
+  if (showMine) {
+    const active: any[] = mine?.active ?? [];
+    return (
+      <>
+        <button
+          onClick={() => setShowMine(false)}
+          className="mb-3 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+        >
+          <ChevronLeft className="size-4" /> Market
+        </button>
+        {active.length === 0 ? (
+          <Card className="items-center gap-1 p-6 text-center">
+            <Tag className="size-7 text-muted-foreground" />
+            <div className="text-sm font-semibold">Nothing listed</div>
+            <div className="text-xs text-muted-foreground">
+              List a skin from your collection to sell it here.
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-3">
+            {active.map((l: any) => (
+              <div
+                key={l.id}
+                className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
+              >
+                <PlayingCard card={l.card} size="sm" design={l.design} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">
+                    {designs[l.design]?.name || l.design}
+                    <span className="ml-1 text-muted-foreground">#{l.serial}</span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {l.at ? new Date(l.at).toLocaleDateString() : ""}
+                  </div>
+                </div>
+                <Price
+                  coins={l.currency === "coins" ? l.price : 0}
+                  gems={l.currency === "gems" ? l.price : 0}
+                />
+                <Button size="sm" variant="outline" onClick={() => cancel(l)}>
+                  Cancel
+                </Button>
+              </div>
+            ))}
+          </Card>
+        )}
+      </>
+    );
+  }
+
   /* ---- my trades: everything I've bought and sold here ---- */
   if (trades) {
     const h: any[] = mine?.history ?? [];
@@ -518,12 +568,11 @@ function MarketTab() {
   /* ---- the grid: one tile per design+card, showing its floor ---- */
   return (
     <>
-      {/* one line: your listings (expands in place) + trades (opens a page) */}
+      {/* one line: both open their own page */}
       <div className="mb-3 grid grid-cols-2 gap-2">
         <button
-          onClick={() => setShowMine((v) => !v)}
-          disabled={!mine?.active?.length}
-          className="flex items-center gap-2 rounded-xl border border-white/5 bg-secondary/50 p-3 disabled:opacity-40"
+          onClick={() => setShowMine(true)}
+          className="flex items-center gap-2 rounded-xl border border-white/5 bg-secondary/50 p-3 active:scale-[0.99]"
         >
           <Tag className="size-4 shrink-0 text-gold" />
           <span className="flex-1 text-left text-sm font-bold">
@@ -532,9 +581,7 @@ function MarketTab() {
               ({mine?.active?.length ?? 0})
             </span>
           </span>
-          <ChevronDown
-            className={`size-4 shrink-0 text-muted-foreground transition-transform ${showMine ? "rotate-180" : ""}`}
-          />
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
         </button>
         <button
           onClick={() => setTrades(true)}
@@ -545,32 +592,6 @@ function MarketTab() {
           <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
         </button>
       </div>
-
-      {showMine && mine?.active?.length > 0 && (
-        <Card className="mb-3 p-3">
-          {mine.active.map((l: any) => (
-            <div
-              key={l.id}
-              className="flex items-center gap-3 border-b border-white/5 py-2 last:border-0"
-            >
-              <PlayingCard card={l.card} size="sm" design={l.design} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">
-                  {designs[l.design]?.name || l.design}
-                </div>
-                <div className="text-[11px] text-muted-foreground">#{l.serial}</div>
-              </div>
-              <Price
-                coins={l.currency === "coins" ? l.price : 0}
-                gems={l.currency === "gems" ? l.price : 0}
-              />
-              <Button size="sm" variant="outline" onClick={() => cancel(l)}>
-                Cancel
-              </Button>
-            </div>
-          ))}
-        </Card>
-      )}
 
       {/* three compact filters, one row, no scrolling */}
       <div className="mb-3 grid grid-cols-3 gap-1.5">
