@@ -31,37 +31,28 @@ export function BottomNav() {
           <button
             key={t.view}
             onClick={() => go(t.view)}
+            aria-label={t.label}
             className={cn(
-              "relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] transition-colors",
+              "relative flex flex-1 flex-col items-center py-4 transition-colors",
               active ? "text-gold" : "text-muted-foreground",
             )}
           >
             {primary ? (
               <>
-                {/* Raised into a notch. The ring is painted in the page background,
-                    so it punches a clean curve through the nav's top border — that's
-                    the notch, no SVG needed. The button is absolutely positioned, so
-                    it can't push the label off the baseline the other tabs share. */}
-                <span
-                  className={cn(
-                    "absolute -top-6 left-1/2 grid size-14 -translate-x-1/2 place-items-center rounded-full ring-4 ring-background transition-transform active:scale-95",
-                    active
-                      ? "bg-gradient-to-br from-gold to-[#b8860b]"
-                      : "bg-gradient-to-br from-secondary to-card",
-                  )}
-                >
-                  <Icon
-                    className={cn("size-7", active ? "text-black" : "text-gold")}
-                  />
+                {/* Raised into a notch: the ring is painted in the page background,
+                    so it punches a clean curve through the nav's top border. It's
+                    absolutely positioned, so it can't shift the row's height. The
+                    circle stays neutral when active — the gold icon is the selected
+                    state, exactly like every other tab. */}
+                <span className="absolute -top-4 left-1/2 grid size-14 -translate-x-1/2 place-items-center rounded-full bg-gradient-to-br from-secondary to-card ring-4 ring-background transition-transform active:scale-95">
+                  <Icon className="size-7" />
                 </span>
-                {/* invisible spacer the exact height of a normal tab icon, so every
-                    label sits on the same line */}
-                <span className="size-5" aria-hidden />
+                {/* spacer so the row keeps the same height as the icon-only tabs */}
+                <span className="size-6" aria-hidden />
               </>
             ) : (
-              <Icon className="size-5" />
+              <Icon className="size-6" />
             )}
-            {t.label}
           </button>
         );
       })}
