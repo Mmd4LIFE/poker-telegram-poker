@@ -375,3 +375,196 @@ async def admin_market_settings(
     pct = await CARDS.set_market_fee_pct(session, body.fee_pct)
     await session.flush()
     return {"fee_pct": pct}
+
+
+# --- audience segments & broadcasts -----------------------------------------
+
+from app.models import Broadcast, Segment  # noqa: E402
+from app.services import notify as NOTIFY  # noqa: E402
+from app.services import segments as SEG  # noqa: E402
+
+
+def _seg_out(s: Segment) -> dict:
+    return {
+        "id": s.id,
+        "name": s.name,
+        "rules": s.rules or {},
+        "user_count": s.user_count,
+        "computed_at": s.computed_at,
+    }
+
+
+@router.get("/segments")
+async def admin_segments(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    rows = list((await session.scalars(select(Segment).order_by(Segment.id))).all())
+    total = await SEG.preview_count(session, {})
+    return {
+        "segments": [_seg_out(s) for s in rows],
+        "fields": SEG.FIELDS,
+        "total_users": total,
+    }
+
+
+class SegmentIn(BaseModel):
+    name: str
+    rules: dict = {}
+
+
+@router.post("/segments")
+async def admin_create_segment(
+    body: SegmentIn,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    s = Segment(name=body.name[:64], rules=body.rules or {})
+    session.add(s)
+    await session.flush()
+    return _seg_out(s)
+
+
+@router.patch("/segments/{seg_id}")
+async def admin_update_segment(
+    seg_id: int,
+    body: SegmentIn,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    s = await session.get(Segment, seg_id)
+    if not s:
+        raise HTTPException(404, "Segment not found")
+    s.name = body.name[:64]
+    s.rules = body.rules or {}
+    s.user_count = 0  # rules changed -> the old membership is meaningless
+    s.computed_at = None
+    await session.flush()
+    return _seg_out(s)
+
+
+@router.delete("/segments/{seg_id}")
+async def admin_delete_segment(
+    seg_id: int,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    s = await session.get(Segment, seg_id)
+    if s:
+        await session.delete(s)
+    return {"ok": True}
+
+
+@router.post("/segments/{seg_id}/compute")
+async def admin_compute_segment(
+    seg_id: int,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Materialise membership. Expensive, so it only runs when asked (or on send)."""
+    s = await session.get(Segment, seg_id)
+    if not s:
+        raise HTTPException(404, "Segment not found")
+    n = await SEG.compute(session, s)
+    await session.flush()
+    return {"user_count": n, "computed_at": s.computed_at}
+
+
+class PreviewIn(BaseModel):
+    rules: dict = {}
+
+
+@router.post("/segments/preview")
+async def admin_preview_segment(
+    body: PreviewIn,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Count without persisting — lets the admin tune rules before saving."""
+    return {"user_count": await SEG.preview_count(session, body.rules)}
+
+
+class BroadcastIn(BaseModel):
+    text: str
+    segment_id: int | None = None
+
+
+@router.post("/broadcast")
+async def admin_broadcast(
+    body: BroadcastIn,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Message is empty")
+
+    name = "Everyone"
+    if body.segment_id:
+        seg = await session.get(Segment, body.segment_id)
+        if not seg:
+            raise HTTPException(404, "Segment not found")
+        name = seg.name
+
+    b = Broadcast(text=text, segment_id=body.segment_id, segment_name=name)
+    session.add(b)
+    await session.commit()
+
+    # Fire and forget: the segment is recomputed inside, so it's never stale.
+    import asyncio
+
+    asyncio.create_task(NOTIFY.run_broadcast(b.id))
+    return {"id": b.id, "status": "queued", "segment": name}
+
+
+@router.get("/broadcasts")
+async def admin_broadcasts(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    rows = list(
+        (
+            await session.scalars(
+                select(Broadcast).order_by(Broadcast.id.desc()).limit(25)
+            )
+        ).all()
+    )
+    return [
+        {
+            "id": b.id,
+            "text": b.text,
+            "segment": b.segment_name,
+            "status": b.status,
+            "total": b.total,
+            "sent": b.sent,
+            "failed": b.failed,
+            "at": b.created_at,
+        }
+        for b in rows
+    ]
+
+
+class ReminderIn(BaseModel):
+    enabled: bool | None = None
+    hour: int | None = None
+    keep_text: str | None = None
+    miss_text: str | None = None
+
+
+@router.get("/reminder")
+async def admin_reminder(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    return await NOTIFY.get_config(session)
+
+
+@router.patch("/reminder")
+async def admin_update_reminder(
+    body: ReminderIn,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    cfg = await NOTIFY.set_config(session, body.model_dump())
+    await session.flush()
+    return cfg

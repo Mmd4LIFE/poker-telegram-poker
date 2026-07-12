@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  Star, Users, ShoppingCart, Info, Medal, Package, Gem, Coins,
-  TriangleAlert, Check,
-} from "lucide-react";
+import { Check, Coins, Gem, Info, Medal, Package, ShoppingCart, Star, Trash2, TriangleAlert, Users } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -37,11 +34,13 @@ export function AdminScreen() {
           <TabsTrigger value="boxes" className="flex-1">Boxes</TabsTrigger>
           <TabsTrigger value="packs" className="flex-1">Packs</TabsTrigger>
           <TabsTrigger value="cards" className="flex-1">Cards</TabsTrigger>
+          <TabsTrigger value="reach" className="flex-1">Reach</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
         <TabsContent value="boxes"><Boxes /></TabsContent>
         <TabsContent value="packs"><Packs /></TabsContent>
         <TabsContent value="cards"><Cards /></TabsContent>
+        <TabsContent value="reach"><Reach /></TabsContent>
       </Tabs>
     </>
   );
@@ -416,6 +415,339 @@ function Cards() {
       <p className="mt-2 text-[11px] text-muted-foreground">
         Mint can be raised but never cut below the highest serial already minted.
       </p>
+    </>
+  );
+}
+
+
+/* Audience segments + broadcasts + the nightly reminder.
+
+   Segment membership is materialised, not live: the rules join over skins,
+   listings and squads, so we only compute on demand (Calculate) and again
+   automatically right before a broadcast goes out. */
+function Reach() {
+  const [d, setD] = useState<any>(null);
+  const [rem, setRem] = useState<any>(null);
+  const [hist, setHist] = useState<any[]>([]);
+
+  const [edit, setEdit] = useState<any>(null); // segment being built
+  const [preview, setPreview] = useState<number | null>(null);
+
+  const [text, setText] = useState("");
+  const [target, setTarget] = useState<string>(""); // "" = everyone
+  const [sending, setSending] = useState(false);
+
+  const load = useCallback(async () => {
+    api.adminSegments().then(setD).catch(() => {});
+    api.adminReminder().then(setRem).catch(() => {});
+    api.adminBroadcasts().then((r) => setHist(r as any[])).catch(() => {});
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function runPreview(rules: any) {
+    try {
+      const r: any = await api.adminPreviewSegment(rules);
+      setPreview(r.user_count);
+    } catch {
+      setPreview(null);
+    }
+  }
+
+  async function saveSegment() {
+    if (!edit?.name) return toast.error("Name the segment");
+    try {
+      if (edit.id) await api.adminUpdateSegment(edit.id, { name: edit.name, rules: edit.rules });
+      else await api.adminCreateSegment({ name: edit.name, rules: edit.rules });
+      toast.success("Saved");
+      setEdit(null);
+      setPreview(null);
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function compute(id: number) {
+    try {
+      const r: any = await api.adminComputeSegment(id);
+      toast.success(`${r.user_count} users`);
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function remove(id: number) {
+    try {
+      await api.adminDeleteSegment(id);
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function send() {
+    if (!text.trim()) return toast.error("Write a message");
+    setSending(true);
+    try {
+      const r: any = await api.adminBroadcast(text, target ? Number(target) : null);
+      toast.success(`Queued for ${r.segment}`);
+      setText("");
+      setTimeout(load, 1500);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function saveReminder() {
+    try {
+      const r = await api.adminUpdateReminder(rem);
+      setRem(r);
+      toast.success("Reminder settings saved");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  if (!d) return <p className="text-sm text-muted-foreground">Loading…</p>;
+
+  const fields: any[] = d.fields || [];
+
+  return (
+    <>
+      {/* --- broadcast --- */}
+      <Card className="mb-3 p-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          Broadcast
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          placeholder="Message… HTML allowed (<b>, <i>, <a>)"
+          className="mt-2 w-full rounded-lg border border-white/10 bg-secondary p-2 text-xs"
+        />
+        <div className="mt-2 flex gap-2">
+          <select
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className="min-w-0 flex-1 truncate rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs font-semibold"
+          >
+            <option value="">Everyone ({d.total_users})</option>
+            {d.segments.map((s: any) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.user_count})
+              </option>
+            ))}
+          </select>
+          <Button size="sm" className="h-8" disabled={sending} onClick={send}>
+            Send
+          </Button>
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          The segment is recalculated at send time, so the audience is never stale.
+        </p>
+      </Card>
+
+      {/* --- segments --- */}
+      <div className="mb-1.5 flex items-center justify-between">
+        <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          Segments
+        </h3>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7"
+          onClick={() => {
+            setEdit({ name: "", rules: {} });
+            setPreview(null);
+          }}
+        >
+          New
+        </Button>
+      </div>
+
+      {edit && (
+        <Card className="mb-3 p-3">
+          <Input
+            className="h-8 text-xs"
+            placeholder="Segment name"
+            value={edit.name}
+            onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+          />
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            {fields.map((f) => (
+              <div key={f.key}>
+                <div className="mb-0.5 text-[10px] text-muted-foreground">{f.label}</div>
+                {f.type === "bool" ? (
+                  <select
+                    value={
+                      edit.rules[f.key] === undefined ? "" : String(edit.rules[f.key])
+                    }
+                    onChange={(e) => {
+                      const rules = { ...edit.rules };
+                      if (e.target.value === "") delete rules[f.key];
+                      else rules[f.key] = e.target.value === "true";
+                      setEdit({ ...edit, rules });
+                    }}
+                    className="h-7 w-full rounded-lg border border-white/10 bg-secondary px-1.5 text-[11px]"
+                  >
+                    <option value="">any</option>
+                    <option value="true">yes</option>
+                    <option value="false">no</option>
+                  </select>
+                ) : (
+                  <Input
+                    className="h-7 text-[11px]"
+                    type={f.type === "int" ? "number" : "text"}
+                    value={edit.rules[f.key] ?? ""}
+                    onChange={(e) => {
+                      const rules = { ...edit.rules };
+                      const v = e.target.value;
+                      if (v === "") delete rules[f.key];
+                      else rules[f.key] = f.type === "int" ? Number(v) : v;
+                      setEdit({ ...edit, rules });
+                    }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => runPreview(edit.rules)}
+            >
+              Preview
+            </Button>
+            {preview !== null && (
+              <span className="text-xs font-bold text-gold">{preview} users</span>
+            )}
+            <div className="flex-1" />
+            <Button size="sm" variant="outline" className="h-8" onClick={() => setEdit(null)}>
+              Cancel
+            </Button>
+            <Button size="sm" className="h-8" onClick={saveSegment}>
+              Save
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {d.segments.map((s: any) => (
+        <Card key={s.id} className="mb-2 p-3">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-extrabold">{s.name}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {s.computed_at
+                  ? `${s.user_count} users · ${new Date(s.computed_at).toLocaleDateString()}`
+                  : "not calculated yet"}
+              </div>
+            </div>
+            <Button size="sm" variant="outline" className="h-7" onClick={() => compute(s.id)}>
+              Calculate
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => {
+                setEdit({ id: s.id, name: s.name, rules: s.rules || {} });
+                setPreview(null);
+              }}
+            >
+              Edit
+            </Button>
+            <Button size="sm" variant="outline" className="h-7" onClick={() => remove(s.id)}>
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        </Card>
+      ))}
+
+      {/* --- nightly reminder --- */}
+      {rem && (
+        <Card className="mb-3 mt-4 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Daily reminder
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <select
+              value={String(rem.enabled)}
+              onChange={(e) => setRem({ ...rem, enabled: e.target.value === "true" })}
+              className="h-8 rounded-lg border border-white/10 bg-secondary px-2 text-xs font-semibold"
+            >
+              <option value="true">On</option>
+              <option value="false">Off</option>
+            </select>
+            <Input
+              className="h-8 w-20 text-xs"
+              type="number"
+              value={rem.hour}
+              onChange={(e) => setRem({ ...rem, hour: Number(e.target.value) })}
+            />
+            <span className="text-[11px] text-muted-foreground">
+              local hour (each user&apos;s own timezone)
+            </span>
+          </div>
+          <div className="mt-2 text-[10px] text-muted-foreground">
+            Keep-streak message — {"{streak} {next_day} {next_coins} {next_gems} {name}"}
+          </div>
+          <textarea
+            rows={3}
+            value={rem.keep_text}
+            onChange={(e) => setRem({ ...rem, keep_text: e.target.value })}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-secondary p-2 text-[11px]"
+          />
+          <div className="mt-2 text-[10px] text-muted-foreground">
+            Streak-broken message (sent at most twice, then we go quiet)
+          </div>
+          <textarea
+            rows={3}
+            value={rem.miss_text}
+            onChange={(e) => setRem({ ...rem, miss_text: e.target.value })}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-secondary p-2 text-[11px]"
+          />
+          <Button size="sm" className="mt-2 h-8" onClick={saveReminder}>
+            Save reminder
+          </Button>
+        </Card>
+      )}
+
+      {/* --- history --- */}
+      {hist.length > 0 && (
+        <>
+          <h3 className="mb-1.5 mt-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Recent broadcasts
+          </h3>
+          <Card className="p-3">
+            {hist.map((b: any) => (
+              <div key={b.id} className="border-b border-white/5 py-2 last:border-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 truncate text-xs">{b.text}</span>
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold uppercase",
+                      b.status === "done" ? "text-win" : "text-gold",
+                    )}
+                  >
+                    {b.status}
+                  </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {b.segment} · {b.sent}/{b.total} sent
+                  {b.failed ? ` · ${b.failed} failed` : ""}
+                </div>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
     </>
   );
 }

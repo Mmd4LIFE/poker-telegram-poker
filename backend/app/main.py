@@ -41,7 +41,14 @@ async def lifespan(app: FastAPI):
     except Exception:  # noqa: BLE001
         logger.exception("Bot setup failed (continuing without bot)")
     manager.start_janitor()
+
+    import asyncio
+
+    from app.services.notify import reminder_loop
+
+    reminders = asyncio.create_task(reminder_loop())
     yield
+    reminders.cancel()
     await manager.shutdown()
     await shutdown_bot()
 

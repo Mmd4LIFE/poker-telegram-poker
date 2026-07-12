@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useState, useRef, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import { api } from "./api";
 import type { UserProfile, View } from "./types";
 
@@ -49,6 +56,12 @@ export function AppProvider({
       /* ignore */
     }
   }, [setUser]);
+
+  // Tell the server which timezone this device is in, so the nightly reminder
+  // lands at 21:00 *their* time. getTimezoneOffset() is minutes WEST of UTC.
+  useEffect(() => {
+    api.setTz(-new Date().getTimezoneOffset()).catch(() => {});
+  }, []);
 
   const value: AppState = {
     user,

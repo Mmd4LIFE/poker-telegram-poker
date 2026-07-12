@@ -80,6 +80,13 @@ class User(Base, TimestampMixin):
 
     # Engagement
     daily_streak: Mapped[int] = mapped_column(Integer, default=0)
+    # minutes east of UTC, captured from the Mini App; drives the 21:00 local nudge
+    tz_offset_min: Mapped[int] = mapped_column(Integer, default=0)
+    last_reminder_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # how many "it's ok to miss" nudges we've sent since the streak broke (max 2)
+    miss_notices: Mapped[int] = mapped_column(Integer, default=0)
     last_daily_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

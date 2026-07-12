@@ -59,6 +59,8 @@ export const api = {
 
   me: () => req<UserProfile>("GET", "/me"),
   daily: () => req("POST", "/daily"),
+  dailyStatus: () => req("GET", "/daily"),
+  setTz: (offset_min: number) => req("POST", "/me/tz", { offset_min }),
   wallet: () => req("GET", "/wallet/history"),
   leaderboard: (metric: string) => req("GET", "/leaderboard?metric=" + metric),
   listRooms: () => req<RoomSummary[]>("GET", "/rooms"),
@@ -108,6 +110,20 @@ export const api = {
   adminCards: () => req("GET", "/admin/cards"),
   adminUpdateDesign: (code: string, b: unknown) => req("PATCH", `/admin/cards/${code}`, b),
   adminMarketFee: (fee_pct: number) => req("PATCH", "/admin/market", { fee_pct }),
+
+  // --- audience / broadcast ---
+  adminSegments: () => req("GET", "/admin/segments"),
+  adminCreateSegment: (b: unknown) => req("POST", "/admin/segments", b),
+  adminUpdateSegment: (id: number, b: unknown) => req("PATCH", `/admin/segments/${id}`, b),
+  adminDeleteSegment: (id: number) => req("DELETE", `/admin/segments/${id}`),
+  adminComputeSegment: (id: number) => req("POST", `/admin/segments/${id}/compute`),
+  adminPreviewSegment: (rules: unknown) =>
+    req("POST", "/admin/segments/preview", { rules }),
+  adminBroadcast: (text: string, segment_id: number | null) =>
+    req("POST", "/admin/broadcast", { text, segment_id }),
+  adminBroadcasts: () => req("GET", "/admin/broadcasts"),
+  adminReminder: () => req("GET", "/admin/reminder"),
+  adminUpdateReminder: (b: unknown) => req("PATCH", "/admin/reminder", b),
 
   // --- market ---
   marketGroups: (q: Record<string, string>) =>

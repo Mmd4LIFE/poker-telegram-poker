@@ -1,6 +1,7 @@
 """Profile, wallet, daily reward and leaderboard."""
 from __future__ import annotations
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,8 @@ from app.api.deps import get_current_user
 from app.database import get_session
 from app.models import Transaction, User
 from app.schemas import UserProfile
-from app.services.users import claim_daily
+from app.services import daily as D
+from app.services.users import claim_daily  # noqa: F401
 
 router = APIRouter(prefix="/api", tags=["profile"])
 
@@ -32,14 +34,38 @@ async def me(
     return profile
 
 
+@router.get("/daily")
+async def daily_status(
+    user: User = Depends(get_current_user),
+):
+    """The 7-day ladder plus whether today's rung is still on the table."""
+    return D.status(user)
+
+
 @router.post("/daily")
 async def daily(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    result = await claim_daily(session, user)
+    result = await D.claim(session, user)
     result["balance"] = user.coins
     return result
+
+
+class TzIn(BaseModel):
+    offset_min: int
+
+
+@router.post("/me/tz")
+async def set_tz(
+    body: TzIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """The Mini App reports the device's UTC offset so 21:00 means 21:00 for them."""
+    user.tz_offset_min = max(-840, min(840, int(body.offset_min)))
+    await session.commit()
+    return {"tz_offset_min": user.tz_offset_min}
 
 
 @router.get("/wallet/history")
