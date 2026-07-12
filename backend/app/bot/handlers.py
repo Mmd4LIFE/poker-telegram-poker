@@ -6,6 +6,7 @@ import logging
 from aiogram import F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import (
+    CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
@@ -46,10 +47,7 @@ def _app_url(param: str | None = None) -> str:
 def _webapp_kb(param: str | None = None) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎮 Play Poker", web_app=WebAppInfo(url=_app_url(param)))],
-        [
-            InlineKeyboardButton(text="🏆 Leaderboard", web_app=WebAppInfo(url=_app_url("leaderboard"))),
-            InlineKeyboardButton(text="💰 Shop", web_app=WebAppInfo(url=_app_url("shop"))),
-        ],
+        [InlineKeyboardButton(text="🤝 Invite friends", callback_data="invite")],
     ])
 
 
@@ -99,6 +97,36 @@ async def start(message: Message):
     elif bonus:
         text += f"\n\n🔔 <b>Notifications on — +{bonus:,} coins.</b>"
     await message.answer(text, reply_markup=_webapp_kb())
+
+
+@router.callback_query(F.data == "invite")
+async def invite(cb: CallbackQuery):
+    """Drop the user's own referral link into the chat, ready to forward."""
+    from app.bot.instance import get_bot_username
+    from app.services.users import ensure_referral_code
+
+    async with SessionLocal() as session:
+        user, _ = await get_or_create_from_telegram(
+            session, cb.from_user.model_dump()
+        )
+        code = await ensure_referral_code(session, user)
+        await session.commit()
+
+    link = f"https://t.me/{get_bot_username()}?start=ref-{code}"
+    await cb.message.answer(
+        "<b>🤝 Your invite link</b>\n\n"
+        f"{link}\n\n"
+        f"Forward it to a friend: you get <b>{settings.REFERRAL_REFERRER_REWARD:,} "
+        f"coins</b>, they start with <b>{settings.REFERRAL_FRIEND_REWARD:,}</b>.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text="📤 Share with a friend",
+                switch_inline_query=f"\n\n♠️ Play Poker CM with me!\n{link}",
+            )
+        ]]),
+        disable_web_page_preview=False,
+    )
+    await cb.answer()
 
 
 @router.message(F.text == "/play")
