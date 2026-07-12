@@ -24,7 +24,6 @@ import {
   RARITY_RING,
   SUITS,
   SUIT_GLYPH,
-  SUIT_MULT,
   SUIT_NAME,
   useSkins,
   type Design,
@@ -103,9 +102,6 @@ function Collection({
               {SUIT_GLYPH[s]}
             </span>
             {SUIT_NAME[s]}
-            <span className="ml-auto font-normal normal-case text-muted-foreground/70">
-              &times;{SUIT_MULT[s].toFixed(2)}
-            </span>
           </h3>
           <div className="flex items-center gap-2">
             <Slot code={"A" + s} size="xl" />
@@ -185,7 +181,6 @@ function ShopTab({ onBought }: { onBought: () => void }) {
         >
           <ChevronLeft className="size-4" /> Shop
         </button>
-        <h2 className="mb-2 text-lg font-extrabold">My purchases</h2>
         {!history ? (
           <Loader2 className="mx-auto mt-6 size-6 animate-spin text-gold" />
         ) : history.length === 0 ? (
@@ -232,7 +227,7 @@ function ShopTab({ onBought }: { onBought: () => void }) {
         className="mb-3 flex w-full items-center gap-2 rounded-xl border border-white/5 bg-secondary/50 p-3 active:scale-[0.99]"
       >
         <Receipt className="size-4 text-gold" />
-        <span className="flex-1 text-left text-sm font-bold">My purchases</span>
+        <span className="flex-1 text-left text-sm font-bold">Purchases</span>
         <ChevronRight className="size-4 text-muted-foreground" />
       </button>
 
@@ -477,7 +472,6 @@ function MarketTab() {
         >
           <ChevronLeft className="size-4" /> Market
         </button>
-        <h2 className="mb-2 text-lg font-extrabold">My trades</h2>
         {h.length === 0 ? (
           <Card className="items-center p-6 text-center text-sm text-muted-foreground">
             No trades yet.
@@ -514,11 +508,9 @@ function MarketTab() {
             ))}
           </Card>
         )}
-        {mine?.fee_pct != null && (
-          <p className="mt-2 text-center text-[11px] text-muted-foreground">
-            Sales are shown net of the {mine.fee_pct}% market fee.
-          </p>
-        )}
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          Sales are shown net of the market fee.
+        </p>
       </>
     );
   }
@@ -526,97 +518,112 @@ function MarketTab() {
   /* ---- the grid: one tile per design+card, showing its floor ---- */
   return (
     <>
-      <button
-        onClick={() => setTrades(true)}
-        className="mb-3 flex w-full items-center gap-2 rounded-xl border border-white/5 bg-secondary/50 p-3 active:scale-[0.99]"
-      >
-        <Receipt className="size-4 text-gold" />
-        <span className="flex-1 text-left text-sm font-bold">My trades</span>
-        <ChevronRight className="size-4 text-muted-foreground" />
-      </button>
-
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-        <select
-          value={rarity}
-          onChange={(e) => setRarity(e.target.value)}
-          className="shrink-0 rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs font-semibold"
+      {/* one line: your listings (expands in place) + trades (opens a page) */}
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setShowMine((v) => !v)}
+          disabled={!mine?.active?.length}
+          className="flex items-center gap-2 rounded-xl border border-white/5 bg-secondary/50 p-3 disabled:opacity-40"
         >
-          <option value="">All rarities</option>
-          {["common", "rare", "epic", "legendary", "mythic"].map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-        <select
-          value={card}
-          onChange={(e) => setCard(e.target.value)}
-          className="shrink-0 rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs font-semibold"
+          <Tag className="size-4 shrink-0 text-gold" />
+          <span className="flex-1 text-left text-sm font-bold">
+            Listings
+            <span className="ml-1 font-normal text-muted-foreground">
+              ({mine?.active?.length ?? 0})
+            </span>
+          </span>
+          <ChevronDown
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${showMine ? "rotate-180" : ""}`}
+          />
+        </button>
+        <button
+          onClick={() => setTrades(true)}
+          className="flex items-center gap-2 rounded-xl border border-white/5 bg-secondary/50 p-3 active:scale-[0.99]"
         >
-          <option value="">Any card</option>
-          {SUITS.flatMap((s) =>
-            RANKS.map((r) => (
-              <option key={r + s} value={r + s}>
-                {r === "T" ? "10" : r} {SUIT_NAME[s]}
-              </option>
-            )),
-          )}
-        </select>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="shrink-0 rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs font-semibold"
-        >
-          <option value="floor">Cheapest</option>
-          <option value="-floor">Priciest</option>
-          <option value="listed">Most listed</option>
-        </select>
+          <Receipt className="size-4 shrink-0 text-gold" />
+          <span className="flex-1 text-left text-sm font-bold">Trades</span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </button>
       </div>
 
-      {mine?.active?.length > 0 && (
-        <Card className="mb-4 p-0">
-          <button
-            onClick={() => setShowMine((v) => !v)}
-            className="flex w-full items-center gap-2 p-3"
-          >
-            <Tag className="size-4 text-gold" />
-            <span className="flex-1 text-left text-sm font-bold">
-              Your listings
-              <span className="ml-1 font-normal text-muted-foreground">
-                ({mine.active.length})
-              </span>
-            </span>
-            <ChevronDown
-              className={`size-4 text-muted-foreground transition-transform ${showMine ? "rotate-180" : ""}`}
-            />
-          </button>
-          {showMine && (
-            <div className="border-t border-white/5 px-3 pb-2">
-              {mine.active.map((l: any) => (
-                <div
-                  key={l.id}
-                  className="flex items-center gap-3 border-b border-white/5 py-2 last:border-0"
-                >
-                  <PlayingCard card={l.card} size="sm" design={l.design} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold">
-                      {designs[l.design]?.name || l.design}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">#{l.serial}</div>
-                  </div>
-                  <Price
-                    coins={l.currency === "coins" ? l.price : 0}
-                    gems={l.currency === "gems" ? l.price : 0}
-                  />
-                  <Button size="sm" variant="outline" onClick={() => cancel(l)}>
-                    Cancel
-                  </Button>
+      {showMine && mine?.active?.length > 0 && (
+        <Card className="mb-3 p-3">
+          {mine.active.map((l: any) => (
+            <div
+              key={l.id}
+              className="flex items-center gap-3 border-b border-white/5 py-2 last:border-0"
+            >
+              <PlayingCard card={l.card} size="sm" design={l.design} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">
+                  {designs[l.design]?.name || l.design}
                 </div>
-              ))}
+                <div className="text-[11px] text-muted-foreground">#{l.serial}</div>
+              </div>
+              <Price
+                coins={l.currency === "coins" ? l.price : 0}
+                gems={l.currency === "gems" ? l.price : 0}
+              />
+              <Button size="sm" variant="outline" onClick={() => cancel(l)}>
+                Cancel
+              </Button>
             </div>
-          )}
+          ))}
         </Card>
       )}
+
+      {/* three compact filters, one row, no scrolling */}
+      <div className="mb-3 grid grid-cols-3 gap-1.5">
+        {[
+          {
+            v: rarity,
+            set: setRarity,
+            opts: [
+              { v: "", l: "Rarity" },
+              ...["common", "rare", "epic", "legendary", "mythic"].map((r) => ({
+                v: r,
+                l: r,
+              })),
+            ],
+          },
+          {
+            v: card,
+            set: setCard,
+            opts: [
+              { v: "", l: "Card" },
+              ...SUITS.flatMap((su) =>
+                RANKS.map((r) => ({
+                  v: r + su,
+                  l: `${r === "T" ? "10" : r}${SUIT_GLYPH[su]}`,
+                })),
+              ),
+            ],
+          },
+          {
+            v: sort,
+            set: setSort,
+            opts: [
+              { v: "floor", l: "Cheapest" },
+              { v: "-floor", l: "Priciest" },
+              { v: "listed", l: "Most listed" },
+            ],
+          },
+        ].map((f, i) => (
+          <select
+            key={i}
+            value={f.v}
+            onChange={(e) => f.set(e.target.value)}
+            className="w-full truncate rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-center text-xs font-semibold capitalize"
+          >
+            {f.opts.map((o) => (
+              <option key={o.v} value={o.v}>
+                {o.l}
+              </option>
+            ))}
+          </select>
+        ))}
+      </div>
+
 
       <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
         {groups?.length ?? 0} on sale
