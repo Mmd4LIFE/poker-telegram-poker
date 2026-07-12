@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trophy, Medal, Crown } from "lucide-react";
+import { Medal, Crown } from "lucide-react";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { WalletBar } from "@/components/wallet-bar";
@@ -119,9 +119,6 @@ export function LeaderboardScreen() {
   return (
     <>
       <WalletBar />
-      <h1 className="mb-3 flex items-center gap-2 text-2xl font-extrabold">
-        <Trophy className="size-6 text-gold" /> Ranks
-      </h1>
       <Tabs defaultValue="global">
         <TabsList className="mb-3 w-full">
           <TabsTrigger value="global" className="flex-1">

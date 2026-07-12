@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Coins, Gem, Layers, Store, Tag, Loader2, Flame } from "lucide-react";
+import { Coins, Gem, Store, Tag, Loader2, Flame } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -790,10 +790,6 @@ export function CardsScreen() {
   return (
     <>
       <WalletBar />
-      <h1 className="mb-3 flex items-center gap-2 text-2xl font-extrabold">
-        <Layers className="size-6 text-gold" /> My Cards
-      </h1>
-
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-4 w-full">
           <TabsTrigger value="collection" className="flex-1">

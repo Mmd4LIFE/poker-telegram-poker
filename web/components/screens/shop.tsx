@@ -115,10 +115,6 @@ export function ShopScreen() {
   return (
     <>
       <WalletBar />
-      <h1 className="mb-3 flex items-center gap-2 text-2xl font-extrabold">
-        <Coins className="size-6 text-gold" /> Shop
-      </h1>
-
       <button className="mb-4 w-full" onClick={claimDaily} disabled={dailyBusy}>
         <Card className="flex-row items-center gap-3 bg-gradient-to-br from-gold/25 to-secondary p-4 active:scale-[0.99]">
           <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-black/20">

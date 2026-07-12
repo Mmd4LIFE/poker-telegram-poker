@@ -99,10 +99,6 @@ export function LobbyScreen() {
   return (
     <>
       <WalletBar />
-      <h1 className="mb-3 flex items-center gap-2 text-2xl font-extrabold">
-        <Spade className="size-6 text-gold" /> Play Poker
-      </h1>
-
       {current && (
         <Card
           onClick={() => enterTable(current.code)}
