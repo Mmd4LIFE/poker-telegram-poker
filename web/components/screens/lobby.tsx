@@ -196,7 +196,7 @@ export function LobbyScreen() {
             Everyone at <b className="text-foreground">{confirmClose?.name}</b> will be
             cashed out and the table removed.
           </p>
-          <DialogFooter className="mt-2 gap-2 sm:gap-2">
+          <DialogFooter className="mt-2 flex-row gap-2 sm:gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setConfirmClose(null)}>
               Cancel
             </Button>

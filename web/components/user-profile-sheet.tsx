@@ -232,7 +232,7 @@ export function UserProfileSheet() {
               </>
             ) : null}
           </p>
-          <DialogFooter className="mt-2 gap-2 sm:gap-2">
+          <DialogFooter className="mt-2 flex-row gap-2 sm:gap-2">
             <Button
               variant="outline"
               className="flex-1"
