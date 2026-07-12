@@ -118,8 +118,15 @@ export function ShopScreen() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold">{p.label}</div>
-                <div className="text-xs text-muted-foreground">
-                  {fmt(p.coins)} coins{p.gems ? ` · ${p.gems} gems` : ""}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Coins className="size-3.5 text-gold" /> {fmt(p.coins)}
+                  </span>
+                  {p.gems ? (
+                    <span className="flex items-center gap-1">
+                      <Gem className="size-3.5 text-gem" /> {p.gems}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <Button size="sm" onClick={() => buyStars(p.code)}>
@@ -152,8 +159,15 @@ export function ShopScreen() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold">{p.label}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {fmt(p.coins)} coins{p.gems ? ` · ${p.gems} gems` : ""}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Coins className="size-3.5 text-gold" /> {fmt(p.coins)}
+                    </span>
+                    {p.gems ? (
+                      <span className="flex items-center gap-1">
+                        <Gem className="size-3.5 text-gem" /> {p.gems}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <Button variant="secondary" size="sm" onClick={() => buyTon(p.code)}>
@@ -168,11 +182,6 @@ export function ShopScreen() {
       <div className="mb-2 mt-5 flex items-center justify-between">
         <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Loot Boxes
-          {boxInfo?.daily_limit ? (
-            <span className="ml-2 font-normal normal-case text-muted-foreground/70">
-              {boxInfo.remaining_today}/{boxInfo.daily_limit} left today
-            </span>
-          ) : null}
         </h2>
         <button
           onClick={openHistory}
@@ -184,16 +193,26 @@ export function ShopScreen() {
       <div className="grid grid-cols-2 gap-3">
         {boxes.map((b: any) => {
           const TierIcon = TIER_ICON[b.tier] || Package;
+          const locked = b.locked;
           return (
           <button
             key={b.code}
-            onClick={() => setOpeningBox(b)}
-            className="flex flex-col items-center gap-1 rounded-2xl border border-white/5 bg-gradient-to-br from-secondary to-card p-4 text-center active:scale-[0.97]"
+            disabled={locked}
+            onClick={() => !locked && setOpeningBox(b)}
+            className={`flex flex-col items-center gap-1 rounded-2xl border border-white/5 bg-gradient-to-br from-secondary to-card p-4 text-center ${
+              locked ? "opacity-40 grayscale" : "active:scale-[0.97]"
+            }`}
           >
-            <TierIcon className={`size-11 ${TIER_COLOR[b.tier] || ""}`} />
+            <TierIcon
+              className={`size-11 ${locked ? "text-muted-foreground" : TIER_COLOR[b.tier] || ""}`}
+            />
             <div className="mt-1 text-sm font-extrabold">{b.name}</div>
-            <div className={`text-[10px] font-bold uppercase ${TIER_COLOR[b.tier] || ""}`}>
-              {b.tier}
+            <div
+              className={`text-[10px] font-bold uppercase ${
+                locked ? "text-muted-foreground" : TIER_COLOR[b.tier] || ""
+              }`}
+            >
+              {locked ? "back tomorrow" : b.tier}
             </div>
             <div className="mt-1 flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-xs font-bold">
               {b.price_gems && !b.price_coins ? (
@@ -206,6 +225,11 @@ export function ShopScreen() {
                 </>
               )}
             </div>
+            {b.daily_limit ? (
+              <div className="text-[10px] text-muted-foreground">
+                {b.remaining_today}/{b.daily_limit} today
+              </div>
+            ) : null}
           </button>
           );
         })}

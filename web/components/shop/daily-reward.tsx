@@ -66,20 +66,16 @@ export function DailyReward() {
         >
           {ready ? <Gift className="size-6" /> : <Check className="size-6" />}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-extrabold">
-            {ready ? "Daily reward ready" : "Claimed today"}
-          </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            {d.streak > 0 && (
-              <>
-                <Flame className="size-3.5 text-gold" />
-                {d.streak}-day streak
-                {" · "}
-              </>
-            )}
-            {ready ? `day ${d.day} of 7` : "back tomorrow"}
-          </div>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="text-sm font-extrabold">
+            {ready ? "Daily reward" : "Claimed today"}
+          </span>
+          {d.streak > 0 && (
+            <span className="flex items-center gap-0.5 text-xs font-bold text-gold">
+              <Flame className="size-3.5" />
+              {d.streak}
+            </span>
+          )}
         </div>
         {ready && (
           <Button size="sm" disabled={busy} onClick={claim}>
@@ -131,9 +127,6 @@ export function DailyReward() {
           );
         })}
       </div>
-      <p className="text-center text-[11px] text-muted-foreground">
-        Miss a day and the streak restarts at day 1.
-      </p>
     </Card>
   );
 }

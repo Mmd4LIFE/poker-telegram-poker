@@ -56,6 +56,8 @@ class Box(Base, TimestampMixin):
     icon: Mapped[str] = mapped_column(String(16), default="📦")
     price_coins: Mapped[int] = mapped_column(BigInteger, default=0)
     price_gems: Mapped[int] = mapped_column(Integer, default=0)
+    # opens allowed per user per 24h for THIS box. 0 = unlimited.
+    daily_limit: Mapped[int] = mapped_column(Integer, default=0)
     # [{weight, type: coins|gems|avatar, amount|value, label}]
     rewards: Mapped[list] = mapped_column(JSONB, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

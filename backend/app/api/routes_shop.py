@@ -189,28 +189,46 @@ async def boxes(
     user: User = Depends(get_current_user),
 ):
     rows = (await session.execute(select(Box).where(Box.is_active.is_(True)))).scalars().all()
-    opened_today = await _opens_today(session, user.id)
-    remaining = (
-        max(0, settings.BOX_DAILY_LIMIT - opened_today)
-        if settings.BOX_DAILY_LIMIT else None
-    )
-    return {
-        "boxes": [{
+    per_box = await _opens_today_by_box(session, user.id)
+
+    boxes = []
+    for b in rows:
+        limit = _limit_of(b)
+        used = per_box.get(b.id, 0)
+        boxes.append({
             "code": b.code, "name": b.name, "tier": b.tier, "icon": b.icon,
             "description": b.description, "price_coins": b.price_coins,
             "price_gems": b.price_gems, "rewards": b.rewards,
-        } for b in rows],
-        "daily_limit": settings.BOX_DAILY_LIMIT or None,
-        "opened_today": opened_today,
-        "remaining_today": remaining,
-    }
+            "daily_limit": limit or None,
+            "opened_today": used,
+            "remaining_today": max(0, limit - used) if limit else None,
+            "locked": bool(limit and used >= limit),
+        })
+    return {"boxes": boxes}
 
 
-async def _opens_today(session: AsyncSession, user_id: int) -> int:
+def _limit_of(box: Box) -> int:
+    """Per-box limit, falling back to the global default when unset."""
+    return int(box.daily_limit or settings.BOX_DAILY_LIMIT or 0)
+
+
+async def _opens_today_by_box(session: AsyncSession, user_id: int) -> dict[int, int]:
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    rows = await session.execute(
+        select(UserBox.box_id, func.count(UserBox.id))
+        .where(UserBox.user_id == user_id, UserBox.created_at >= since)
+        .group_by(UserBox.box_id)
+    )
+    return {bid: int(n) for bid, n in rows.all()}
+
+
+async def _opens_today(session: AsyncSession, user_id: int, box_id: int) -> int:
     since = datetime.now(timezone.utc) - timedelta(hours=24)
     return int((await session.execute(
         select(func.count(UserBox.id)).where(
-            UserBox.user_id == user_id, UserBox.created_at >= since
+            UserBox.user_id == user_id,
+            UserBox.box_id == box_id,
+            UserBox.created_at >= since,
         )
     )).scalar_one())
 
@@ -245,13 +263,13 @@ async def open_box(
     if not box:
         raise HTTPException(404, "Box not found")
 
-    # daily limit
-    if settings.BOX_DAILY_LIMIT:
-        if await _opens_today(session, user.id) >= settings.BOX_DAILY_LIMIT:
-            raise HTTPException(
-                429,
-                f"Daily box limit reached ({settings.BOX_DAILY_LIMIT}). Come back tomorrow!",
-            )
+    # daily limit — per box, not across all boxes
+    limit = _limit_of(box)
+    if limit and await _opens_today(session, user.id, box.id) >= limit:
+        raise HTTPException(
+            429,
+            f"You've opened {limit} {box.name} today. Come back tomorrow!",
+        )
 
     price = box.price_gems if body.pay_with == "gems" else box.price_coins
     currency = "gems" if body.pay_with == "gems" else "coins"

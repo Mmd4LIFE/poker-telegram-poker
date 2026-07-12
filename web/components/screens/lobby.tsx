@@ -21,9 +21,9 @@ import { cn } from "@/lib/utils";
 type Filter = "all" | "mine" | "friends" | "other";
 
 function Tile({
-  icon: Icon, title, sub, onClick, wide, hot,
+  icon: Icon, title, onClick, wide, hot,
 }: {
-  icon: React.ElementType; title: string; sub: string;
+  icon: React.ElementType; title: string;
   onClick: () => void; wide?: boolean; hot?: boolean;
 }) {
   return (
@@ -37,7 +37,6 @@ function Tile({
     >
       <Icon className={cn("size-7", hot ? "text-white" : "text-gold")} />
       <span className="font-extrabold">{title}</span>
-      <span className="text-xs text-muted-foreground">{sub}</span>
     </button>
   );
 }
@@ -118,9 +117,9 @@ export function LobbyScreen() {
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <Tile icon={Zap} title="Quick Play" sub="Jump in instantly" onClick={quickPlay} wide hot />
-        <Tile icon={Plus} title="Create Room" sub="Host a table" onClick={() => go("create")} />
-        <Tile icon={Shield} title="Squad" sub="Play with your clan" onClick={() => go("squad")} />
+        <Tile icon={Zap} title="Quick Play" onClick={quickPlay} wide hot />
+        <Tile icon={Plus} title="Create Room" onClick={() => go("create")} />
+        <Tile icon={Shield} title="Squad" onClick={() => go("squad")} />
       </div>
 
       {/* Open tables */}

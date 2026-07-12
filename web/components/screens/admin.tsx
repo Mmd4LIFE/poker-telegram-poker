@@ -144,6 +144,7 @@ function Boxes() {
 }
 
 function BoxRow({ b, onSave }: any) {
+  const [limit, setLimit] = useState(b.daily_limit ?? 0);
   const [coins, setCoins] = useState(b.price_coins);
   const [gems, setGems] = useState(b.price_gems);
   const rtpPct = Math.round((b.rtp || 0) * 100);
@@ -191,7 +192,25 @@ function BoxRow({ b, onSave }: any) {
           <span className="flex items-center gap-1"><Gem className="size-3 text-gem" /> Gems</span>
           <Input type="number" value={gems} onChange={(e) => setGems(Number(e.target.value))} className="mt-1 h-9" />
         </label>
-        <Button size="sm" onClick={() => onSave(b.code, { price_coins: coins, price_gems: gems })}>
+        <label className="flex-1 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1">/ day</span>
+          <Input
+            type="number"
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="mt-1 h-9"
+          />
+        </label>
+        <Button
+          size="sm"
+          onClick={() =>
+            onSave(b.code, {
+              price_coins: coins,
+              price_gems: gems,
+              daily_limit: limit, // 0 = unlimited
+            })
+          }
+        >
           <Check className="size-4" />
         </Button>
         <Button size="sm" variant={b.is_active ? "outline" : "secondary"}

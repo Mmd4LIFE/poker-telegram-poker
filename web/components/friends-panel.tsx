@@ -103,7 +103,7 @@ export function FriendsPanel() {
         className="flex items-center justify-between p-3"
       >
         <span className="flex items-center gap-2 text-sm font-semibold">
-          <UserPlus className="size-4 text-gold" /> Add friends
+          <Search className="size-4 text-gold" /> Find players
           {incoming.length > 0 && (
             <span className="rounded-full bg-gold px-1.5 text-[10px] font-bold text-background">
               {incoming.length}

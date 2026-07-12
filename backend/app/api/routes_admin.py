@@ -34,6 +34,7 @@ class BoxUpdate(BaseModel):
     price_coins: int | None = None
     price_gems: int | None = None
     is_active: bool | None = None
+    daily_limit: int | None = None   # 0 = unlimited
     rewards: list[dict] | None = None
 
 
@@ -148,6 +149,7 @@ async def admin_boxes(
             "code": b.code, "name": b.name, "tier": b.tier,
             "price_coins": b.price_coins, "price_gems": b.price_gems,
             "is_active": b.is_active, "rewards": b.rewards,
+            "daily_limit": b.daily_limit or settings.BOX_DAILY_LIMIT or 0,
             "opens": opens,
             "coins_spent": spent, "coins_paid": paid,
             "actual_rtp": round(paid / spent, 4) if spent else None,
@@ -173,10 +175,12 @@ async def admin_update_box(
         box.price_gems = max(0, body.price_gems)
     if body.is_active is not None:
         box.is_active = body.is_active
+    if body.daily_limit is not None:
+        box.daily_limit = max(0, body.daily_limit)  # 0 = unlimited
     if body.rewards is not None:
         box.rewards = body.rewards
     await session.flush()
-    return {"code": box.code, **box_stats(box)}
+    return {"code": box.code, "daily_limit": box.daily_limit, **box_stats(box)}
 
 
 # ---- Economy: packs (Stars / TON) ------------------------------------------
