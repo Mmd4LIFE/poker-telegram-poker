@@ -82,7 +82,6 @@ function Collection({
 
   const Slot = ({ code, size }: { code: string; size: "md" | "xl" }) => {
     const item = byCard[code];
-    const skinned = item?.equipped !== DEFAULT_DESIGN;
     return (
       <button onClick={() => onPick(code)} className="relative active:scale-95">
         <PlayingCard card={code} size={size} design={item?.equipped} />
@@ -91,7 +90,6 @@ function Collection({
             {item.owned.length}
           </span>
         )}
-        {!skinned && <span className="absolute inset-0 rounded-md bg-black/45" />}
       </button>
     );
   };
