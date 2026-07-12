@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Coins, Gem, Store, Tag, Loader2, Flame } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  Coins,
+  Flame,
+  Gem,
+  Loader2,
+  Store,
+  Tag,
+} from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -290,41 +299,63 @@ function ShopTab({ onBought }: { onBought: () => void }) {
 function MarketTab() {
   const { designs, reload } = useSkins();
   const { refresh } = useApp();
-  const [rows, setRows] = useState<any[] | null>(null);
-  const [total, setTotal] = useState(0);
+
+  const [groups, setGroups] = useState<any[] | null>(null);
   const [card, setCard] = useState("");
   const [rarity, setRarity] = useState("");
-  const [sort, setSort] = useState("price");
+  const [sort, setSort] = useState("floor");
+
+  // the drilled-into pair, e.g. {design: "crimson", card: "Ac"}
+  const [open, setOpen] = useState<{ design: string; card: string } | null>(null);
+  const [rows, setRows] = useState<any[] | null>(null);
+
   const [mine, setMine] = useState<any>(null);
+  const [showMine, setShowMine] = useState(false); // collapsed by default
   const [busy, setBusy] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setRows(null);
+  const loadGroups = useCallback(async () => {
+    setGroups(null);
     const q: Record<string, string> = { sort };
     if (card) q.card = card;
     if (rarity) q.rarity = rarity;
     try {
-      const r: any = await api.market(q);
-      setRows(r.listings);
-      setTotal(r.total);
+      const r: any = await api.marketGroups(q);
+      setGroups(r.groups);
     } catch {
-      setRows([]);
+      setGroups([]);
     }
     api.marketMine().then(setMine).catch(() => {});
   }, [card, rarity, sort]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadGroups();
+  }, [loadGroups]);
+
+  const loadRows = useCallback(async (g: { design: string; card: string }) => {
+    setRows(null);
+    try {
+      const r: any = await api.market({ design: g.design, card: g.card, sort: "price" });
+      setRows(r.listings);
+    } catch {
+      setRows([]);
+    }
+  }, []);
+
+  function drill(g: any) {
+    const target = { design: g.design, card: g.card };
+    setOpen(target);
+    loadRows(target);
+  }
 
   async function buy(l: any) {
     setBusy(l.id);
     try {
       await api.marketBuy(l.id);
-      toast.success(`Bought ${l.design} ${l.card} #${l.serial}`);
+      toast.success(`Bought ${designs[l.design]?.name || l.design} ${l.card} #${l.serial}`);
       notify("success");
       await Promise.all([reload(), refresh()]);
-      load();
+      if (open) await loadRows(open);
+      loadGroups();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -337,12 +368,76 @@ function MarketTab() {
       await api.marketCancel(l.id);
       toast("Listing cancelled");
       await reload();
-      load();
+      if (open) await loadRows(open);
+      loadGroups();
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
 
+  /* ---- drilled-in: every listing for one design+card, cheapest first ---- */
+  if (open) {
+    const d: Design | undefined = designs[open.design];
+    return (
+      <>
+        <button
+          onClick={() => setOpen(null)}
+          className="mb-3 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+        >
+          <ChevronLeft className="size-4" /> Market
+        </button>
+
+        <div className="mb-4 flex items-center gap-3">
+          <PlayingCard card={open.card} size="lg" design={open.design} />
+          <div>
+            <div className="text-lg font-extrabold">{d?.name || open.design}</div>
+            <div className={`text-[10px] font-bold uppercase ${RARITY_COLOR[d?.rarity || "common"]}`}>
+              {d?.rarity} · mint of {fmt(d?.mint_per_card || 0)}
+            </div>
+          </div>
+        </div>
+
+        {!rows ? (
+          <Loader2 className="mx-auto mt-6 size-6 animate-spin text-gold" />
+        ) : rows.length === 0 ? (
+          <Card className="items-center p-6 text-center text-sm text-muted-foreground">
+            All gone — nothing listed for this one right now.
+          </Card>
+        ) : (
+          <Card className="p-3">
+            {rows.map((l: any) => (
+              <div
+                key={l.id}
+                className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-extrabold">#{l.serial}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">
+                    {l.seller_name || "—"}
+                  </div>
+                </div>
+                <Price
+                  coins={l.currency === "coins" ? l.price : 0}
+                  gems={l.currency === "gems" ? l.price : 0}
+                />
+                {l.is_mine ? (
+                  <Button size="sm" variant="outline" onClick={() => cancel(l)}>
+                    Cancel
+                  </Button>
+                ) : (
+                  <Button size="sm" disabled={busy === l.id} onClick={() => buy(l)}>
+                    {busy === l.id ? <Loader2 className="size-3.5 animate-spin" /> : "Buy"}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </Card>
+        )}
+      </>
+    );
+  }
+
+  /* ---- the grid: one tile per design+card, showing its floor ---- */
   return (
     <>
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
@@ -377,51 +472,65 @@ function MarketTab() {
           onChange={(e) => setSort(e.target.value)}
           className="shrink-0 rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs font-semibold"
         >
-          <option value="price">Cheapest</option>
-          <option value="-price">Priciest</option>
-          <option value="recent">Newest</option>
-          <option value="serial">Lowest serial</option>
+          <option value="floor">Cheapest</option>
+          <option value="-floor">Priciest</option>
+          <option value="listed">Most listed</option>
         </select>
       </div>
 
       {mine?.active?.length > 0 && (
-        <>
-          <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Your listings
-          </h3>
-          <Card className="mb-4 p-3">
-            {mine.active.map((l: any) => (
-              <div
-                key={l.id}
-                className="flex items-center gap-3 border-b border-white/5 py-2 last:border-0"
-              >
-                <PlayingCard card={l.card} size="sm" design={l.design} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">
-                    {designs[l.design]?.name || l.design} #{l.serial}
+        <Card className="mb-4 p-0">
+          <button
+            onClick={() => setShowMine((v) => !v)}
+            className="flex w-full items-center gap-2 p-3"
+          >
+            <Tag className="size-4 text-gold" />
+            <span className="flex-1 text-left text-sm font-bold">
+              Your listings
+              <span className="ml-1 font-normal text-muted-foreground">
+                ({mine.active.length})
+              </span>
+            </span>
+            <ChevronDown
+              className={`size-4 text-muted-foreground transition-transform ${showMine ? "rotate-180" : ""}`}
+            />
+          </button>
+          {showMine && (
+            <div className="border-t border-white/5 px-3 pb-2">
+              {mine.active.map((l: any) => (
+                <div
+                  key={l.id}
+                  className="flex items-center gap-3 border-b border-white/5 py-2 last:border-0"
+                >
+                  <PlayingCard card={l.card} size="sm" design={l.design} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">
+                      {designs[l.design]?.name || l.design}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">#{l.serial}</div>
                   </div>
                   <Price
                     coins={l.currency === "coins" ? l.price : 0}
                     gems={l.currency === "gems" ? l.price : 0}
                   />
+                  <Button size="sm" variant="outline" onClick={() => cancel(l)}>
+                    Cancel
+                  </Button>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => cancel(l)}>
-                  Cancel
-                </Button>
-              </div>
-            ))}
-          </Card>
-        </>
+              ))}
+            </div>
+          )}
+        </Card>
       )}
 
       <h3 className="mb-1.5 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        <span>{total} on sale</span>
+        <span>{groups?.length ?? 0} on sale</span>
         <span className="font-normal normal-case">5% fee burned on each sale</span>
       </h3>
 
-      {!rows ? (
+      {!groups ? (
         <Loader2 className="mx-auto mt-6 size-6 animate-spin text-gold" />
-      ) : rows.length === 0 ? (
+      ) : groups.length === 0 ? (
         <Card className="items-center gap-1 p-6 text-center">
           <Store className="size-7 text-muted-foreground" />
           <div className="text-sm font-semibold">Nothing listed yet</div>
@@ -431,41 +540,25 @@ function MarketTab() {
         </Card>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {rows.map((l: any) => {
-            const d: Design | undefined = designs[l.design];
+          {groups.map((g: any) => {
+            const d: Design | undefined = designs[g.design];
             return (
-              <Card
-                key={l.id}
-                className={`items-center gap-1.5 border p-3 ${RARITY_RING[d?.rarity || "common"]}`}
-              >
-                <PlayingCard card={l.card} size="lg" design={l.design} />
-                <div className="text-xs font-extrabold">{d?.name || l.design}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  #{l.serial}
-                  {d?.mint_per_card ? ` / ${fmt(d.mint_per_card)}` : ""}
-                </div>
-                <Price
-                  coins={l.currency === "coins" ? l.price : 0}
-                  gems={l.currency === "gems" ? l.price : 0}
-                />
-                {l.is_mine ? (
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => cancel(l)}>
-                    Cancel
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    disabled={busy === l.id}
-                    onClick={() => buy(l)}
-                  >
-                    {busy === l.id ? <Loader2 className="size-3.5 animate-spin" /> : "Buy"}
-                  </Button>
-                )}
-                <div className="text-[10px] text-muted-foreground">
-                  {l.seller_name || "—"}
-                </div>
-              </Card>
+              <button key={g.design + g.card} onClick={() => drill(g)} className="text-left">
+                <Card
+                  className={`items-center gap-1.5 border p-3 active:scale-[0.98] ${RARITY_RING[d?.rarity || "common"]}`}
+                >
+                  <PlayingCard card={g.card} size="lg" design={g.design} />
+                  <div className="text-xs font-extrabold">{d?.name || g.design}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {g.listed} on sale
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-[9px] uppercase text-muted-foreground">from</span>
+                    {g.floor_coins != null && <Price coins={g.floor_coins} />}
+                    {g.floor_gems != null && <Price gems={g.floor_gems} />}
+                  </div>
+                </Card>
+              </button>
             );
           })}
         </div>
@@ -473,6 +566,7 @@ function MarketTab() {
     </>
   );
 }
+
 
 /* ------------------------------------------------------- one-card detail sheet */
 

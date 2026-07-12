@@ -108,6 +108,8 @@ export const api = {
   adminUpdateDesign: (code: string, b: unknown) => req("PATCH", `/admin/cards/${code}`, b),
 
   // --- market ---
+  marketGroups: (q: Record<string, string>) =>
+    req("GET", "/market/groups?" + new URLSearchParams(q).toString()),
   market: (q: Record<string, string>) =>
     req("GET", "/market?" + new URLSearchParams(q).toString()),
   marketStats: (design: string, card: string) =>

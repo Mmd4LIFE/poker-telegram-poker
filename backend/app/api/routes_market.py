@@ -108,6 +108,75 @@ async def browse(
     }
 
 
+@router.get("/groups")
+async def groups(
+    card: str | None = None,
+    rarity: str | None = None,
+    design: str | None = None,
+    sort: str = "floor",  # floor | -floor | listed
+    _: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """One row per (design, card) with its floor price — the market grid.
+
+    Coins and gems are counted separately because a floor across two currencies
+    would be meaningless; a pair can have a floor in each.
+    """
+    q = (
+        select(
+            MarketListing.design_code,
+            MarketListing.card,
+            MarketListing.currency,
+            func.count().label("n"),
+            func.min(MarketListing.price).label("floor"),
+        )
+        .where(MarketListing.status == "active")
+        .group_by(
+            MarketListing.design_code, MarketListing.card, MarketListing.currency
+        )
+    )
+    if card:
+        q = q.where(MarketListing.card == card)
+    if design:
+        q = q.where(MarketListing.design_code == design)
+    if rarity:
+        codes = list(
+            (
+                await session.scalars(
+                    select(CardDesign.code).where(CardDesign.rarity == rarity)
+                )
+            ).all()
+        )
+        q = q.where(MarketListing.design_code.in_(codes or ["~none~"]))
+
+    merged: dict[tuple[str, str], dict] = {}
+    for design_code, c, cur, n, floor in (await session.execute(q)).all():
+        g = merged.setdefault(
+            (design_code, c),
+            {
+                "design": design_code,
+                "card": c,
+                "listed": 0,
+                "floor_coins": None,
+                "floor_gems": None,
+            },
+        )
+        g["listed"] += int(n)
+        g[f"floor_{cur}"] = int(floor)
+
+    out = list(merged.values())
+    # Sort on whichever floor the pair actually has; gems are the pricier currency
+    # so scale them into a comparable range purely for ordering.
+    def key(g: dict) -> int:
+        return g["floor_coins"] or (g["floor_gems"] or 0) * 2500
+
+    if sort == "listed":
+        out.sort(key=lambda g: -g["listed"])
+    else:
+        out.sort(key=key, reverse=sort == "-floor")
+    return {"groups": out, "fee_pct": settings.MARKET_FEE_PCT}
+
+
 @router.get("/stats")
 async def stats(
     design: str,
