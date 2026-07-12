@@ -12,6 +12,8 @@ import {
   RARITY_COLOR,
   RARITY_RING,
   SUITS,
+  SUIT_GLYPH,
+  SUIT_MULT,
   SUIT_NAME,
   useSkins,
   type Design,
@@ -88,34 +90,37 @@ function Collection({
 
       {SUITS.map((s) => (
         <div key={s} className="mb-4">
-          <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <span className={s === "h" || s === "d" ? "text-[#ff5a75]" : ""}>
+              {SUIT_GLYPH[s]}
+            </span>
             {SUIT_NAME[s]}
+            <span className="ml-auto font-normal normal-case text-muted-foreground/70">
+              &times;{SUIT_MULT[s].toFixed(2)} price
+            </span>
           </h3>
-          <div className="-mx-4 overflow-x-auto px-4 pb-1">
-            <div className="flex gap-1.5">
-              {RANKS.map((r) => {
-                const code = r + s;
-                const item = byCard[code];
-                const skinned = item?.equipped !== DEFAULT_DESIGN;
-                return (
-                  <button
-                    key={code}
-                    onClick={() => onPick(code)}
-                    className="relative shrink-0 active:scale-95"
-                  >
-                    <PlayingCard card={code} size="md" design={item?.equipped} />
-                    {item?.owned?.length > 1 && (
-                      <span className="absolute -right-1 -top-1 rounded-full bg-gold px-1 text-[9px] font-extrabold text-black">
-                        {item.owned.length}
-                      </span>
-                    )}
-                    {!skinned && (
-                      <span className="absolute inset-0 rounded-md bg-black/45" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+          {/* 13 ranks in two rows (7 + 6) — everything visible, nothing to scroll */}
+          <div className="grid grid-cols-7 justify-items-center gap-1.5">
+            {RANKS.map((r) => {
+              const code = r + s;
+              const item = byCard[code];
+              const skinned = item?.equipped !== DEFAULT_DESIGN;
+              return (
+                <button
+                  key={code}
+                  onClick={() => onPick(code)}
+                  className="relative active:scale-95"
+                >
+                  <PlayingCard card={code} size="md" design={item?.equipped} />
+                  {item?.owned?.length > 1 && (
+                    <span className="absolute -right-1 -top-1 rounded-full bg-gold px-1 text-[9px] font-extrabold text-black">
+                      {item.owned.length}
+                    </span>
+                  )}
+                  {!skinned && <span className="absolute inset-0 rounded-md bg-black/45" />}
+                </button>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -172,11 +177,28 @@ function ShopTab({ onBought }: { onBought: () => void }) {
 
   return (
     <>
-      <p className="mb-3 text-xs text-muted-foreground">
-        Every skin is minted in a fixed quantity. Higher cards cost more — an Ace
-        runs about 4.5&times; a deuce. When a mint sells out, the market is the only
-        way in.
+      <p className="mb-2 text-xs text-muted-foreground">
+        Every skin is minted in a fixed quantity. When a mint sells out, the market
+        is the only way in.
       </p>
+      <Card className="mb-3 gap-1.5 p-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          What drives the price
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Rank: a deuce is &times;1.00, a King &times;3.40, an Ace &times;4.50.
+        </div>
+        <div className="flex gap-3 text-xs">
+          {SUITS.map((s) => (
+            <span key={s} className="flex items-center gap-1 font-semibold">
+              <span className={s === "h" || s === "d" ? "text-[#ff5a75]" : ""}>
+                {SUIT_GLYPH[s]}
+              </span>
+              &times;{SUIT_MULT[s].toFixed(2)}
+            </span>
+          ))}
+        </div>
+      </Card>
       <div className="grid grid-cols-2 gap-3">
         {designs.map((d: any) => {
           const left = d.supply_total - d.minted_total;

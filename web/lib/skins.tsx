@@ -54,7 +54,10 @@ export const RARITY_RING: Record<string, string> = {
 };
 
 export const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
-export const SUITS = ["s", "h", "d", "c"];
+/* Ordered by price: spades are the trophy suit, clubs the cheapest. */
+export const SUITS = ["s", "d", "h", "c"];
+export const SUIT_MULT: Record<string, number> = { s: 1.3, d: 1.15, h: 1.05, c: 1.0 };
+export const SUIT_GLYPH: Record<string, string> = { s: "♠", d: "♦", h: "♥", c: "♣" };
 export const SUIT_NAME: Record<string, string> = {
   s: "Spades",
   h: "Hearts",

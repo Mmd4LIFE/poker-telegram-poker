@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import CardDesign, CardSkin, User
 
 RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"]
-SUITS = ["s", "h", "d", "c"]
+# Ordered by prestige (and price): spades > diamonds > hearts > clubs.
+SUITS = ["s", "d", "h", "c"]
 DECK = [r + s for s in SUITS for r in RANKS]
 DECK_SET = set(DECK)
 
@@ -23,6 +24,9 @@ RANK_MULT: dict[str, float] = {
     "2": 1.00, "3": 1.05, "4": 1.10, "5": 1.20, "6": 1.30, "7": 1.45,
     "8": 1.60, "9": 1.80, "T": 2.00, "J": 2.40, "Q": 2.80, "K": 3.40, "A": 4.50,
 }
+
+# Suits aren't equal either -- a spade is the trophy suit.
+SUIT_MULT: dict[str, float] = {"s": 1.30, "d": 1.15, "h": 1.05, "c": 1.00}
 
 RARITY_ORDER = {"common": 0, "rare": 1, "epic": 2, "legendary": 3, "mythic": 4}
 
@@ -36,7 +40,7 @@ def is_card(code: str) -> bool:
 
 def price_of(design: CardDesign, card: str) -> tuple[int, int]:
     """(coins, gems) for one copy of `design` applied to `card`."""
-    mult = RANK_MULT.get(card[0], 1.0)
+    mult = RANK_MULT.get(card[0], 1.0) * SUIT_MULT.get(card[1], 1.0)
     coins = (
         max(500, int(round(design.base_price_coins * mult / 500.0)) * 500)
         if design.base_price_coins

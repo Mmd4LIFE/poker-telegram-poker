@@ -41,6 +41,8 @@ async def designs(session: AsyncSession = Depends(get_session)):
     return {
         "default": C.DEFAULT_DESIGN,
         "designs": [_design_out(d) for d in await _designs(session)],
+        "suit_mult": C.SUIT_MULT,
+        "rank_mult": C.RANK_MULT,
     }
 
 
@@ -166,8 +168,9 @@ async def shop(
                 **_design_out(d),
                 "minted_total": sum(minted.values()),
                 "supply_total": total,
-                "from_coins": C.price_of(d, "2")[0],
-                "from_gems": C.price_of(d, "2")[1],
+                # cheapest card in the design: the two of clubs
+                "from_coins": C.price_of(d, "2c")[0],
+                "from_gems": C.price_of(d, "2c")[1],
             }
         )
     return {"designs": out}
