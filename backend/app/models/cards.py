@@ -64,6 +64,10 @@ class CardSkin(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Public item id, e.g. "7F3K-92QD". Distinct from `serial`: the serial is the
+    # mint number (#7 of 500) and carries the collectible value; the uid just names
+    # this one physical copy so it can be quoted, searched and traded unambiguously.
+    uid: Mapped[str] = mapped_column(String(12), unique=True, index=True)
     design_code: Mapped[str] = mapped_column(String(32), index=True)
     card: Mapped[str] = mapped_column(String(2), index=True)  # "Kh"
     serial: Mapped[int] = mapped_column(Integer)              # 1..mint_per_card

@@ -66,6 +66,7 @@ async def collection(
         by_card.setdefault(s.card, []).append(
             {
                 "id": s.id,
+                "uid": s.uid,
                 "design": s.design_code,
                 "serial": s.serial,
                 "on_market": s.on_market,
@@ -331,6 +332,7 @@ async def skin_detail(
     )
     return {
         "id": skin.id,
+        "uid": skin.uid,
         "card": skin.card,
         "design": _design_out(d) if d else None,
         "serial": skin.serial,

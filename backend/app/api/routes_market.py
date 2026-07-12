@@ -409,6 +409,58 @@ async def buy(
     }
 
 
+@router.get("/trades/{listing_id}")
+async def trade_detail(
+    listing_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Full record of one trade. Only the two parties can open it."""
+    l = await session.get(MarketListing, listing_id)
+    if not l:
+        raise HTTPException(404, "Not found")
+    if user.id not in (l.seller_id, l.buyer_id):
+        raise HTTPException(403, "Not your trade")
+
+    seller = await session.get(User, l.seller_id) if l.seller_id else None
+    buyer = await session.get(User, l.buyer_id) if l.buyer_id else None
+    skin = await session.get(CardSkin, l.skin_id)
+    d = await session.scalar(
+        select(CardDesign).where(CardDesign.code == l.design_code)
+    )
+
+    def who(u: User | None) -> dict | None:
+        if not u:
+            return None
+        return {
+            "id": u.id,
+            "name": u.display_name,
+            "avatar": u.avatar,
+            "handle": u.handle,
+        }
+
+    return {
+        "id": l.id,
+        "uid": skin.uid if skin else None,
+        "design": l.design_code,
+        "design_name": d.name if d else l.design_code,
+        "rarity": d.rarity if d else "common",
+        "card": l.card,
+        "serial": l.serial,
+        "mint": d.mint_per_card if d else 0,
+        "price": l.price,
+        "currency": l.currency,
+        "fee": l.fee,
+        "net": l.price - l.fee,
+        "seller": who(seller),
+        "buyer": who(buyer),
+        "side": "sold" if l.seller_id == user.id else "bought",
+        "status": l.status,
+        "listed_at": l.created_at,
+        "at": l.closed_at,
+    }
+
+
 @router.get("/mine")
 async def mine(
     user: User = Depends(get_current_user),
@@ -442,11 +494,22 @@ async def mine(
             )
         ).all()
     )
+    uids: dict[int, str] = {}
+    ids = [l.skin_id for l in active + history]
+    if ids:
+        rows = await session.execute(
+            select(CardSkin.id, CardSkin.uid).where(CardSkin.id.in_(ids))
+        )
+        uids = {i: u for i, u in rows.all()}
+
     return {
-        "active": [_listing_out(l, user) for l in active],
+        "active": [
+            {**_listing_out(l, user), "uid": uids.get(l.skin_id)} for l in active
+        ],
         "history": [
             {
                 **_listing_out(l),
+                "uid": uids.get(l.skin_id),
                 "side": "sold" if l.seller_id == user.id else "bought",
                 "net": l.price - l.fee if l.seller_id == user.id else l.price,
                 "at": l.closed_at,

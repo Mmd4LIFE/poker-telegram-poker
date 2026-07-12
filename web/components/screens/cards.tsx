@@ -5,8 +5,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Coins,
+  Copy,
   Flame,
   Gem,
+  Hash,
   Loader2,
   Receipt,
   Store,
@@ -28,6 +30,8 @@ import {
   type Design,
 } from "@/lib/skins";
 import { PlayingCard } from "@/components/table/playing-card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
 import { WalletBar } from "@/components/wallet-bar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -318,9 +322,18 @@ function ShopTab({ onBought }: { onBought: () => void }) {
 
 /* ------------------------------------------------------------------- market */
 
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between border-b border-white/5 py-2.5 last:border-0">
+      <span className="text-[11px] uppercase text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 function MarketTab() {
   const { designs, reload } = useSkins();
-  const { refresh } = useApp();
+  const { refresh, openUser } = useApp();
 
   const [groups, setGroups] = useState<any[] | null>(null);
   const [card, setCard] = useState("");
@@ -334,6 +347,7 @@ function MarketTab() {
   const [mine, setMine] = useState<any>(null);
   const [showMine, setShowMine] = useState(false); // collapsed by default
   const [trades, setTrades] = useState(false); // my-trades page
+  const [trade, setTrade] = useState<any>(null); // one trade, expanded
   const [busy, setBusy] = useState<number | null>(null);
 
   const loadGroups = useCallback(async () => {
@@ -368,6 +382,14 @@ function MarketTab() {
     const target = { design: g.design, card: g.card };
     setOpen(target);
     loadRows(target);
+  }
+
+  async function openTrade(id: number) {
+    try {
+      setTrade(await api.marketTrade(id));
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
   }
 
   async function buy(l: any) {
@@ -511,6 +533,114 @@ function MarketTab() {
     );
   }
 
+
+  /* ---- one trade: who, what, how much, and where the fee went ---- */
+  if (trade) {
+    const t = trade;
+    const d: Design | undefined = designs[t.design];
+    const Party = ({ label, p }: { label: string; p: any }) => (
+      <div className="flex items-center gap-2 border-b border-white/5 py-2.5 last:border-0">
+        <span className="w-14 text-[11px] uppercase text-muted-foreground">{label}</span>
+        {p ? (
+          <button
+            onClick={() => openUser(p.id)}
+            className="flex min-w-0 flex-1 items-center gap-2"
+          >
+            <Avatar className="size-7">
+              <AvatarFallback className="bg-secondary text-gold">
+                <AvatarIcon code={p.avatar} className="size-3.5" />
+              </AvatarFallback>
+            </Avatar>
+            <span className="truncate text-sm font-semibold">{p.name}</span>
+          </button>
+        ) : (
+          <span className="flex-1 text-sm text-muted-foreground">—</span>
+        )}
+      </div>
+    );
+
+    return (
+      <>
+        <button
+          onClick={() => setTrade(null)}
+          className="mb-3 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+        >
+          <ChevronLeft className="size-4" /> Trades
+        </button>
+
+        <Card className="mb-3 items-center gap-1 p-5">
+          <PlayingCard card={t.card} size="xl" design={t.design} />
+          <div className="mt-1 text-lg font-extrabold">{t.design_name}</div>
+          <div className={`text-[10px] font-bold uppercase ${RARITY_COLOR[t.rarity]}`}>
+            {t.rarity}
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold">
+              #{t.serial}
+              {t.mint ? (
+                <span className="font-normal text-muted-foreground"> / {fmt(t.mint)}</span>
+              ) : null}
+            </span>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+                t.side === "sold" ? "bg-win/20 text-win" : "bg-secondary text-muted-foreground"
+              }`}
+            >
+              {t.side}
+            </span>
+          </div>
+          {t.uid && (
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(t.uid);
+                toast("Item ID copied");
+              }}
+              className="mt-1.5 flex items-center gap-1 font-mono text-[11px] text-muted-foreground"
+            >
+              <Hash className="size-3" />
+              {t.uid}
+              <Copy className="size-3" />
+            </button>
+          )}
+        </Card>
+
+        <Card className="mb-3 p-3">
+          <Party label="Seller" p={t.seller} />
+          <Party label="Buyer" p={t.buyer} />
+        </Card>
+
+        <Card className="p-3">
+          <Row label="Price">
+            <Price
+              coins={t.currency === "coins" ? t.price : 0}
+              gems={t.currency === "gems" ? t.price : 0}
+            />
+          </Row>
+          <Row label="Market fee">
+            <span className="flex items-center gap-1 text-sm font-bold text-lose">
+              <Flame className="size-3.5" />-
+              {t.currency === "coins" ? fmt(t.fee) : t.fee}
+            </span>
+          </Row>
+          <Row label={t.side === "sold" ? "You received" : "Seller received"}>
+            <Price
+              coins={t.currency === "coins" ? t.net : 0}
+              gems={t.currency === "gems" ? t.net : 0}
+            />
+          </Row>
+          <Row label="Date">
+            <span className="text-xs text-muted-foreground">
+              {t.at ? new Date(t.at).toLocaleString() : "—"}
+            </span>
+          </Row>
+        </Card>
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          The fee is burned, not paid to anyone.
+        </p>
+      </>
+    );
+  }
+
   /* ---- my trades: everything I've bought and sold here ---- */
   if (trades) {
     const h: any[] = mine?.history ?? [];
@@ -529,9 +659,10 @@ function MarketTab() {
         ) : (
           <Card className="p-3">
             {h.map((t: any, i: number) => (
-              <div
+              <button
                 key={i}
-                className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
+                onClick={() => openTrade(t.id)}
+                className="flex w-full items-center gap-3 border-b border-white/5 py-2.5 text-left last:border-0 active:opacity-70"
               >
                 <PlayingCard card={t.card} size="sm" design={t.design} />
                 <div className="min-w-0 flex-1">
@@ -539,8 +670,8 @@ function MarketTab() {
                     {designs[t.design]?.name || t.design}
                     <span className="ml-1 text-muted-foreground">#{t.serial}</span>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {t.at ? new Date(t.at).toLocaleDateString() : ""}
+                  <div className="truncate font-mono text-[10px] text-muted-foreground">
+                    {t.uid || (t.at ? new Date(t.at).toLocaleDateString() : "")}
                   </div>
                 </div>
                 <div className="text-right">
@@ -554,7 +685,8 @@ function MarketTab() {
                     gems={t.currency === "gems" ? t.net : 0}
                   />
                 </div>
-              </div>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              </button>
             ))}
           </Card>
         )}
@@ -564,6 +696,7 @@ function MarketTab() {
       </>
     );
   }
+
 
   /* ---- the grid: one tile per design+card, showing its floor ---- */
   return (
@@ -846,7 +979,12 @@ function CardSheet({
                       {designs[s.design]?.name || s.design}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      serial #{s.serial}
+                      #{s.serial}
+                      {s.uid && (
+                        <span className="ml-1 font-mono text-[10px] opacity-70">
+                          {s.uid}
+                        </span>
+                      )}
                       {s.on_market && <span className="ml-1 text-gold">· listed</span>}
                     </div>
                   </div>

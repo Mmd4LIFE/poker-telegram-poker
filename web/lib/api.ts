@@ -137,6 +137,7 @@ export const api = {
   marketCancel: (listing_id: number) => req("POST", "/market/cancel", { listing_id }),
   marketBuy: (listing_id: number) => req("POST", "/market/buy", { listing_id }),
   marketMine: () => req("GET", "/market/mine"),
+  marketTrade: (id: number) => req("GET", `/market/trades/${id}`),
   friends: () => req("GET", "/friends"),
   friendSearch: (q: string) => req("GET", "/friends/search?q=" + encodeURIComponent(q)),
   friendRequest: (id: number) => req("POST", "/friends/request", { user_id: id }),

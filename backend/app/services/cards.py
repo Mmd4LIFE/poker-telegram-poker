@@ -7,6 +7,7 @@ costs ~4.5x more on an Ace than on a 2. Supply is finite per (design, card).
 from __future__ import annotations
 
 import math
+import secrets
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,15 @@ RARITY_ORDER = {"common": 0, "rare": 1, "epic": 2, "legendary": 3, "mythic": 4}
 
 # The look everybody starts with. Not minted, not tradable, never runs out.
 DEFAULT_DESIGN = "classic"
+
+
+# Crockford-ish: no I/O/0/1, so a uid can be read aloud or retyped without error.
+_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+
+
+def new_uid() -> str:
+    body = "".join(secrets.choice(_ALPHABET) for _ in range(8))
+    return f"{body[:4]}-{body[4:]}"
 
 
 def is_card(code: str) -> bool:
@@ -84,6 +94,7 @@ async def mint(
     if design.mint_per_card and minted >= design.mint_per_card:
         return None
     skin = CardSkin(
+        uid=new_uid(),
         design_code=design.code,
         card=card,
         serial=minted + 1,
