@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { ArrowLeft, BookOpen, Coins, Trophy, Smile, UserPlus } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Coins,
+  Loader2,
+  LogIn,
+  Smile,
+  Trophy,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -29,6 +38,8 @@ export function PokerTable({ code }: { code: string }) {
   const [raiseTo, setRaiseTo] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [minBuy, setMinBuy] = useState(2000);
+  const [room, setRoom] = useState<any>(null);
+  const [seating, setSeating] = useState(false);
   const [emotes, setEmotes] = useState<Record<number, { e: string; id: number }>>({});
   const [emoteOpen, setEmoteOpen] = useState(false);
 
@@ -79,7 +90,12 @@ export function PokerTable({ code }: { code: string }) {
       () => wsRef.current?.readyState === 1 && wsRef.current.send(JSON.stringify({ type: "ping" })),
       25000,
     );
-    api.roomInfo(code).then((r) => setMinBuy(r.min_buy_in)).catch(() => {});
+    api.roomInfo(code)
+      .then((r) => {
+        setMinBuy(r.min_buy_in);
+        setRoom(r);
+      })
+      .catch(() => {});
     return () => {
       aliveRef.current = false;
       clearInterval(ping);
@@ -109,6 +125,15 @@ export function PokerTable({ code }: { code: string }) {
 
   const seats: any[] = state?.seats ?? [];
   const me = seats.find((s) => s.user_id === meId);
+
+  // spectator -> seat
+  const seatBuyIn = Math.min(
+    Math.max(minBuy, room?.min_buy_in ?? minBuy),
+    room?.max_buy_in ?? Number.MAX_SAFE_INTEGER,
+    user?.coins ?? 0,
+  );
+  const canAffordSeat = (user?.coins ?? 0) >= (room?.min_buy_in ?? minBuy);
+  const tableFull = !!room && seats.length >= room.max_players;
   const legal = state?.you?.legal;
   const board: string[] = state?.board ?? [];
   const oppCount = seats.filter((s) => s.in_hand && !s.folded && s.user_id !== meId).length;
@@ -137,6 +162,28 @@ export function PokerTable({ code }: { code: string }) {
     send({ type: "action", action, amount });
     haptic("medium");
   }
+  /* Entering a table only opens the socket — you arrive as a spectator. This is
+     what actually puts you in a seat; you're dealt in from the next hand, posting
+     the blind in turn like any player joining a live game. */
+  async function takeSeat() {
+    setSeating(true);
+    try {
+      const buy = Math.min(
+        Math.max(minBuy, room?.min_buy_in ?? minBuy),
+        room?.max_buy_in ?? Number.MAX_SAFE_INTEGER,
+        user?.coins ?? 0,
+      );
+      await api.joinRoom(code, buy);
+      toast.success(`Seated — bought in for ${fmt(buy)}`);
+      notify("success");
+      refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSeating(false);
+    }
+  }
+
   async function rebuy() {
     try {
       await api.rebuy(code, minBuy);
@@ -383,15 +430,42 @@ export function PokerTable({ code }: { code: string }) {
               </div>
             </>
           ) : (
-            <div className="w-full text-center text-sm text-muted-foreground">
-              {me?.folded
-                ? "You folded"
-                : !me
-                  ? "Taking your seat…"
+            !me ? (
+              <div className="flex w-full items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-extrabold">Watching</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Buy in for {fmt(seatBuyIn)} · blinds {fmt(room?.small_blind ?? 0)}/
+                    {fmt(room?.big_blind ?? 0)}
+                  </div>
+                </div>
+                <Button
+                  size="lg"
+                  disabled={seating || !canAffordSeat || tableFull}
+                  onClick={takeSeat}
+                >
+                  {seating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : tableFull ? (
+                    "Table full"
+                  ) : !canAffordSeat ? (
+                    "Not enough coins"
+                  ) : (
+                    <>
+                      <LogIn className="size-4" /> Take seat
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="w-full text-center text-sm text-muted-foreground">
+                {me?.folded
+                  ? "You folded"
                   : state?.street === "idle"
                     ? "Shuffling up — dealing you in…"
                     : "You're seated — dealt in on the next hand"}
-            </div>
+              </div>
+            )
           )}
         </div>
 
