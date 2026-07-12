@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  Gift,
-  Users,
+  Target,
   UserPlus,
   TrendingUp,
   Coins,
@@ -107,16 +106,13 @@ export function ProfileScreen() {
         <Progress value={pct} className="mt-2" />
       </Card>
 
-      <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        Social
-      </h2>
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => go("friends")}>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <button onClick={() => go("quests")}>
           <Card className="items-center gap-1 bg-gradient-to-br from-gold/15 to-secondary p-4 text-center active:scale-[0.98]">
-            <Users className="size-6 text-gold" />
-            <div className="text-2xl font-extrabold leading-none">{user.friend_count}</div>
+            <Target className="size-6 text-gold" />
+            <div className="text-sm font-extrabold">Quests</div>
             <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
-              Friends <ChevronRight className="size-3" />
+              Daily &amp; weekly <ChevronRight className="size-3" />
             </div>
           </Card>
         </button>
@@ -143,24 +139,7 @@ export function ProfileScreen() {
         <StatRow icon={Armchair} label="Tables played" value={String(user.games_played)} />
       </Card>
 
-      <Button
-        className="mt-3 w-full font-bold"
-        size="lg"
-        onClick={() => go("invite")}
-      >
-        <Users className="size-4" /> Invite &amp; Earn
-        {user.referral_count ? ` · ${user.referral_count} joined` : ""}
-      </Button>
 
-      <Button
-        variant="secondary"
-        className="mt-2.5 w-full font-bold"
-        size="lg"
-        disabled={busy}
-        onClick={claimDaily}
-      >
-        <Gift className="size-4" /> Claim Daily Reward
-      </Button>
 
       {user.is_admin && (
         <Button

@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
 import { OnlineDot } from "@/components/online-dot";
+import { FriendsPanel } from "@/components/friends-panel";
 import { cn } from "@/lib/utils";
 
 const METRICS = [
@@ -119,7 +120,7 @@ export function LeaderboardScreen() {
     <>
       <WalletBar />
       <h1 className="mb-3 flex items-center gap-2 text-2xl font-extrabold">
-        <Trophy className="size-6 text-gold" /> Leaderboard
+        <Trophy className="size-6 text-gold" /> Ranks
       </h1>
       <Tabs defaultValue="global">
         <TabsList className="mb-3 w-full">
@@ -134,6 +135,7 @@ export function LeaderboardScreen() {
           <Board scope="global" />
         </TabsContent>
         <TabsContent value="friends">
+          <FriendsPanel />
           <Board scope="friends" />
         </TabsContent>
       </Tabs>

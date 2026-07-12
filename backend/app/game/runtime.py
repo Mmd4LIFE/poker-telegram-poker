@@ -253,6 +253,8 @@ class RoomRuntime:
             room = await session.get(Room, self.room_id)
             if room:
                 room.hand_no = self.game.hand_no
+                from datetime import datetime, timezone
+                room.last_active_at = datetime.now(timezone.utc)
 
             for seat in self.game.seats:
                 if not seat.in_hand:

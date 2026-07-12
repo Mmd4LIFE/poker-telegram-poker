@@ -69,6 +69,7 @@ export const api = {
   joinRandom: (buy: number | null) =>
     req<RoomSummary>("POST", "/rooms/join/random", { buy_in: buy }),
   leaveRoom: (code: string) => req("POST", `/rooms/${code}/leave`),
+  closeRoom: (code: string) => req("DELETE", `/rooms/${code}`),
   rebuy: (code: string, amt: number) => req("POST", `/rooms/${code}/rebuy`, { amount: amt }),
   roomInfo: (code: string) => req<RoomSummary>("GET", `/rooms/${code}`),
   catalog: () => req("GET", "/shop/catalog"),

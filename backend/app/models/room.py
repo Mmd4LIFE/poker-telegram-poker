@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -49,6 +50,10 @@ class Room(Base, TimestampMixin):
     max_buy_in: Mapped[int] = mapped_column(BigInteger, default=20000)
 
     hand_no: Mapped[int] = mapped_column(Integer, default=0)
+    # bumped on create / seat / hand end — used to auto-close idle tables
+    last_active_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True, nullable=True
+    )
 
     players: Mapped[list["RoomPlayer"]] = relationship(
         back_populates="room", cascade="all, delete-orphan"

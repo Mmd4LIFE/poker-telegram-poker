@@ -122,6 +122,11 @@ class RoomSummary(BaseModel):
     max_buy_in: int
     is_private: bool
     allow_bots: bool
+    host_id: int | None = None
+    host_name: str | None = None
+    is_mine: bool = False
+    host_is_friend: bool = False
+    stack: int | None = None
 
 
 # ---- economy ---------------------------------------------------------------

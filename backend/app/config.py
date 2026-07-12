@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     TON_WALLET_ADDRESS: str = ""
     COINS_PER_STAR: int = 1000
 
+    # Rooms
+    MAX_ACTIVE_ROOMS_PER_USER: int = 3   # tables a player may host at once
+    ROOM_IDLE_CLOSE_HOURS: float = 1.0   # auto-close tables idle this long
+
     # Loot boxes
     BOX_DAILY_LIMIT: int = 20   # max box opens per user per day (0 = unlimited)
 

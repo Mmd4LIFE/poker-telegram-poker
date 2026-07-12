@@ -34,7 +34,8 @@ const TIER_ICON: Record<string, LucideIcon> = {
 };
 
 export function ShopScreen() {
-  const { refresh } = useApp();
+  const { refresh, user } = useApp();
+  const [dailyBusy, setDailyBusy] = useState(false);
   const [cat, setCat] = useState<any>(null);
   const [boxInfo, setBoxInfo] = useState<any>(null);
   const [openingBox, setOpeningBox] = useState<any>(null);
@@ -49,6 +50,22 @@ export function ShopScreen() {
     api.catalog().then(setCat).catch(() => {});
     loadBoxes();
   }, []);
+
+  async function claimDaily() {
+    setDailyBusy(true);
+    try {
+      const r: any = await api.daily();
+      if (r.claimed) {
+        toast.success(`+${fmt(r.reward)} coins · streak ${r.streak}`);
+        notify("success");
+      } else toast("Already claimed — come back later");
+      await refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setDailyBusy(false);
+    }
+  }
 
   async function buyTon(code: string) {
     try {
@@ -101,6 +118,23 @@ export function ShopScreen() {
       <h1 className="mb-3 flex items-center gap-2 text-2xl font-extrabold">
         <Coins className="size-6 text-gold" /> Shop
       </h1>
+
+      <button className="mb-4 w-full" onClick={claimDaily} disabled={dailyBusy}>
+        <Card className="flex-row items-center gap-3 bg-gradient-to-br from-gold/25 to-secondary p-4 active:scale-[0.99]">
+          <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-black/20">
+            <Gift className="size-6 text-gold" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="text-sm font-extrabold">Daily Reward</div>
+            <div className="text-xs text-muted-foreground">
+              Streak {user?.daily_streak ?? 0} — claim your free coins
+            </div>
+          </div>
+          <span className="rounded-full bg-black/30 px-3 py-1 text-xs font-bold text-gold">
+            Claim
+          </span>
+        </Card>
+      </button>
 
       <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
         Coin &amp; Gem Packs

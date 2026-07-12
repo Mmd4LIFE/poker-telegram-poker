@@ -45,6 +45,10 @@ export interface RoomSummary {
   is_private: boolean;
   allow_bots: boolean;
   stack?: number;
+  host_id?: number | null;
+  host_name?: string | null;
+  is_mine?: boolean;
+  host_is_friend?: boolean;
 }
 
 export type View =

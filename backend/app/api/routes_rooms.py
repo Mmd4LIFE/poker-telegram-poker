@@ -1,11 +1,14 @@
 """Room lifecycle: create / list / join / leave / rebuy / snapshot."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.config import settings
 from app.database import get_session
 from app.game.manager import manager
 from app.models import Room, RoomPlayer, Squad, User
@@ -16,6 +19,7 @@ from app.schemas import (
     RoomSummary,
 )
 from app.poker.holdem import Street
+from app.services.friends import list_friends
 from app.services.rooms import (
     find_open_rooms,
     find_random_open_room,
@@ -28,14 +32,32 @@ from app.services.rooms import (
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
 
-async def _summary(session: AsyncSession, room: Room) -> RoomSummary:
+async def _summary(
+    session: AsyncSession,
+    room: Room,
+    viewer: User | None = None,
+    friend_ids: set[int] | None = None,
+    host: User | None = None,
+) -> RoomSummary:
+    if host is None and room.host_id:
+        host = await session.get(User, room.host_id)
     return RoomSummary(
         code=room.code, name=room.name, status=room.status,
         players=await player_count(session, room.id), max_players=room.max_players,
         small_blind=room.small_blind, big_blind=room.big_blind,
         min_buy_in=room.min_buy_in, max_buy_in=room.max_buy_in,
         is_private=room.is_private, allow_bots=room.allow_bots,
+        host_id=room.host_id,
+        host_name=host.display_name if host else None,
+        is_mine=bool(viewer and room.host_id == viewer.id),
+        host_is_friend=bool(
+            friend_ids and room.host_id and room.host_id in friend_ids
+        ),
     )
+
+
+def _touch(room: Room) -> None:
+    room.last_active_at = datetime.now(timezone.utc)
 
 
 @router.post("", response_model=RoomSummary)
@@ -48,6 +70,20 @@ async def create_room(
         raise HTTPException(400, "Big blind must exceed small blind")
     if body.max_buy_in < body.min_buy_in:
         raise HTTPException(400, "max_buy_in must be >= min_buy_in")
+
+    # limit how many tables one player may host at once
+    if settings.MAX_ACTIVE_ROOMS_PER_USER:
+        hosted = int((await session.execute(
+            select(func.count(Room.id)).where(
+                Room.host_id == user.id, Room.status != "finished"
+            )
+        )).scalar_one())
+        if hosted >= settings.MAX_ACTIVE_ROOMS_PER_USER:
+            raise HTTPException(
+                400,
+                f"You already host {hosted} tables "
+                f"(max {settings.MAX_ACTIVE_ROOMS_PER_USER}). Close one first.",
+            )
 
     squad_id = None
     if body.squad_code:
@@ -77,9 +113,27 @@ async def list_rooms(
 ):
     rooms = (await session.execute(
         select(Room).where(Room.is_private.is_(False), Room.status != "finished")
-        .order_by(Room.created_at.desc()).limit(50)
+        .order_by(Room.last_active_at.desc().nullslast()).limit(50)
     )).scalars().all()
-    return [await _summary(session, r) for r in rooms]
+    friends = await list_friends(session, user.id)
+    friend_ids = {f.id for f in friends}
+    return [await _summary(session, r, user, friend_ids) for r in rooms]
+
+
+@router.delete("/{code}")
+async def close_room(
+    code: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """The host can close their table: everyone is cashed out and it's removed."""
+    room = await get_room_by_code(session, code)
+    if not room:
+        raise HTTPException(404, "Room not found")
+    if room.host_id != user.id:
+        raise HTTPException(403, "Only the table host can close it")
+    await manager.close_room(session, room)
+    return {"ok": True}
 
 
 @router.get("/{code}", response_model=RoomSummary)
@@ -167,8 +221,9 @@ async def _join(session: AsyncSession, room: Room, user: User, buy_in: int | Non
         await manager.seat_player(session, room, user, buy_in)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    _touch(room)
     await session.flush()
-    return await _summary(session, room)
+    return await _summary(session, room, user)
 
 
 @router.post("/{code}/leave")

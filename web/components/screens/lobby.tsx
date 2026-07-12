@@ -1,17 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
-  Zap,
-  Plus,
-  KeyRound,
-  Shield,
-  Gift,
-  Users,
-  Play,
-  Spade,
-  Target,
-  ChevronRight,
+  Zap, Plus, Shield, Play, Spade, ChevronRight, ChevronDown, Trash2, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
@@ -21,22 +12,18 @@ import type { RoomSummary } from "@/lib/types";
 import { WalletBar } from "@/components/wallet-bar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+type Filter = "all" | "mine" | "friends" | "other";
+
 function Tile({
-  icon: Icon,
-  title,
-  sub,
-  onClick,
-  wide,
-  hot,
+  icon: Icon, title, sub, onClick, wide, hot,
 }: {
-  icon: React.ElementType;
-  title: string;
-  sub: string;
-  onClick: () => void;
-  wide?: boolean;
-  hot?: boolean;
+  icon: React.ElementType; title: string; sub: string;
+  onClick: () => void; wide?: boolean; hot?: boolean;
 }) {
   return (
     <button
@@ -44,9 +31,7 @@ function Tile({
       className={cn(
         "flex flex-col items-center gap-1.5 rounded-2xl border border-white/5 p-5 text-center transition-transform active:scale-[0.97]",
         wide && "col-span-2",
-        hot
-          ? "bg-gradient-to-br from-[#b8860b] to-[#6b4e00]"
-          : "bg-gradient-to-br from-secondary to-card",
+        hot ? "bg-gradient-to-br from-[#b8860b] to-[#6b4e00]" : "bg-gradient-to-br from-secondary to-card",
       )}
     >
       <Icon className={cn("size-7", hot ? "text-white" : "text-gold")} />
@@ -57,15 +42,19 @@ function Tile({
 }
 
 export function LobbyScreen() {
-  const { user, refresh, go, enterTable } = useApp();
+  const { go, enterTable } = useApp();
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
   const [current, setCurrent] = useState<RoomSummary | null>(null);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(true);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [confirmClose, setConfirmClose] = useState<RoomSummary | null>(null);
 
-  useEffect(() => {
-    api.currentRoom().then(setCurrent).catch(() => {});
+  const load = useCallback(() => {
     api.listRooms().then(setRooms).catch(() => setRooms([]));
+    api.currentRoom().then(setCurrent).catch(() => {});
   }, []);
+  useEffect(() => { load(); }, [load]);
 
   async function quickPlay() {
     if (busy) return;
@@ -81,17 +70,31 @@ export function LobbyScreen() {
     }
   }
 
-  async function claimDaily() {
+  async function closeRoom() {
+    if (!confirmClose) return;
     try {
-      const r = await api.daily();
-      toast[r.claimed ? "success" : "message"](
-        r.claimed ? `+${fmt(r.reward)} coins · streak ${r.streak}` : "Already claimed",
-      );
-      await refresh();
+      await api.closeRoom(confirmClose.code);
+      toast.success("Table closed");
+      setConfirmClose(null);
+      load();
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
+
+  const shown = (rooms ?? []).filter((r) =>
+    filter === "all" ? true
+      : filter === "mine" ? r.is_mine
+      : filter === "friends" ? r.host_is_friend
+      : !r.is_mine && !r.host_is_friend,
+  );
+
+  const FILTERS: { k: Filter; label: string }[] = [
+    { k: "all", label: "All" },
+    { k: "mine", label: "Mine" },
+    { k: "friends", label: "Friends" },
+    { k: "other", label: "Other" },
+  ];
 
   return (
     <>
@@ -117,66 +120,95 @@ export function LobbyScreen() {
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <Tile
-          icon={Zap}
-          title="Quick Play"
-          sub="Jump in instantly"
-          onClick={quickPlay}
-          wide
-          hot
-        />
+        <Tile icon={Zap} title="Quick Play" sub="Jump in instantly" onClick={quickPlay} wide hot />
         <Tile icon={Plus} title="Create Room" sub="Host a table" onClick={() => go("create")} />
-        <Tile icon={KeyRound} title="Join by Code" sub="Friend's code" onClick={() => go("join")} />
-        <Tile icon={Target} title="Quests" sub="Daily & weekly goals" onClick={() => go("quests")} />
-        <Tile icon={Shield} title="Squad" sub="Play with crew" onClick={() => go("squad")} />
-        <Tile
-          icon={Gift}
-          title="Daily Reward"
-          sub={`Streak: ${user?.daily_streak ?? 0}`}
-          onClick={claimDaily}
-        />
-        <Tile icon={Users} title="Friends" sub="See who's online" onClick={() => go("friends")} />
-        <Tile
-          icon={Users}
-          title="Invite & Earn"
-          sub="5,000 per friend"
-          onClick={() => go("invite")}
-          wide
-          hot
-        />
+        <Tile icon={Shield} title="Squad" sub="Play with your clan" onClick={() => go("squad")} />
       </div>
 
-      <h2 className="mb-2 mt-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        Open Tables
-      </h2>
-      <Card className="p-4">
-        {rooms === null ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : rooms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No open tables. Create one!</p>
-        ) : (
-          rooms.map((r) => (
-            <div
-              key={r.code}
-              className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0"
-            >
-              <Spade className="size-5 text-gold" />
-              <div className="flex-1 min-w-0">
-                <div className="truncate text-sm font-semibold">
-                  {r.name}{" "}
-                  <span className="text-xs text-muted-foreground">#{r.code}</span>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {r.players}/{r.max_players} · blinds {fmt(r.small_blind)}/{fmt(r.big_blind)}
-                </div>
-              </div>
-              <Button size="sm" onClick={() => enterTable(r.code)}>
-                Join
-              </Button>
+      {/* Open tables */}
+      <Card className="mt-4 gap-0 p-0">
+        <button onClick={() => setOpen((v) => !v)} className="flex items-center justify-between p-4">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Open Tables {rooms ? `(${rooms.length})` : ""}
+          </span>
+          <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+        </button>
+
+        {open && (
+          <div className="px-4 pb-4">
+            <div className="mb-2 flex gap-1.5">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.k}
+                  onClick={() => setFilter(f.k)}
+                  className={cn(
+                    "flex-1 rounded-lg py-1.5 text-xs font-bold",
+                    filter === f.k ? "bg-secondary text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
-          ))
+
+            {rooms === null ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : shown.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">
+                {filter === "mine" ? "You don't host any tables." : "No tables here."}
+              </p>
+            ) : (
+              shown.map((r) => (
+                <div key={r.code} className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
+                  <Spade className="size-5 shrink-0 text-gold" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">
+                      {r.name} <span className="text-xs text-muted-foreground">#{r.code}</span>
+                    </div>
+                    <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                      {r.is_mine ? (
+                        <span className="text-gold">Your table</span>
+                      ) : r.host_is_friend ? (
+                        <span className="flex items-center gap-0.5 text-gem">
+                          <Users className="size-3" /> {r.host_name}
+                        </span>
+                      ) : (
+                        <span>{r.host_name || "—"}</span>
+                      )}
+                      <span>· {r.players}/{r.max_players} · {fmt(r.small_blind)}/{fmt(r.big_blind)}</span>
+                    </div>
+                  </div>
+                  {r.is_mine && (
+                    <Button variant="outline" size="icon" className="size-8 text-lose"
+                      onClick={() => setConfirmClose(r)}>
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={() => enterTable(r.code)}>Join</Button>
+                </div>
+              ))
+            )}
+          </div>
         )}
       </Card>
+
+      <Dialog open={!!confirmClose} onOpenChange={(o) => !o && setConfirmClose(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Close this table?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Everyone at <b className="text-foreground">{confirmClose?.name}</b> will be
+            cashed out and the table removed.
+          </p>
+          <DialogFooter className="mt-2 gap-2 sm:gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmClose(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" className="flex-1" onClick={closeRoom}>
+              <Trash2 className="size-4" /> Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

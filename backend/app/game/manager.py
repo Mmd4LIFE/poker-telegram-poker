@@ -147,6 +147,51 @@ class GameManager:
     def get_live(self, room_id: int) -> RoomRuntime | None:
         return self._runtimes.get(room_id)
 
+    async def close_room(self, session: AsyncSession, room: Room) -> dict:
+        """Cash everyone out, stop the runtime and retire the table."""
+        players = (await session.execute(
+            select(RoomPlayer, User)
+            .join(User, User.id == RoomPlayer.user_id)
+            .where(RoomPlayer.room_id == room.id)
+        )).all()
+        refunded = 0
+        for rp, u in players:
+            try:
+                res = await self.unseat_player(session, room, u)
+                refunded += int(res.get("refunded") or 0)
+            except ValueError:
+                pass
+        rt = self._runtimes.pop(room.id, None)
+        if rt:
+            await rt.stop()
+        room.status = "finished"
+        logger.info("Closed room %s (refunded %s)", room.code, refunded)
+        return {"refunded": refunded}
+
+    async def _close_idle_rooms(self) -> None:
+        hours = settings.ROOM_IDLE_CLOSE_HOURS
+        if not hours:
+            return
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        async with SessionLocal() as session:
+            rooms = (await session.execute(
+                select(Room).where(
+                    Room.status != "finished",
+                    Room.last_active_at.isnot(None),
+                    Room.last_active_at < cutoff,
+                )
+            )).scalars().all()
+            for room in rooms:
+                # keep alive if humans are still watching/playing
+                if hub.has_viewers(room.code):
+                    room.last_active_at = datetime.now(timezone.utc)
+                    continue
+                try:
+                    await self.close_room(session, room)
+                except Exception:
+                    logger.exception("close idle room %s failed", room.code)
+            await session.commit()
+
     # ---- idle-seat janitor ----------------------------------------------
     def start_janitor(self) -> None:
         if self._janitor is None or self._janitor.done():
@@ -158,6 +203,7 @@ class GameManager:
             try:
                 await asyncio.sleep(settings.JANITOR_INTERVAL_SECONDS)
                 await self._reap_idle_seats()
+                await self._close_idle_rooms()
             except asyncio.CancelledError:
                 break
             except Exception:
