@@ -315,12 +315,11 @@ class GameManager:
             # a table whose runtime died is a ghost — retire it rather than leak it
             alive = []
             for r in rooms:
-                if r.id in self._runtimes:
-                    alive.append(r)
-                else:
-                    rt = await self.get_runtime(session, r)
-                    alive.append(r)
-                    logger.info("bot table %s revived", r.code)
+                rt = await self.get_runtime(session, r)
+                # get_runtime only BUILDS the runtime — seat_player is what normally
+                # starts its task, and nobody ever seats at a bot table. Start it.
+                rt.start()
+                alive.append(r)
 
             missing = want - len(alive)
             if missing <= 0:
@@ -345,7 +344,8 @@ class GameManager:
                 )
                 session.add(room)
                 await session.flush()
-                await self.get_runtime(session, room)
+                rt = await self.get_runtime(session, room)
+                rt.start()
                 await session.commit()
                 logger.info("bot table %s opened (host=%s)", code, host.display_name)
 
