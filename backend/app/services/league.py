@@ -234,6 +234,7 @@ async def _populate(session: AsyncSession, season: LeagueSeason, cfg: dict) -> N
                 session.add(
                     CohortMember(cohort_id=cohort.id, user_id=u.id, is_bot=False)
                 )
+                u.league_tier = key
 
             if cfg.get("bot_fill"):
                 need = cap - len(chunk)
@@ -246,6 +247,12 @@ async def _populate(session: AsyncSession, season: LeagueSeason, cfg: dict) -> N
                     session.add(
                         CohortMember(cohort_id=cohort.id, user_id=b.id, is_bot=True)
                     )
+                    # A member's tier MUST match the cohort they actually play in.
+                    # Spare bots get drafted into higher cohorts to fill them, and if
+                    # their league_tier stayed "bronze" they'd appear to leap from
+                    # bronze to diamond on promotion — and demotions would silently
+                    # resolve to no change at all.
+                    b.league_tier = key
 
 
 # --------------------------------------------------------------------- result
