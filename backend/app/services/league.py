@@ -216,12 +216,23 @@ async def _populate(session: AsyncSession, season: LeagueSeason, cfg: dict) -> N
         key = b.league_tier if b.league_tier in bots_by_tier else cfg["tiers"][0]["key"]
         bots_by_tier[key].append(b)
 
+    # A bot may only sit in ONE cohort per season. The spare pool is rebuilt for every
+    # tier, so without this a bot got drafted into Bronze AND Silver AND Gold at once,
+    # was processed several times at close, and appeared to leap two tiers in a day.
+    used: set[int] = set()
+
     for t in cfg["tiers"]:
         key, cap = t["key"], int(t["capacity"])
         members = by_tier[key]
-        pool = bots_by_tier[key][:]
+        pool = [b for b in bots_by_tier[key] if b.id not in used]
         # spare bots from any tier, so a cohort can always be filled
-        spare = [b for k, v in bots_by_tier.items() if k != key for b in v]
+        spare = [
+            b
+            for k, v in bots_by_tier.items()
+            if k != key
+            for b in v
+            if b.id not in used
+        ]
 
         n_cohorts = max(1, math.ceil(len(members) / cap)) if members else (1 if cfg.get("bot_fill") else 0)
         for i in range(n_cohorts):
@@ -235,14 +246,19 @@ async def _populate(session: AsyncSession, season: LeagueSeason, cfg: dict) -> N
                     CohortMember(cohort_id=cohort.id, user_id=u.id, is_bot=False)
                 )
                 u.league_tier = key
+                used.add(u.id)
 
             if cfg.get("bot_fill"):
                 need = cap - len(chunk)
                 fill: list[User] = []
                 while pool and len(fill) < need:
-                    fill.append(pool.pop())
+                    b = pool.pop()
+                    if b.id not in used:
+                        fill.append(b)
                 while spare and len(fill) < need:
-                    fill.append(spare.pop())
+                    b = spare.pop()
+                    if b.id not in used:
+                        fill.append(b)
                 for b in fill:
                     session.add(
                         CohortMember(cohort_id=cohort.id, user_id=b.id, is_bot=True)
@@ -253,6 +269,7 @@ async def _populate(session: AsyncSession, season: LeagueSeason, cfg: dict) -> N
                     # bronze to diamond on promotion — and demotions would silently
                     # resolve to no change at all.
                     b.league_tier = key
+                    used.add(b.id)
 
 
 # --------------------------------------------------------------------- result
