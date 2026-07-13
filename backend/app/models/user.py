@@ -90,6 +90,10 @@ class User(Base, TimestampMixin):
     # A bot cannot DM a user who never pressed Start. Mini-App-only users are
     # unreachable, so reminders/broadcasts must skip them until they do.
     bot_started: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
+    # league
+    league_tier: Mapped[str] = mapped_column(String(12), default="bronze", index=True)
+    league_shards: Mapped[int] = mapped_column(Integer, default=0)
     last_daily_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -14,6 +14,7 @@ import { SquadScreen } from "@/components/screens/squad";
 import { CreateRoomScreen } from "@/components/screens/create-room";
 import { CustomizeScreen } from "@/components/screens/customize";
 import { CardsScreen } from "@/components/screens/cards";
+import { LeagueScreen } from "@/components/screens/league";
 import { PokerTable } from "@/components/table/poker-table";
 import { UserProfileSheet } from "@/components/user-profile-sheet";
 import { LevelUpOverlay } from "@/components/level-up-overlay";
@@ -58,6 +59,7 @@ export function AppShell({ startParam }: { startParam: string | null }) {
             {view === "create" && <CreateRoomScreen />}
             {view === "customize" && <CustomizeScreen />}
             {view === "cards" && <CardsScreen />}
+            {view === "league" && <LeagueScreen />}
           </main>
           <BottomNav />
         </>

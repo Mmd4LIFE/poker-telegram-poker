@@ -34,6 +34,13 @@ class RoomRuntime:
         self.max_players = room.max_players
         self.allow_bots = room.allow_bots
         self.bots_only = bool(getattr(room, "is_bot_table", False))
+        # --- Sit & Go (league) ---
+        self.mode = getattr(room, "mode", "cash") or "cash"
+        self.cohort_id = getattr(room, "cohort_id", None)
+        self.is_sng = self.mode == "sng"
+        # finishing order, filled from the bottom up as players bust out
+        self._knockouts: list[int] = []
+        self._sng_done = False
         self.min_buy_in = room.min_buy_in
         self.max_buy_in = room.max_buy_in
         self.game = HoldemGame(room.small_blind, room.big_blind)
@@ -129,10 +136,21 @@ class RoomRuntime:
             await asyncio.sleep(2)
             return
 
+        if self.is_sng and self._sng_done:
+            await asyncio.sleep(2)
+            return
+
         started = False
         async with self.glock:
             if self.game.street == Street.IDLE:
-                await self._fill_bots()
+                if self.is_sng:
+                    self._reap_busted()
+                    if self._sng_over():
+                        await self._finish_sng()
+                        return
+                    self._apply_blind_level()
+                else:
+                    await self._fill_bots()
                 if self.game.can_start():
                     self.game.start_hand()
                     started = True
@@ -223,6 +241,77 @@ class RoomRuntime:
                 events = self.game.apply_action(user_id, fallback, 0)
         await self.broadcast_events(events)
         await self.broadcast_state()
+
+    # ---- Sit & Go --------------------------------------------------------
+    #
+    # A turbo structure: blinds climb every few hands so a six-handed table finishes
+    # in ~10-15 minutes rather than grinding on for an hour. Without escalation a
+    # tournament with no rebuys can literally never end.
+    BLIND_LEVELS = [
+        (25, 50), (50, 100), (75, 150), (100, 200), (150, 300),
+        (200, 400), (300, 600), (500, 1000), (800, 1600), (1200, 2400),
+    ]
+    HANDS_PER_LEVEL = 5
+
+    def _apply_blind_level(self) -> None:
+        lvl = min(
+            self.game.hand_no // self.HANDS_PER_LEVEL, len(self.BLIND_LEVELS) - 1
+        )
+        sb, bb = self.BLIND_LEVELS[lvl]
+        self.game.small_blind, self.game.big_blind = sb, bb
+
+    def _reap_busted(self) -> None:
+        """Anyone who ran out of chips is out — for good. Their finishing place is
+        decided by WHEN they busted: last one standing is 1st."""
+        busted = [s for s in self.game.seats if s.stack <= 0]
+        # two players out on the same hand: the one who started it with more chips
+        # outlasted the other, so they finish higher
+        busted.sort(key=lambda s: s.committed)
+        for s in busted:
+            if s.user_id not in self._knockouts:
+                self._knockouts.append(s.user_id)
+            self.game.remove_seat(s.user_id)
+
+    def _sng_over(self) -> bool:
+        return len(self.game.seats) <= 1
+
+    async def _finish_sng(self) -> None:
+        if self._sng_done:
+            return
+        self._sng_done = True
+
+        survivors = [s.user_id for s in self.game.seats]
+        # knockouts were recorded worst-first; the winner is whoever is left
+        order = survivors + list(reversed(self._knockouts))
+
+        from app.services import league as L
+
+        async with SessionLocal() as session:
+            room = await session.get(Room, self.room_id)
+            cfg = await L.get_config(session)
+            if self.cohort_id and order:
+                bots = {}
+                for uid in order:
+                    u = await session.get(User, uid)
+                    bots[uid] = bool(u and u.is_bot)
+                await L.record_result(
+                    session,
+                    self.cohort_id,
+                    [(uid, bots.get(uid, False)) for uid in order],
+                    cfg,
+                    room_code=self.code,
+                    simulated=False,
+                )
+            if room:
+                room.status = "finished"
+            await session.commit()
+
+        await hub.broadcast(
+            self.code,
+            {"type": "sng_over", "order": order},
+        )
+        logger.info("SNG %s finished: %s", self.code, order)
+        self._alive = False
 
     # ---- bots ------------------------------------------------------------
     async def _fill_bots(self) -> None:

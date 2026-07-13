@@ -17,6 +17,12 @@ from app.models.cards import (  # noqa: F401
     MarketListing,
 )
 from app.models.dna import PlayerStats  # noqa: F401
+from app.models.league import (  # noqa: F401
+    Cohort,
+    CohortMember,
+    LeagueGame,
+    LeagueSeason,
+)
 from app.models.marketing import (  # noqa: F401
     Broadcast,
     Notification,
@@ -52,4 +58,8 @@ __all__ = [
     "Broadcast",
     "Notification",
     "PlayerStats",
+    "LeagueSeason",
+    "Cohort",
+    "CohortMember",
+    "LeagueGame",
 ]

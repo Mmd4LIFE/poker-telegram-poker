@@ -744,3 +744,133 @@ async def admin_delete_bot(
         raise HTTPException(404, "Bot not found")
     await session.delete(b)
     return {"ok": True}
+
+
+# --- league -----------------------------------------------------------------
+
+from app.models import Cohort, CohortMember, LeagueSeason  # noqa: E402
+from app.services import league as LG  # noqa: E402
+
+
+@router.get("/league")
+async def admin_league(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    cfg = await LG.get_config(session)
+    season = await session.scalar(
+        select(LeagueSeason).where(LeagueSeason.day == LG.league_day(cfg))
+    )
+    cohorts = []
+    if season:
+        rows = list(
+            (
+                await session.scalars(
+                    select(Cohort).where(Cohort.season_id == season.id).order_by(Cohort.id)
+                )
+            ).all()
+        )
+        for c in rows:
+            members = list(
+                (
+                    await session.scalars(
+                        select(CohortMember).where(CohortMember.cohort_id == c.id)
+                    )
+                ).all()
+            )
+            members.sort(key=lambda m: (-(m.lp or 0), m.ranked_games or 0))
+            ids = [m.user_id for m in members]
+            users = {}
+            if ids:
+                us = await session.scalars(select(User).where(User.id.in_(ids)))
+                users = {u.id: u for u in us.all()}
+            cohorts.append(
+                {
+                    "id": c.id,
+                    "tier": c.tier,
+                    "idx": c.idx + 1,
+                    "capacity": c.capacity,
+                    "humans": sum(1 for m in members if not m.is_bot),
+                    "bots": sum(1 for m in members if m.is_bot),
+                    "members": [
+                        {
+                            "rank": i + 1,
+                            "name": users[m.user_id].display_name
+                            if m.user_id in users
+                            else "?",
+                            "is_bot": m.is_bot,
+                            "personality": users[m.user_id].bot_personality
+                            if m.user_id in users
+                            else None,
+                            "skill": round(users[m.user_id].bot_skill or 0, 2)
+                            if m.user_id in users and m.is_bot
+                            else None,
+                            "lp": m.lp or 0,
+                            "games": m.ranked_games or 0,
+                            "wins": m.wins or 0,
+                        }
+                        for i, m in enumerate(members)
+                    ],
+                }
+            )
+    return {
+        "config": cfg,
+        "day": str(LG.league_day(cfg)),
+        "seconds_to_close": LG.seconds_to_close(cfg),
+        "cohorts": cohorts,
+    }
+
+
+class LeagueCfg(BaseModel):
+    enabled: bool | None = None
+    unlock_level: int | None = None
+    timezone: str | None = None
+    ranked_games_per_day: int | None = None
+    bot_fill: bool | None = None
+    shards_per_skin: int | None = None
+
+
+@router.patch("/league")
+async def admin_league_cfg(
+    body: LeagueCfg,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    cfg = await LG.set_config(session, body.model_dump())
+    await session.flush()
+    return cfg
+
+
+@router.post("/league/close")
+async def admin_league_close(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Force the day to end now — promotions, demotions, rewards. For testing a
+    one-day league without waiting for midnight."""
+    cfg = await LG.get_config(session)
+    season = await session.scalar(
+        select(LeagueSeason).where(
+            LeagueSeason.day == LG.league_day(cfg), LeagueSeason.status == "open"
+        )
+    )
+    if not season:
+        raise HTTPException(404, "No open season")
+    summary = await LG.close_season(session, season, cfg)
+    await session.commit()
+    await LG.ensure_season(session)
+    await session.commit()
+    return summary
+
+
+@router.post("/league/simulate")
+async def admin_league_simulate(
+    rounds: int = 1,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Fast-forward the bots' day."""
+    cfg = await LG.get_config(session)
+    n = await LG.simulate_bot_games(session, cfg, rounds=max(1, min(20, rounds)))
+    await session.commit()
+    return {"games": n}

@@ -54,6 +54,9 @@ class Room(Base, TimestampMixin):
     # A bot-only table kept alive for self-play. It's a real, joinable room: humans
     # see it in Open Tables, which is why self-play doubles as lobby liveliness.
     is_bot_table: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # "cash" or "sng" (a league Sit & Go: fixed stacks, rising blinds, play to the death)
+    mode: Mapped[str] = mapped_column(String(8), default="cash", index=True)
+    cohort_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     last_active_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True, nullable=True
     )

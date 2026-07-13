@@ -66,7 +66,8 @@ export type View =
   | "friends"
   | "user"
   | "customize"
-  | "cards";
+  | "cards"
+  | "league";
 
 export interface FriendCard {
   id: number;

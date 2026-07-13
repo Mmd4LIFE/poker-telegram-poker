@@ -11,7 +11,7 @@ const TABS: { view: View; label: string; icon: React.ElementType; match: View[] 
   { view: "shop", label: "Shop", icon: ShoppingBag, match: ["shop"] },
   { view: "cards", label: "Cards", icon: Layers, match: ["cards"] },
   { view: "lobby", label: "Play", icon: Gamepad2, match: ["lobby", "create", "squad"] },
-  { view: "leaderboard", label: "Ranks", icon: Trophy, match: ["leaderboard", "friends"] },
+  { view: "leaderboard", label: "Ranks", icon: Trophy, match: ["leaderboard", "friends", "league"] },
   { view: "profile", label: "Me", icon: User, match: ["profile", "invite", "admin", "quests", "customize"] },
 ];
 

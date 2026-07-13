@@ -13,6 +13,7 @@ from app.api import (
     routes_cards,
     routes_cosmetics,
     routes_friends,
+    routes_league,
     routes_market,
     routes_profile,
     routes_progression,
@@ -47,8 +48,13 @@ async def lifespan(app: FastAPI):
     from app.services.notify import reminder_loop
 
     reminders = asyncio.create_task(reminder_loop())
+
+    from app.services.league import league_loop
+
+    league_task = asyncio.create_task(league_loop())
     yield
     reminders.cancel()
+    league_task.cancel()
     await manager.shutdown()
     await shutdown_bot()
 
@@ -66,7 +72,8 @@ app.add_middleware(
 for module in (
     routes_auth, routes_profile, routes_rooms, routes_shop,
     routes_progression, routes_squads, routes_referral, routes_admin,
-    routes_friends, routes_cosmetics, routes_cards, routes_market, routes_ws,
+    routes_friends, routes_cosmetics, routes_cards, routes_market, routes_league,
+    routes_ws,
 ):
     app.include_router(module.router)
 

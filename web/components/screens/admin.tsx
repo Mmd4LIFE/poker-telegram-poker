@@ -52,6 +52,7 @@ export function AdminScreen() {
           <TabsTrigger value="cards" className="flex-1">Cards</TabsTrigger>
           <TabsTrigger value="reach" className="flex-1">Reach</TabsTrigger>
           <TabsTrigger value="bots" className="flex-1">Bots</TabsTrigger>
+          <TabsTrigger value="league" className="flex-1">League</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
         <TabsContent value="boxes"><Boxes /></TabsContent>
@@ -59,6 +60,7 @@ export function AdminScreen() {
         <TabsContent value="cards"><Cards /></TabsContent>
         <TabsContent value="reach"><Reach /></TabsContent>
         <TabsContent value="bots"><Bots /></TabsContent>
+        <TabsContent value="league"><League /></TabsContent>
       </Tabs>
     </>
   );
@@ -1035,6 +1037,140 @@ function Bots() {
           )}
         </SheetContent>
       </Sheet>
+    </>
+  );
+}
+
+
+/* League monitor. The point of the bot rows is that you can watch them climb and
+   fall — a cohort of 24 with three humans in it only feels alive because they do. */
+function League() {
+  const [d, setD] = useState<any>(null);
+  const [open, setOpen] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => api.adminLeague().then(setD).catch(() => {}), []);
+  useEffect(() => { load(); }, [load]);
+
+  async function save(patch: any) {
+    try {
+      await api.adminLeagueCfg(patch);
+      toast.success("Saved");
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function sim(n: number) {
+    setBusy(true);
+    try {
+      const r: any = await api.adminLeagueSimulate(n);
+      toast.success(`${r.games} bot games simulated`);
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function close() {
+    setBusy(true);
+    try {
+      const r: any = await api.adminLeagueClose();
+      toast.success(`Closed: ${r.promoted} up, ${r.demoted} down, ${r.rewarded} paid`);
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!d) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  const cfg = d.config || {};
+
+  return (
+    <>
+      <Card className="mb-3 p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-extrabold">{d.day}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {cfg.timezone} · closes in {Math.floor(d.seconds_to_close / 3600)}h
+            </div>
+          </div>
+          <div className="text-right text-[11px] text-muted-foreground">
+            unlock lvl {cfg.unlock_level} · {cfg.ranked_games_per_day} ranked/day
+          </div>
+        </div>
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant="outline" className="h-8 flex-1" disabled={busy} onClick={() => sim(5)}>
+            Sim 5 rounds
+          </Button>
+          <Button size="sm" className="h-8 flex-1" disabled={busy} onClick={close}>
+            Close day now
+          </Button>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground">Enabled</span>
+          <Button
+            size="sm"
+            variant={cfg.enabled ? "outline" : "secondary"}
+            className="h-7"
+            onClick={() => save({ enabled: !cfg.enabled })}
+          >
+            {cfg.enabled ? "On" : "Off"}
+          </Button>
+          <span className="ml-2 text-[11px] text-muted-foreground">Bot fill</span>
+          <Button
+            size="sm"
+            variant={cfg.bot_fill ? "outline" : "secondary"}
+            className="h-7"
+            onClick={() => save({ bot_fill: !cfg.bot_fill })}
+          >
+            {cfg.bot_fill ? "On" : "Off"}
+          </Button>
+        </div>
+      </Card>
+
+      {(d.cohorts || []).map((c: any) => (
+        <Card key={c.id} className="mb-2 p-0">
+          <button
+            onClick={() => setOpen(open === c.id ? null : c.id)}
+            className="flex items-center gap-2 p-3"
+          >
+            <span className="flex-1 text-left text-sm font-extrabold capitalize">
+              {c.tier} #{c.idx}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {c.humans} human · {c.bots} bots
+            </span>
+          </button>
+          {open === c.id && (
+            <div className="border-t border-white/5 px-3 pb-2">
+              {c.members.map((m: any) => (
+                <div key={m.rank} className="flex items-center gap-2 border-b border-white/5 py-1.5 last:border-0">
+                  <span className="w-5 text-center text-[11px] font-bold text-muted-foreground">
+                    {m.rank}
+                  </span>
+                  <span className="flex-1 truncate text-xs">
+                    {m.name}
+                    {m.is_bot && (
+                      <span className="ml-1 text-[9px] uppercase text-muted-foreground/70">
+                        bot {m.personality} {m.skill}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">{m.games}g</span>
+                  <span className="w-8 text-right text-xs font-bold tabular-nums">{m.lp}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
     </>
   );
 }

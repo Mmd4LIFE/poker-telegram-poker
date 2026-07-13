@@ -173,6 +173,12 @@ CARD_DESIGNS = [
         "bg": "linear-gradient(160deg,#ff5f1f,#7a0d0d)", "fg": "#fff3d6",
         "red": "#ffd400", "border": "#ffb703", "glow": "0 0 18px rgba(255,95,31,.6)",
         "foil": True}),
+    # League-only: not for sale at any price. The ONLY way in is to finish high in a
+    # league cohort and redeem shards, which is what makes it worth something.
+    ("champion", "Champion", "mythic", 0, 0, 50, {
+        "bg": "linear-gradient(160deg,#0b1020,#1b2a4a 55%,#f5c518)",
+        "fg": "#f5c518", "red": "#ff9e3f", "border": "#f5c518",
+        "glow": "0 0 18px rgba(245,197,24,.6)", "foil": True}),
     ("prism", "Prism", "mythic", 0, 45, 25, {
         "bg": "linear-gradient(120deg,#ff6bd6,#f5c518,#7CFC00,#38e0d0,#a06bff)",
         "fg": "#12121a", "red": "#c1121f", "border": "#ffffff",

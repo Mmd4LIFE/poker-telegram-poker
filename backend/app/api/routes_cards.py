@@ -137,7 +137,10 @@ async def shop(
             raise HTTPException(400, "Unknown card")
         out = []
         for d in ds:
-            if not d.mint_per_card:
+            # A design with no price isn't for sale at any price — it's league-only.
+            # (mint_per_card is the SUPPLY CAP, not a for-sale flag: champion has a
+            # cap of 50 precisely so it stays scarce.)
+            if not d.mint_per_card or not (d.base_price_coins or d.base_price_gems):
                 continue
             coins, gems = C.price_of(d, card)
             m = int(
@@ -162,6 +165,8 @@ async def shop(
     # overview: one row per design with total supply left
     out = []
     for d in ds:
+        if not (d.base_price_coins or d.base_price_gems):
+            continue  # league-only designs are never on the shelf
         minted = await C.minted_counts(session, d.code)
         total = d.mint_per_card * len(C.DECK) if d.mint_per_card else 0
         out.append(
@@ -343,4 +348,51 @@ async def skin_detail(
         "history": [
             {"price": s.price, "currency": s.currency, "at": s.closed_at} for s in sales
         ],
+    }
+
+
+class RedeemIn(BaseModel):
+    card: str
+
+
+@router.post("/redeem-shards")
+async def redeem_shards(
+    body: RedeemIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Turn League Shards into an exclusive league skin.
+
+    Shards — not a skin per day — are how the supply stays scarce. A daily league
+    that minted a 'unique' skin every 24h would print a thousand a year, and the
+    market we built runs on scarcity.
+    """
+    from app.services import league as L
+
+    if not C.is_card(body.card):
+        raise HTTPException(400, "Unknown card")
+
+    cfg = await L.get_config(session)
+    cost = int(cfg.get("shards_per_skin", 25))
+    if (user.league_shards or 0) < cost:
+        raise HTTPException(
+            400, f"Need {cost} shards — you have {user.league_shards or 0}"
+        )
+
+    d = await session.scalar(
+        select(CardDesign).where(CardDesign.code == "champion")
+    )
+    if not d:
+        raise HTTPException(404, "League skin not available")
+
+    skin = await C.mint(session, d, body.card, user, source="league")
+    if skin is None:
+        raise HTTPException(409, "That card is sold out for this design")
+
+    user.league_shards -= cost
+    C.equip(user, body.card, skin)
+    await session.commit()
+    return {
+        "skin": {"id": skin.id, "design": d.code, "card": body.card, "serial": skin.serial},
+        "shards_left": user.league_shards,
     }

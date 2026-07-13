@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
 import { OnlineDot } from "@/components/online-dot";
+import { LeagueScreen } from "@/components/screens/league";
 import { FriendsPanel } from "@/components/friends-panel";
 import { cn } from "@/lib/utils";
 
@@ -119,8 +120,9 @@ export function LeaderboardScreen() {
   return (
     <>
       <WalletBar />
-      <Tabs defaultValue="global">
+      <Tabs defaultValue="league">
         <TabsList className="mb-3 w-full">
+          <TabsTrigger value="league" className="flex-1">League</TabsTrigger>
           <TabsTrigger value="global" className="flex-1">
             Global
           </TabsTrigger>
@@ -134,6 +136,9 @@ export function LeaderboardScreen() {
         <TabsContent value="friends">
           <FriendsPanel />
           <Board scope="friends" />
+        </TabsContent>
+        <TabsContent value="league">
+          <LeagueScreen />
         </TabsContent>
       </Tabs>
     </>
