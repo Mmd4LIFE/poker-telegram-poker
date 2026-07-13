@@ -15,6 +15,8 @@ from app.game.connection import hub
 from app.models import Hand, PlayerHand, Room, RoomPlayer, User
 from app.poker import ai
 from app.poker.holdem import HoldemGame, Seat, Street
+from app.models import PlayerStats
+from app.services import dna as DNA
 from app.services.cards import equipped_map
 from app.services.cosmetics import effective_avatar_color
 from app.services.progression import record_hand
@@ -31,6 +33,7 @@ class RoomRuntime:
         self.code = room.code
         self.max_players = room.max_players
         self.allow_bots = room.allow_bots
+        self.bots_only = bool(getattr(room, "is_bot_table", False))
         self.min_buy_in = room.min_buy_in
         self.max_buy_in = room.max_buy_in
         self.game = HoldemGame(room.small_blind, room.big_blind)
@@ -212,13 +215,18 @@ class RoomRuntime:
         if not self.allow_bots:
             return
         active = len(self.game.active_seats())
-        if active >= 2:
+        if active >= 2 and not self.bots_only:
             return
-        # only fill when at least one human is connected
-        human_present = any(not s.is_bot for s in self.game.seats)
-        if not human_present:
-            return
-        target = min(self.max_players, TARGET_TABLE_SIZE)
+        # A normal table only summons bots once a human is there to play against. A
+        # self-play table is the exception — it exists precisely to run without one.
+        if not self.bots_only:
+            human_present = any(not s.is_bot for s in self.game.seats)
+            if not human_present:
+                return
+        target = min(
+            self.max_players,
+            settings.BOT_TABLE_SEATS if self.bots_only else TARGET_TABLE_SIZE,
+        )
         need = target - len(self.game.seats)
         if need <= 0:
             return
@@ -267,6 +275,27 @@ class RoomRuntime:
                     continue
                 won_amt = won_map.get(seat.user_id, 0)
                 net = won_amt - seat.committed
+
+                # --- Poker DNA telemetry (bots included: their radar is the whole
+                #     point of the admin monitor)
+                stats = await session.get(PlayerStats, seat.user_id)
+                if stats is None:
+                    stats = PlayerStats(user_id=seat.user_id)
+                    session.add(stats)
+                reached_showdown = bool(showdown) and not seat.folded and seat.in_hand
+                DNA.ingest_hand(
+                    stats,
+                    user_id=seat.user_id,
+                    hand_log=self.game.hand_log,
+                    preflop_aggressor=self.game.preflop_aggressor,
+                    saw_flop=len(result.get("board") or []) >= 3 and not seat.folded,
+                    went_to_showdown=reached_showdown,
+                    won_showdown=reached_showdown and won_amt > 0,
+                    won_amount=won_amt,
+                    committed=seat.committed,
+                    # stack has already been credited with winnings by now
+                    start_stack=max(1, seat.stack - won_amt + seat.committed),
+                )
                 if not seat.is_bot:
                     user = await session.get(User, seat.user_id)
                     if user:

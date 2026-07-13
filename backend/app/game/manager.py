@@ -204,6 +204,7 @@ class GameManager:
                 await asyncio.sleep(settings.JANITOR_INTERVAL_SECONDS)
                 await self._reap_idle_seats()
                 await self._close_idle_rooms()
+                await self._ensure_bot_tables()
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -284,6 +285,65 @@ class GameManager:
             self._janitor.cancel()
         for rt in self._runtimes.values():
             await rt.stop()
+
+    # ---- self-play tables ---------------------------------------------------
+    async def _ensure_bot_tables(self) -> None:
+        """Keep a small, fixed number of bot-only tables running.
+
+        These are ordinary rooms, so they show up in Open Tables and a human can sit
+        down at any time — self-play doubles as a lobby that's never empty. The cap
+        is the RAM budget: each live table is an asyncio task plus a Monte-Carlo
+        thinking bot per seat, and this box has 1GB shared with other services.
+        """
+        want = settings.BOT_TABLES
+        if want <= 0:
+            return
+        async with SessionLocal() as session:
+            rooms = list(
+                (
+                    await session.scalars(
+                        select(Room).where(
+                            Room.is_bot_table.is_(True), Room.status == "open"
+                        )
+                    )
+                ).all()
+            )
+            # a table whose runtime died is a ghost — retire it rather than leak it
+            alive = []
+            for r in rooms:
+                if r.id in self._runtimes:
+                    alive.append(r)
+                else:
+                    rt = await self.get_runtime(session, r)
+                    alive.append(r)
+                    logger.info("bot table %s revived", r.code)
+
+            missing = want - len(alive)
+            if missing <= 0:
+                return
+
+            from app.game.bots import pick_bots
+            from app.services.rooms import generate_room_code
+
+            for _ in range(missing):
+                hosts = await pick_bots(session, set(), 1)
+                if not hosts:
+                    return
+                host = hosts[0]
+                code = await generate_room_code(session)
+                room = Room(
+                    code=code,
+                    name=f"{host.display_name}'s Table",
+                    host_id=host.id,
+                    allow_bots=True,
+                    is_bot_table=True,
+                    max_players=settings.BOT_TABLE_SEATS + 1,  # leave a human a seat
+                )
+                session.add(room)
+                await session.flush()
+                await self.get_runtime(session, room)
+                await session.commit()
+                logger.info("bot table %s opened (host=%s)", code, host.display_name)
 
 
 manager = GameManager()

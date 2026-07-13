@@ -578,3 +578,106 @@ async def admin_update_reminder(
     cfg = await NOTIFY.set_config(session, body.model_dump())
     await session.flush()
     return cfg
+
+
+# --- bot monitor ------------------------------------------------------------
+
+from app.models import PlayerStats  # noqa: E402
+from app.services import dna as DNA  # noqa: E402
+
+
+@router.get("/bots")
+async def admin_bots(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Every bot with its Poker DNA. This is the honest view: the radar is computed
+    from hands they actually played, not from the personality we configured."""
+    bots = list(
+        (
+            await session.scalars(
+                select(User).where(User.is_bot.is_(True)).order_by(User.id)
+            )
+        ).all()
+    )
+    ids = [b.id for b in bots]
+    stats = {}
+    if ids:
+        rows = await session.scalars(
+            select(PlayerStats).where(PlayerStats.user_id.in_(ids))
+        )
+        stats = {s.user_id: s for s in rows.all()}
+
+    out = []
+    for b in bots:
+        d = DNA.compute(stats.get(b.id))
+        out.append(
+            {
+                "id": b.id,
+                "name": b.display_name,
+                "avatar": b.avatar,
+                "personality": b.bot_personality,
+                "skill": round(b.bot_skill or 0, 2),
+                "hands": d["hands"],
+                "hands_played": b.hands_played,
+                "net_won": d["raw"]["net_won"],
+                "style": DNA.style_of(d["scores"]),
+                "scores": d["scores"],
+                "raw": d["raw"],
+                "confidence": d["confidence"],
+            }
+        )
+    out.sort(key=lambda x: -x["hands"])
+    return {"bots": out, "axes": DNA.AXES, "min_hands": DNA.MIN_HANDS}
+
+
+@router.get("/bots/{bot_id}")
+async def admin_bot_detail(
+    bot_id: int,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models import PlayerHand
+
+    b = await session.get(User, bot_id)
+    if not b or not b.is_bot:
+        raise HTTPException(404, "Bot not found")
+    st = await session.get(PlayerStats, bot_id)
+    d = DNA.compute(st)
+
+    hands = list(
+        (
+            await session.scalars(
+                select(PlayerHand)
+                .where(PlayerHand.user_id == bot_id)
+                .order_by(PlayerHand.id.desc())
+                .limit(20)
+            )
+        ).all()
+    )
+    return {
+        "id": b.id,
+        "name": b.display_name,
+        "avatar": b.avatar,
+        "personality": b.bot_personality,
+        "skill": round(b.bot_skill or 0, 2),
+        "coins": b.coins,
+        "level": b.level,
+        "hands_played": b.hands_played,
+        "hands_won": b.hands_won,
+        "biggest_pot": b.biggest_pot,
+        "style": DNA.style_of(d["scores"]),
+        **d,
+        "recent": [
+            {
+                "room": h.room_code,
+                "hand_no": h.hand_no,
+                "net": h.net,
+                "won": h.won,
+                "hand_name": h.hand_name,
+                "pot": h.pot,
+                "at": h.created_at,
+            }
+            for h in hands
+        ],
+    }

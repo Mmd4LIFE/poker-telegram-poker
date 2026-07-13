@@ -86,6 +86,11 @@ class HoldemGame:
         self.big_blind = big_blind
         self.seats: list[Seat] = []
         self.button: int = -1
+        # Per-HAND action log for player telemetry (Poker DNA). events[] is wiped on
+        # every apply_action, so it can't be used for this.
+        self.hand_log: list[dict] = []
+        self.pos_of: dict[int, str] = {}   # user_id -> early|late|blind
+        self.preflop_aggressor: int | None = None
         self.street: Street = Street.IDLE
         self.board: list[str] = []
         self.deck: list[str] = []
@@ -150,6 +155,25 @@ class HoldemGame:
         else:
             sb_i = self._next_in_hand(self.button)
             bb_i = self._next_in_hand(sb_i)
+
+        # position classes, for the Position axis. Blinds are forced money, so they
+        # are not "voluntary" opportunities and get their own class.
+        self.hand_log = []
+        self.preflop_aggressor = None
+        self.pos_of = {}
+        order = [self.seats.index(s) for s in players]
+        try:
+            b = order.index(self.button)
+            late = {order[b], order[b - 1]}  # button + cutoff
+        except ValueError:
+            late = {self.button}
+        for i in order:
+            if i in (sb_i, bb_i):
+                self.pos_of[self.seats[i].user_id] = "blind"
+            elif i in late:
+                self.pos_of[self.seats[i].user_id] = "late"
+            else:
+                self.pos_of[self.seats[i].user_id] = "early"
 
         self._log("hand_start", hand_no=self.hand_no, button=self.seats[self.button].user_id)
 
@@ -267,6 +291,20 @@ class HoldemGame:
         act = Action(action) if not isinstance(action, Action) else action
         to_call = self.current_bet - s.bet
 
+        # snapshot the decision context BEFORE the action mutates state
+        _ctx = {
+            "user_id": user_id,
+            "street": self.street.value,
+            "to_call": to_call,
+            "pot": self.pot_total,
+            "pos": self.pos_of.get(user_id, "early"),
+            # was the pot already raised when it got to them?
+            "faced_raise": self.current_bet > self.big_blind
+            if self.street == Street.PREFLOP
+            else to_call > 0,
+            "was_checked_to": to_call == 0,
+        }
+
         if act == Action.FOLD:
             s.folded = True
             s.has_acted = True
@@ -320,6 +358,16 @@ class HoldemGame:
             )
         else:
             raise ValueError(f"Unknown action {action}")
+
+        _ctx["action"] = s.last_action or str(act)
+        # For Deception we need to know what they actually HELD when they fired.
+        # Betting with nothing is a bluff; betting the nuts is value. One evaluator
+        # call per aggressive action is negligible next to the bots' Monte-Carlo.
+        if _ctx["action"] in ("raise", "all-in") and len(self.board) >= 3 and s.hole:
+            _ctx["made"] = evaluate(s.hole + self.board)[0][0]
+        self.hand_log.append(_ctx)
+        if self.street == Street.PREFLOP and _ctx["action"] in ("raise", "all-in"):
+            self.preflop_aggressor = user_id
 
         self._progress()
         return self.events

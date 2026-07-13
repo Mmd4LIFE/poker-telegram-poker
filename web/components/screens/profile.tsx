@@ -20,6 +20,7 @@ import { useApp } from "@/lib/store";
 import { notify } from "@/lib/telegram";
 import { WalletBar } from "@/components/wallet-bar";
 import { NotifyGate } from "@/components/notify-gate";
+import { PokerDna } from "@/components/poker-dna";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -127,6 +128,8 @@ export function ProfileScreen() {
           </Card>
         </button>
       </div>
+
+      <PokerDna />
 
       <h2 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
         Statistics

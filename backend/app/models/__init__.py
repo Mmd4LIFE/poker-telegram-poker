@@ -16,6 +16,7 @@ from app.models.cards import (  # noqa: F401
     CardSkin,
     MarketListing,
 )
+from app.models.dna import PlayerStats  # noqa: F401
 from app.models.marketing import (  # noqa: F401
     Broadcast,
     Notification,
@@ -50,4 +51,5 @@ __all__ = [
     "SegmentUser",
     "Broadcast",
     "Notification",
+    "PlayerStats",
 ]

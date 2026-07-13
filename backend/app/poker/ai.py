@@ -7,7 +7,7 @@ hands, value-bet and bluff selectively.
 """
 from __future__ import annotations
 
-import secrets
+import random
 
 from app.poker.cards import FULL_DECK
 from app.poker.evaluator import evaluate
@@ -23,8 +23,15 @@ PERSONALITIES = {
 }
 
 
+# The REAL deck is shuffled with a CSPRNG (see poker/cards.py) — that matters, money
+# rides on it. A bot's imagination does not: nobody can exploit the RNG behind a
+# hypothetical hand it simulated. Using secrets here was costing ~an order of
+# magnitude in the Monte-Carlo hot loop, which is exactly what self-play burns.
+_rng = random.Random()
+
+
 def _rng_choice(seq):
-    return seq[secrets.randbelow(len(seq))]
+    return _rng.choice(seq)
 
 
 def estimate_equity(hole: list[str], board: list[str], n_opponents: int, samples: int) -> float:
@@ -40,7 +47,7 @@ def estimate_equity(hole: list[str], board: list[str], n_opponents: int, samples
         drawn: list[str] = []
 
         def draw() -> str:
-            j = secrets.randbelow(len(deck))
+            j = _rng.randrange(len(deck))
             deck[j], deck[-1] = deck[-1], deck[j]
             return deck.pop()
 
@@ -74,7 +81,7 @@ def decide(
 
     # weak bots misjudge their equity (noise), strong bots are accurate
     noise = (1.0 - skill) * 0.25
-    jitter = (secrets.randbelow(2000) / 1000.0 - 1.0) * noise
+    jitter = (_rng.random() * 2.0 - 1.0) * noise
     perceived = min(0.99, max(0.01, equity + jitter))
 
     # pot odds
@@ -86,7 +93,7 @@ def decide(
     max_raise_to = legal.get("max_raise_to", 0)
 
     # occasional bluff
-    bluffing = (secrets.randbelow(1000) / 1000.0) < bluff_freq and can_raise
+    bluffing = _rng.random() < bluff_freq and can_raise
 
     # decide raise threshold — looser/aggressive bots value-raise wider
     value_threshold = 0.62 - 0.15 * aggr
@@ -94,7 +101,7 @@ def decide(
 
     def size_raise() -> int:
         # bet between 45% and 100% of pot, scaled by aggression
-        frac = 0.45 + 0.55 * aggr * (secrets.randbelow(1000) / 1000.0)
+        frac = 0.45 + 0.55 * aggr * _rng.random()
         target = legal.get("call_amount", 0) + int(pot * frac) + min_raise_to
         return max(min_raise_to, min(target, max_raise_to))
 
@@ -107,7 +114,7 @@ def decide(
     # facing a bet
     if perceived >= value_threshold and can_raise:
         # sometimes just call to trap with monsters
-        if perceived > 0.85 and secrets.randbelow(100) < 30:
+        if perceived > 0.85 and _rng.random() < 0.30:
             return "call", 0
         return "raise", size_raise()
 

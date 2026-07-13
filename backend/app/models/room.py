@@ -51,6 +51,9 @@ class Room(Base, TimestampMixin):
 
     hand_no: Mapped[int] = mapped_column(Integer, default=0)
     # bumped on create / seat / hand end — used to auto-close idle tables
+    # A bot-only table kept alive for self-play. It's a real, joinable room: humans
+    # see it in Open Tables, which is why self-play doubles as lobby liveliness.
+    is_bot_table: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     last_active_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True, nullable=True
     )

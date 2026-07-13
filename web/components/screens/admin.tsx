@@ -10,6 +10,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { RadarChart } from "@/components/radar-chart";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarIcon } from "@/lib/avatars";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -35,12 +44,14 @@ export function AdminScreen() {
           <TabsTrigger value="packs" className="flex-1">Packs</TabsTrigger>
           <TabsTrigger value="cards" className="flex-1">Cards</TabsTrigger>
           <TabsTrigger value="reach" className="flex-1">Reach</TabsTrigger>
+          <TabsTrigger value="bots" className="flex-1">Bots</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
         <TabsContent value="boxes"><Boxes /></TabsContent>
         <TabsContent value="packs"><Packs /></TabsContent>
         <TabsContent value="cards"><Cards /></TabsContent>
         <TabsContent value="reach"><Reach /></TabsContent>
+        <TabsContent value="bots"><Bots /></TabsContent>
       </Tabs>
     </>
   );
@@ -779,6 +790,186 @@ function Reach() {
           </Card>
         </>
       )}
+    </>
+  );
+}
+
+
+/* Bot monitor. The radar is computed from hands the bot ACTUALLY played — not from
+   the personality we configured it with. A bot set to "aggressive" that folds all
+   day shows up as passive here, which is exactly what you want to see. */
+function Bots() {
+  const [d, setD] = useState<any>(null);
+  const [pick, setPick] = useState<any>(null);
+
+  useEffect(() => {
+    api.adminBots().then(setD).catch(() => {});
+  }, []);
+
+  async function open(id: number) {
+    try {
+      setPick(await api.adminBot(id));
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  if (!d) return <p className="text-sm text-muted-foreground">Loading…</p>;
+
+  const bots: any[] = d.bots || [];
+  const totalHands = bots.reduce((a, b) => a + b.hands, 0);
+
+  return (
+    <>
+      <Card className="mb-3 p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-lg font-extrabold">{bots.length}</div>
+            <div className="text-[11px] text-muted-foreground">bots</div>
+          </div>
+          <div className="text-right">
+            <div className="text-lg font-extrabold text-gold">{fmt(totalHands)}</div>
+            <div className="text-[11px] text-muted-foreground">
+              hands logged · DNA needs {d.min_hands}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {bots.map((b) => (
+        <button key={b.id} onClick={() => open(b.id)} className="mb-2 w-full text-left">
+          <Card className="flex-row items-center gap-3 p-3 active:scale-[0.99]">
+            <Avatar className="size-9 shrink-0">
+              <AvatarFallback className="bg-secondary text-gold">
+                <AvatarIcon code={b.avatar} className="size-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-bold">{b.name}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {b.personality} · skill {b.skill} ·{" "}
+                {b.hands >= d.min_hands ? b.style : `${b.hands}/${d.min_hands} hands`}
+              </div>
+            </div>
+            <div className="text-right">
+              <div
+                className={cn(
+                  "text-sm font-bold",
+                  b.net_won >= 0 ? "text-win" : "text-lose",
+                )}
+              >
+                {b.net_won >= 0 ? "+" : "−"}
+                {fmt(Math.abs(b.net_won))}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                VPIP {b.raw.vpip}% · AF {b.raw.af}
+              </div>
+            </div>
+          </Card>
+        </button>
+      ))}
+
+      <Sheet open={!!pick} onOpenChange={(o) => !o && setPick(null)}>
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>{pick?.name}</SheetTitle>
+          </SheetHeader>
+          {pick && (
+            <div className="px-4 pb-6">
+              <div className="flex flex-col items-center">
+                <Avatar className="size-16 border-2 border-gold/40">
+                  <AvatarFallback className="bg-secondary text-gold">
+                    <AvatarIcon code={pick.avatar} className="size-7" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="mt-1 text-[11px] uppercase text-muted-foreground">
+                  {pick.personality} · skill {pick.skill}
+                </div>
+                <span className="mt-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-bold text-gold">
+                  {pick.ready ? pick.style : `needs ${pick.hands_needed} more hands`}
+                </span>
+
+                <RadarChart
+                  axes={pick.axes}
+                  scores={pick.scores}
+                  confidence={pick.confidence}
+                  size={280}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  { k: "VPIP", v: `${pick.raw.vpip}%` },
+                  { k: "PFR", v: `${pick.raw.pfr}%` },
+                  { k: "AF", v: pick.raw.af },
+                  { k: "Bluff", v: `${pick.raw.bluff}%` },
+                  { k: "W$SD", v: `${pick.raw.wsd}%` },
+                  { k: "C-bet", v: `${pick.raw.cbet}%` },
+                ].map((x) => (
+                  <div key={x.k} className="rounded-lg bg-secondary/60 p-2">
+                    <div className="text-sm font-bold">{x.v}</div>
+                    <div className="text-[10px] uppercase text-muted-foreground">
+                      {x.k}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-secondary/60 p-2">
+                  <div className="text-sm font-bold">{fmt(pick.hands)}</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">DNA hands</div>
+                </div>
+                <div className="rounded-lg bg-secondary/60 p-2">
+                  <div className="text-sm font-bold">{fmt(pick.hands_won)}</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">won</div>
+                </div>
+                <div className="rounded-lg bg-secondary/60 p-2">
+                  <div
+                    className={cn(
+                      "text-sm font-bold",
+                      pick.raw.net_won >= 0 ? "text-win" : "text-lose",
+                    )}
+                  >
+                    {fmt(pick.raw.net_won)}
+                  </div>
+                  <div className="text-[10px] uppercase text-muted-foreground">net</div>
+                </div>
+              </div>
+
+              {pick.recent?.length > 0 && (
+                <>
+                  <h3 className="mb-1.5 mt-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Recent hands
+                  </h3>
+                  <Card className="p-3">
+                    {pick.recent.map((h: any, i: number) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 border-b border-white/5 py-2 last:border-0"
+                      >
+                        <span className="flex-1 truncate text-xs">
+                          {h.hand_name || "—"}
+                          <span className="ml-1 text-muted-foreground">#{h.room}</span>
+                        </span>
+                        <span
+                          className={cn(
+                            "text-xs font-bold",
+                            h.net >= 0 ? "text-win" : "text-lose",
+                          )}
+                        >
+                          {h.net >= 0 ? "+" : "−"}
+                          {fmt(Math.abs(h.net))}
+                        </span>
+                      </div>
+                    ))}
+                  </Card>
+                </>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

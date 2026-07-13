@@ -44,7 +44,12 @@ class Settings(BaseSettings):
     MARKET_FEE_PCT: int = 5
 
     # One-off reward for pressing Start (i.e. becoming reachable by the bot).
-    BOT_START_BONUS: int = 2_000   # auto-close tables idle this long
+    BOT_START_BONUS: int = 2_000
+
+    # Self-play tables kept running. Each is one asyncio task on a 1GB box, so this
+    # is deliberately small — raise it only after watching RAM.
+    BOT_TABLES: int = 2
+    BOT_TABLE_SEATS: int = 5   # auto-close tables idle this long
 
     # Loot boxes
     BOX_DAILY_LIMIT: int = 20   # max box opens per user per day (0 = unlimited)

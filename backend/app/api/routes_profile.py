@@ -167,3 +167,22 @@ async def read_notifications(
     )
     await session.commit()
     return {"unread": 0}
+
+
+# --- Poker DNA --------------------------------------------------------------
+
+
+@router.get("/dna")
+async def my_dna(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Your own radar. Self-view only, deliberately: showing an OPPONENT's radar
+    would be a poker HUD and hand an edge to whoever bothered to look."""
+    from app.models import PlayerStats
+    from app.services import dna as DNA
+
+    st = await session.get(PlayerStats, user.id)
+    d = DNA.compute(st)
+    d["style"] = DNA.style_of(d["scores"]) if d["ready"] else None
+    return d
