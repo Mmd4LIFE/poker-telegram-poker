@@ -225,18 +225,47 @@ async def _populate(session: AsyncSession, season: LeagueSeason, cfg: dict) -> N
         key, cap = t["key"], int(t["capacity"])
         members = by_tier[key]
         pool = [b for b in bots_by_tier[key] if b.id not in used]
-        # spare bots from any tier, so a cohort can always be filled
-        spare = [
-            b
-            for k, v in bots_by_tier.items()
-            if k != key
-            for b in v
-            if b.id not in used
-        ]
+        # Spare bots from any tier, so a cohort can always be filled. Sorted WEAKEST
+        # first and drawn from the front: tiers are populated bronze-upward, so the
+        # fish sink to Bronze and the sharks are what's left by the time we reach
+        # Diamond. That's the whole point of tiering — a beginner meets beginners.
+        spare = sorted(
+            (
+                b
+                for k, v in bots_by_tier.items()
+                if k != key
+                for b in v
+                if b.id not in used
+            ),
+            key=lambda b: float(b.bot_skill or 0.5),
+        )
 
-        n_cohorts = max(1, math.ceil(len(members) / cap)) if members else (1 if cfg.get("bot_fill") else 0)
+        size = int(cfg.get("table_size", 6))
+        n_cohorts = max(1, math.ceil(len(members) / cap)) if members else 1
+
         for i in range(n_cohorts):
             chunk = members[i * cap : (i + 1) * cap]
+
+            fill: list[User] = []
+            if cfg.get("bot_fill"):
+                need = cap - len(chunk)
+                while pool and len(fill) < need:
+                    b = pool.pop()
+                    if b.id not in used:
+                        fill.append(b)
+                while spare and len(fill) < need:
+                    b = spare.pop(0)  # weakest first
+                    if b.id not in used:
+                        fill.append(b)
+
+            # A cohort that can't even field one table is worse than no cohort: a
+            # human promoted into it would have nobody to play. Skip it — the tier
+            # comes to life once enough bots have climbed into it.
+            if len(chunk) + len(fill) < size:
+                for b in fill:
+                    pool.append(b)  # give them back
+                continue
+
             cohort = Cohort(season_id=season.id, tier=key, idx=i, capacity=cap)
             session.add(cohort)
             await session.flush()
@@ -248,28 +277,16 @@ async def _populate(session: AsyncSession, season: LeagueSeason, cfg: dict) -> N
                 u.league_tier = key
                 used.add(u.id)
 
-            if cfg.get("bot_fill"):
-                need = cap - len(chunk)
-                fill: list[User] = []
-                while pool and len(fill) < need:
-                    b = pool.pop()
-                    if b.id not in used:
-                        fill.append(b)
-                while spare and len(fill) < need:
-                    b = spare.pop()
-                    if b.id not in used:
-                        fill.append(b)
-                for b in fill:
-                    session.add(
-                        CohortMember(cohort_id=cohort.id, user_id=b.id, is_bot=True)
-                    )
-                    # A member's tier MUST match the cohort they actually play in.
-                    # Spare bots get drafted into higher cohorts to fill them, and if
-                    # their league_tier stayed "bronze" they'd appear to leap from
-                    # bronze to diamond on promotion — and demotions would silently
-                    # resolve to no change at all.
-                    b.league_tier = key
-                    used.add(b.id)
+            for b in fill:
+                session.add(
+                    CohortMember(cohort_id=cohort.id, user_id=b.id, is_bot=True)
+                )
+                # A member's tier MUST match the cohort they actually play in. Spare
+                # bots get drafted upward to fill cohorts; if their league_tier stayed
+                # "bronze" they'd appear to leap two tiers on promotion, and demotions
+                # would silently resolve to no change at all.
+                b.league_tier = key
+                used.add(b.id)
 
 
 # --------------------------------------------------------------------- result
