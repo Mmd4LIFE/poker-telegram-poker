@@ -76,8 +76,20 @@ class _Zero:
     net_won: int = 0
 
 
+_COUNTERS = tuple(f.name for f in fields(_Zero))
+
+
 def blank() -> _Zero:
     return _Zero()
+
+
+def _zero_fill(st) -> None:
+    """A freshly-constructed ORM row has None in every column until it's flushed —
+    column defaults are applied by the INSERT, not by __init__. Adding to None blows
+    up, so normalise before touching anything."""
+    for c in _COUNTERS:
+        if getattr(st, c, None) is None:
+            setattr(st, c, 0)
 
 
 def _shrink(made: int, opps: int, prior: float, weight: float) -> float:
@@ -95,6 +107,7 @@ def _scale(x: float, lo: float, hi: float) -> float:
 def compute(st: PlayerStats | None) -> dict:
     """The seven axes, each 0-100, plus the raw stats behind them."""
     s = st or _Zero()
+    _zero_fill(s)
 
     # --- Aggression: postflop aggression factor, plus preflop raise rate.
     af_raw = _shrink(s.agg_actions, s.calls, prior=1.0, weight=20)
@@ -230,6 +243,7 @@ def ingest_hand(
     if not mine:
         return
 
+    _zero_fill(st)
     st.hands += 1
     st.net_won += won_amount - committed
 
