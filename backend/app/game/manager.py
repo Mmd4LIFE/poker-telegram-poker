@@ -302,8 +302,12 @@ class GameManager:
             rooms = list(
                 (
                     await session.scalars(
+                        # NOT status == "open": rooms are created as "waiting", so
+                        # that filter matched nothing and the janitor cheerfully
+                        # opened two more tables every single pass.
                         select(Room).where(
-                            Room.is_bot_table.is_(True), Room.status == "open"
+                            Room.is_bot_table.is_(True),
+                            Room.status != "finished",
                         )
                     )
                 ).all()

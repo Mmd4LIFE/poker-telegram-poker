@@ -122,8 +122,10 @@ class RoomRuntime:
         logger.info("Room %s runtime stopped", self.code)
 
     async def _tick(self) -> None:
-        # pause the table when no humans are watching
-        if not hub.has_viewers(self.code):
+        # Pause when nobody is watching — except a self-play table, which exists
+        # precisely to run unwatched. (The bots' own think-delay throttles the CPU:
+        # a table only burns a slice of a core, not a whole one.)
+        if not hub.has_viewers(self.code) and not self.bots_only:
             await asyncio.sleep(2)
             return
 
