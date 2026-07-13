@@ -5,6 +5,7 @@ import { Dna, Lock } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { RadarChart } from "@/components/radar-chart";
+import { KpiTile, AxisLegend } from "@/components/kpi";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -65,21 +66,24 @@ export function PokerDna() {
         size={280}
       />
 
-      <div className="grid w-full grid-cols-3 gap-2 text-center">
-        {[
-          { k: "VPIP", v: `${d.raw.vpip}%` },
-          { k: "PFR", v: `${d.raw.pfr}%` },
-          { k: "Aggression", v: d.raw.af },
-        ].map((x) => (
-          <div key={x.k} className="rounded-lg bg-secondary/60 p-2">
-            <div className="text-sm font-bold">{x.v}</div>
-            <div className="text-[10px] uppercase text-muted-foreground">{x.k}</div>
-          </div>
-        ))}
+      <AxisLegend
+        axes={d.axes}
+        scores={d.scores}
+        docs={d.axis_docs}
+        shrinkage={d.shrinkage}
+      />
+
+      <div className="mt-3 grid w-full grid-cols-3 gap-2">
+        <KpiTile value={`${d.raw.vpip}%`} doc={d.kpis.vpip} />
+        <KpiTile value={`${d.raw.pfr}%`} doc={d.kpis.pfr} />
+        <KpiTile value={d.raw.af} doc={d.kpis.af} />
+        <KpiTile value={`${d.raw.bluff}%`} doc={d.kpis.bluff} />
+        <KpiTile value={`${d.raw.wsd}%`} doc={d.kpis.wsd} />
+        <KpiTile value={`${d.raw.cbet}%`} doc={d.kpis.cbet} />
       </div>
 
       {d.confidence < 1 && (
-        <p className="mt-1 text-center text-[11px] text-muted-foreground">
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">
           Still sharpening — keep playing and the shape settles.
         </p>
       )}

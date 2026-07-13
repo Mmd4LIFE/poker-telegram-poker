@@ -13,7 +13,7 @@ from app.database import SessionLocal
 from app.game.bots import pick_bots
 from app.game.connection import hub
 from app.models import Hand, PlayerHand, Room, RoomPlayer, User
-from app.poker import ai
+from app.poker import ai, ranges
 from app.poker.holdem import HoldemGame, Seat, Street
 from app.models import PlayerStats
 from app.services import dna as DNA
@@ -164,6 +164,17 @@ class RoomRuntime:
                 stack = seat.stack
                 personality = seat.bot_personality or "balanced"
                 skill = seat.bot_skill
+                # What each live opponent plausibly holds, given what they've DONE
+                # this hand. Without this the bot imagines everyone on random cards
+                # and calls raises it should be folding.
+                opp_ranges = [
+                    ranges.range_of(
+                        o.last_action,
+                        o.user_id == self.game.preflop_aggressor,
+                    )
+                    for o in self.game.in_hand_seats()
+                    if o.user_id != seat.user_id and not o.folded
+                ]
 
             if is_bot:
                 await self.broadcast_state()
@@ -172,7 +183,8 @@ class RoomRuntime:
                 ) * (settings.BOT_THINK_MAX - settings.BOT_THINK_MIN)
                 await asyncio.sleep(think)
                 action, amount = ai.decide(
-                    legal, hole, board, max(1, n_opp), personality, skill, pot, stack
+                    legal, hole, board, max(1, n_opp), personality, skill, pot, stack,
+                    opp_ranges=opp_ranges,
                 )
                 await self._apply(seat.user_id, action, amount, legal)
             else:

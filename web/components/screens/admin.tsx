@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Check, Coins, Gem, Info, Medal, Package, ShoppingCart, Star, Trash2, TriangleAlert, Users } from "lucide-react";
+import { Check, Coins, Gem, Info, Medal, Package, Plus, ShoppingCart, Star, Trash2, TriangleAlert, Users } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -9,8 +9,15 @@ import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadarChart } from "@/components/radar-chart";
+import { KpiTile, AxisLegend } from "@/components/kpi";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
 import {
@@ -801,10 +808,11 @@ function Reach() {
 function Bots() {
   const [d, setD] = useState<any>(null);
   const [pick, setPick] = useState<any>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<any>({ name: "", personality: "balanced", skill: 0.5, avatar: "bot" });
 
-  useEffect(() => {
-    api.adminBots().then(setD).catch(() => {});
-  }, []);
+  const load = useCallback(() => api.adminBots().then(setD).catch(() => {}), []);
+  useEffect(() => { load(); }, [load]);
 
   async function open(id: number) {
     try {
@@ -814,27 +822,46 @@ function Bots() {
     }
   }
 
+  async function create() {
+    try {
+      const r: any = await api.adminCreateBot(form);
+      toast.success(`${r.name} joined the pool`);
+      setCreating(false);
+      setForm({ name: "", personality: "balanced", skill: 0.5, avatar: "bot" });
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function remove(id: number) {
+    try {
+      await api.adminDeleteBot(id);
+      setPick(null);
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   if (!d) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   const bots: any[] = d.bots || [];
-  const totalHands = bots.reduce((a, b) => a + b.hands, 0);
+  const K = d.kpis || {};
 
   return (
     <>
-      <Card className="mb-3 p-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-lg font-extrabold">{bots.length}</div>
-            <div className="text-[11px] text-muted-foreground">bots</div>
+      <div className="mb-3 flex items-center gap-2">
+        <Card className="flex-1 p-3">
+          <div className="text-lg font-extrabold">{bots.length}</div>
+          <div className="text-[11px] text-muted-foreground">
+            bots · DNA unlocks at {d.min_hands} hands
           </div>
-          <div className="text-right">
-            <div className="text-lg font-extrabold text-gold">{fmt(totalHands)}</div>
-            <div className="text-[11px] text-muted-foreground">
-              hands logged · DNA needs {d.min_hands}
-            </div>
-          </div>
-        </div>
-      </Card>
+        </Card>
+        <Button size="sm" className="h-10" onClick={() => setCreating(true)}>
+          <Plus className="size-4" /> New bot
+        </Button>
+      </div>
 
       {bots.map((b) => (
         <button key={b.id} onClick={() => open(b.id)} className="mb-2 w-full text-left">
@@ -852,23 +879,77 @@ function Bots() {
               </div>
             </div>
             <div className="text-right">
-              <div
-                className={cn(
-                  "text-sm font-bold",
-                  b.net_won >= 0 ? "text-win" : "text-lose",
-                )}
-              >
-                {b.net_won >= 0 ? "+" : "−"}
-                {fmt(Math.abs(b.net_won))}
+              <div className={cn("text-sm font-bold", b.net_won >= 0 ? "text-win" : "text-lose")}>
+                {b.net_won >= 0 ? "+" : "−"}{fmt(Math.abs(b.net_won))}
               </div>
               <div className="text-[10px] text-muted-foreground">
-                VPIP {b.raw.vpip}% · AF {b.raw.af}
+                {b.hands_won}/{b.hands} won
               </div>
             </div>
           </Card>
         </button>
       ))}
 
+      {/* --- create --- */}
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New bot</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <div>
+              <div className="mb-1 text-[11px] text-muted-foreground">Personality</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(d.personalities || []).map((p: string) => (
+                  <button
+                    key={p}
+                    onClick={() => setForm({ ...form, personality: p })}
+                    className={cn(
+                      "rounded-lg border py-1.5 text-xs font-semibold capitalize",
+                      form.personality === p
+                        ? "border-gold text-gold"
+                        : "border-white/10 text-muted-foreground",
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>Skill</span>
+                <span className="font-bold text-foreground">{form.skill}</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={form.skill}
+                onChange={(e) => setForm({ ...form, skill: Number(e.target.value) })}
+                className="w-full accent-[var(--color-gold)]"
+              />
+              <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+                Skill drives how hard it thinks (Monte-Carlo samples), how accurately it
+                judges its equity, and how well it reads opponents onto a range. A low
+                skill bot still imagines everyone on random cards — which is exactly what
+                makes it a fish.
+              </p>
+            </div>
+            <Button className="w-full" onClick={create}>
+              Create
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- detail --- */}
       <Sheet open={!!pick} onOpenChange={(o) => !o && setPick(null)}>
         <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-2xl">
           <SheetHeader>
@@ -888,7 +969,6 @@ function Bots() {
                 <span className="mt-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-bold text-gold">
                   {pick.ready ? pick.style : `needs ${pick.hands_needed} more hands`}
                 </span>
-
                 <RadarChart
                   axes={pick.axes}
                   scores={pick.scores}
@@ -897,44 +977,30 @@ function Bots() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {[
-                  { k: "VPIP", v: `${pick.raw.vpip}%` },
-                  { k: "PFR", v: `${pick.raw.pfr}%` },
-                  { k: "AF", v: pick.raw.af },
-                  { k: "Bluff", v: `${pick.raw.bluff}%` },
-                  { k: "W$SD", v: `${pick.raw.wsd}%` },
-                  { k: "C-bet", v: `${pick.raw.cbet}%` },
-                ].map((x) => (
-                  <div key={x.k} className="rounded-lg bg-secondary/60 p-2">
-                    <div className="text-sm font-bold">{x.v}</div>
-                    <div className="text-[10px] uppercase text-muted-foreground">
-                      {x.k}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <AxisLegend
+                axes={pick.axes}
+                scores={pick.scores}
+                docs={pick.axis_docs}
+                shrinkage={pick.shrinkage}
+              />
 
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg bg-secondary/60 p-2">
-                  <div className="text-sm font-bold">{fmt(pick.hands)}</div>
-                  <div className="text-[10px] uppercase text-muted-foreground">DNA hands</div>
-                </div>
-                <div className="rounded-lg bg-secondary/60 p-2">
-                  <div className="text-sm font-bold">{fmt(pick.hands_won)}</div>
-                  <div className="text-[10px] uppercase text-muted-foreground">won</div>
-                </div>
-                <div className="rounded-lg bg-secondary/60 p-2">
-                  <div
-                    className={cn(
-                      "text-sm font-bold",
-                      pick.raw.net_won >= 0 ? "text-win" : "text-lose",
-                    )}
-                  >
-                    {fmt(pick.raw.net_won)}
-                  </div>
-                  <div className="text-[10px] uppercase text-muted-foreground">net</div>
-                </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <KpiTile value={`${pick.raw.vpip}%`} doc={pick.kpis.vpip} />
+                <KpiTile value={`${pick.raw.pfr}%`} doc={pick.kpis.pfr} />
+                <KpiTile value={pick.raw.af} doc={pick.kpis.af} />
+                <KpiTile value={`${pick.raw.bluff}%`} doc={pick.kpis.bluff} />
+                <KpiTile value={`${pick.raw.wsd}%`} doc={pick.kpis.wsd} />
+                <KpiTile value={`${pick.raw.cbet}%`} doc={pick.kpis.cbet} />
+                <KpiTile value={fmt(pick.hands)} doc={pick.kpis.hands} />
+                <KpiTile
+                  value={`${pick.hands_won} (${pick.win_rate}%)`}
+                  doc={pick.kpis.won}
+                />
+                <KpiTile
+                  value={fmt(pick.raw.net_won)}
+                  doc={pick.kpis.net}
+                  tone={pick.raw.net_won >= 0 ? "win" : "lose"}
+                />
               </div>
 
               {pick.recent?.length > 0 && (
@@ -944,28 +1010,27 @@ function Bots() {
                   </h3>
                   <Card className="p-3">
                     {pick.recent.map((h: any, i: number) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2 border-b border-white/5 py-2 last:border-0"
-                      >
+                      <div key={i} className="flex items-center gap-2 border-b border-white/5 py-2 last:border-0">
                         <span className="flex-1 truncate text-xs">
                           {h.hand_name || "—"}
                           <span className="ml-1 text-muted-foreground">#{h.room}</span>
                         </span>
-                        <span
-                          className={cn(
-                            "text-xs font-bold",
-                            h.net >= 0 ? "text-win" : "text-lose",
-                          )}
-                        >
-                          {h.net >= 0 ? "+" : "−"}
-                          {fmt(Math.abs(h.net))}
+                        <span className={cn("text-xs font-bold", h.net >= 0 ? "text-win" : "text-lose")}>
+                          {h.net >= 0 ? "+" : "−"}{fmt(Math.abs(h.net))}
                         </span>
                       </div>
                     ))}
                   </Card>
                 </>
               )}
+
+              <Button
+                variant="outline"
+                className="mt-4 w-full"
+                onClick={() => remove(pick.id)}
+              >
+                <Trash2 className="size-4" /> Delete bot
+              </Button>
             </div>
           )}
         </SheetContent>

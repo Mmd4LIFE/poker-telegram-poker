@@ -44,6 +44,7 @@ class _Zero:
     exercised (and self-play simulated) without a database."""
 
     hands: int = 0
+    hands_won: int = 0
     vpip_opps: int = 0
     vpip: int = 0
     pfr_opps: int = 0
@@ -194,6 +195,8 @@ def compute(st: PlayerStats | None) -> dict:
         "axes": AXES,
         "scores": {k: round(v, 1) for k, v in scores.items()},
         "evidence": evidence,
+        "hands_won": s.hands_won,
+        "win_rate": round(100 * s.hands_won / s.hands, 1) if s.hands else 0.0,
         "raw": {
             "vpip": round(100 * vpip, 1),
             "pfr": round(100 * pfr, 1),
@@ -245,6 +248,8 @@ def ingest_hand(
 
     _zero_fill(st)
     st.hands += 1
+    if won_amount > 0:
+        st.hands_won += 1
     st.net_won += won_amount - committed
 
     in_tilt = st.tilt_window > 0
@@ -345,3 +350,118 @@ def ingest_hand(
     lost = committed - won_amount
     if start_stack > 0 and lost >= start_stack * TILT_LOSS_FRACTION:
         st.tilt_window = TILT_WINDOW
+
+
+# --------------------------------------------------------------------- glossary
+#
+# Every number the admin panel shows, defined. `formula` is LaTeX — the UI renders
+# it as maths so there's no ambiguity about what's being divided by what.
+
+PERSONALITY_KEYS = ["rock", "tight", "balanced", "loose", "aggressive", "maniac"]
+
+KPI_DOCS: dict[str, dict] = {
+    "vpip": {
+        "label": "VPIP",
+        "name": "Voluntarily Put money In Pot",
+        "what": "How often you choose to enter a pot. Blinds don't count — that money was forced.",
+        "formula": r"\mathrm{VPIP} = \frac{\text{hands entered voluntarily}}{\text{hands with a free choice}}",
+        "read": "Under 20% is tight. Over 40% means you're playing too many hands.",
+    },
+    "pfr": {
+        "label": "PFR",
+        "name": "Pre-Flop Raise",
+        "what": "How often you raise before the flop rather than limping in.",
+        "formula": r"\mathrm{PFR} = \frac{\text{hands raised preflop}}{\text{hands with a free choice}}",
+        "read": "A big gap between VPIP and PFR means you call a lot and raise a little — passive.",
+    },
+    "af": {
+        "label": "AF",
+        "name": "Aggression Factor",
+        "what": "After the flop, how much you bet and raise compared with how much you call.",
+        "formula": r"\mathrm{AF} = \frac{\text{bets} + \text{raises}}{\text{calls}}",
+        "read": "Below 1 is passive. 2–3 is aggressive. Above 4 is usually reckless.",
+    },
+    "bluff": {
+        "label": "Bluff",
+        "name": "Bluff rate",
+        "what": "How often you bet or raise after the flop while holding nothing at all — not even a pair.",
+        "formula": r"\mathrm{Bluff} = \frac{\text{aggressive actions with high card only}}{\text{aggressive actions after the flop}}",
+        "read": "0% is unbluffable and unprofitable. Everyone folds to you, so you never get paid.",
+    },
+    "wsd": {
+        "label": "W$SD",
+        "name": "Won money at showdown",
+        "what": "When you actually show your cards, how often you win.",
+        "formula": r"\mathrm{W\$SD} = \frac{\text{showdowns won}}{\text{showdowns reached}}",
+        "read": "Low means you're paying people off with second-best hands.",
+    },
+    "cbet": {
+        "label": "C-bet",
+        "name": "Continuation bet",
+        "what": "You raised before the flop — how often do you follow through with a bet on the flop?",
+        "formula": r"\mathrm{Cbet} = \frac{\text{flops bet after raising preflop}}{\text{flops seen after raising preflop}}",
+        "read": "Around 60–70% is standard. Never c-betting makes your preflop raises meaningless.",
+    },
+    "hands": {
+        "label": "DNA hands",
+        "name": "Hands measured",
+        "what": "Hands recorded since Poker DNA started tracking. The radar unlocks at "
+                + str(MIN_HANDS)
+                + ".",
+        "formula": r"n = \text{hands dealt in}",
+        "read": "Poker stats are noise on small samples. This is why the radar waits.",
+    },
+    "won": {
+        "label": "Won",
+        "name": "Hands won",
+        "what": "Hands where you collected chips — including the ones everyone folded to you.",
+        "formula": r"\mathrm{Win\ rate} = \frac{\text{hands won}}{\text{hands played}}",
+        "read": "A tight player wins few hands but loses even fewer.",
+    },
+    "net": {
+        "label": "Net",
+        "name": "Net chips",
+        "what": "Everything won minus everything put in, across every hand.",
+        "formula": r"\mathrm{Net} = \sum_{\text{hands}} \left(\text{collected} - \text{committed}\right)",
+        "read": "The only number that ultimately matters.",
+    },
+}
+
+# The radar axes get the same treatment.
+AXIS_DOCS: dict[str, dict] = {
+    "aggression": {
+        "what": "Betting and raising rather than calling and checking.",
+        "formula": r"0.6\cdot\mathrm{scale}(\mathrm{AF}) + 0.4\cdot\mathrm{scale}(\mathrm{PFR})",
+    },
+    "discipline": {
+        "what": "Entering few pots, and folding when beaten instead of chasing.",
+        "formula": r"0.65\cdot\left(100-\mathrm{scale}(\mathrm{VPIP})\right) + 0.35\cdot\mathrm{scale}(\text{fold rate})",
+    },
+    "deception": {
+        "what": "Firing with nothing, and check-raising. Measured on what you actually held.",
+        "formula": r"0.75\cdot\mathrm{scale}(\mathrm{Bluff}) + 0.25\cdot\mathrm{scale}(\text{check-raise rate})",
+    },
+    "reading": {
+        "what": "Only paying to see a showdown when you're ahead.",
+        "formula": r"0.75\cdot\mathrm{scale}(\mathrm{W\$SD}) + 0.25\cdot\left(100-\mathrm{scale}(\mathrm{WTSD})\right)",
+    },
+    "position": {
+        "what": "Playing wider on the button than under the gun.",
+        "formula": r"\mathrm{scale}\left(\mathrm{VPIP}_{\text{late}} - \mathrm{VPIP}_{\text{early}}\right)",
+    },
+    "composure": {
+        "what": "Not changing gears after a bruising loss. Spewing AND freezing both cost you.",
+        "formula": r"100 - \mathrm{scale}\left(\left|\mathrm{agg}_{\text{after loss}} - \mathrm{agg}_{\text{baseline}}\right|\right)",
+    },
+    "adaptation": {
+        "what": "Your aggression responds to pressure instead of ignoring it.",
+        "formula": r"\mathrm{scale}\left(\left|\mathrm{agg}_{\text{unopened}} - \mathrm{agg}_{\text{facing a raise}}\right|\right)",
+    },
+}
+
+# Every axis is finally pulled toward neutral by its own evidence.
+SHRINKAGE_NOTE = {
+    "what": "Each axis is regressed toward 50 by how much evidence backs it — so a "
+            "thin sample reads neutral instead of extreme.",
+    "formula": r"\text{score} = 50 + (\text{raw} - 50)\cdot\frac{n}{n + 40}",
+}

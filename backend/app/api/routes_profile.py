@@ -185,4 +185,7 @@ async def my_dna(
     st = await session.get(PlayerStats, user.id)
     d = DNA.compute(st)
     d["style"] = DNA.style_of(d["scores"]) if d["ready"] else None
+    d["kpis"] = DNA.KPI_DOCS
+    d["axis_docs"] = DNA.AXIS_DOCS
+    d["shrinkage"] = DNA.SHRINKAGE_NOTE
     return d

@@ -11,6 +11,7 @@ import random
 
 from app.poker.cards import FULL_DECK
 from app.poker.evaluator import evaluate
+from app.poker.ranges import in_range, threshold
 
 # personality -> (aggression, looseness, bluff)
 PERSONALITIES = {
@@ -34,24 +35,49 @@ def _rng_choice(seq):
     return _rng.choice(seq)
 
 
-def estimate_equity(hole: list[str], board: list[str], n_opponents: int, samples: int) -> float:
-    """Monte-Carlo win probability vs random opponents."""
+def estimate_equity(
+    hole: list[str],
+    board: list[str],
+    opp_ranges: list[float],
+    samples: int,
+) -> float:
+    """Monte-Carlo win probability against opponents drawn from their RANGES.
+
+    `opp_ranges` is one percentile per live opponent: 0.15 means "top 15% of
+    starting hands". Dealing them random cards instead — which is what this used to
+    do — makes a raise look far weaker than it is, and the bot calls off its stack.
+    """
     known = set(hole) | set(board)
     pool = [c for c in FULL_DECK if c not in known]
     need_board = 5 - len(board)
+    ranges = opp_ranges or [1.0]
+    threshes = [threshold(p) for p in ranges]
     wins = 0.0
-    n_opponents = max(1, n_opponents)
+
     for _ in range(samples):
         deck = pool.copy()
-        # draw opponents' holes + remaining board without full shuffle
-        drawn: list[str] = []
 
         def draw() -> str:
             j = _rng.randrange(len(deck))
             deck[j], deck[-1] = deck[-1], deck[j]
             return deck.pop()
 
-        opp_holes = [[draw(), draw()] for _ in range(n_opponents)]
+        opp_holes = []
+        for th in threshes:
+            # Rejection-sample a hand inside their range. Capped: a very narrow range
+            # against a depleted deck could otherwise spin, and an occasional
+            # off-range hand is realistic anyway — nobody's range is perfectly tight.
+            pair = None
+            for _try in range(12):
+                a, b = draw(), draw()
+                if in_range(a, b, th):
+                    pair = [a, b]
+                    break
+                deck.extend((a, b))  # put them back and try again
+            if pair is None:
+                pair = [draw(), draw()]
+            opp_holes.append(pair)
+
         sim_board = board + [draw() for _ in range(need_board)]
         my_score, _, _ = evaluate(hole + sim_board)
         best_opp = max(evaluate(oh + sim_board)[0] for oh in opp_holes)
@@ -71,13 +97,28 @@ def decide(
     skill: float,
     pot: int,
     stack: int,
+    opp_ranges: list[float] | None = None,
 ) -> tuple[str, int]:
-    """Return (action, amount). action in fold/check/call/raise."""
+    """Return (action, amount). action in fold/check/call/raise.
+
+    `opp_ranges` narrows each opponent by what they've actually done this hand. A
+    weak bot (low skill) ignores that and keeps treating everyone as random — which
+    is precisely the mistake that makes it a weak bot.
+    """
     aggr, loose, bluff_freq = PERSONALITIES.get(personality, PERSONALITIES["balanced"])
     to_call = legal.get("to_call", 0)
 
+    n_opponents = max(1, n_opponents)
+    if not opp_ranges:
+        opp_ranges = [1.0] * n_opponents
+
+    # Reading ranges is a skill. A fish looks at a raise and still imagines random
+    # cards; a shark puts them on a range. So we blend each range toward "any two"
+    # by (1 - skill) instead of giving every bot perfect range-reading for free.
+    blended = [r + (1.0 - r) * (1.0 - skill) for r in opp_ranges[:n_opponents]]
+
     samples = int(60 + 140 * skill)  # smarter bots think harder
-    equity = estimate_equity(hole, board, n_opponents, samples)
+    equity = estimate_equity(hole, board, blended, samples)
 
     # weak bots misjudge their equity (noise), strong bots are accurate
     noise = (1.0 - skill) * 0.25

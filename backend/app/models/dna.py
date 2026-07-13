@@ -22,6 +22,8 @@ class PlayerStats(Base):
     )
 
     hands: Mapped[int] = mapped_column(Integer, default=0)
+    # bots never went through record_hand(), so User.hands_won was always 0 for them
+    hands_won: Mapped[int] = mapped_column(Integer, default=0)
 
     # --- preflop
     vpip_opps: Mapped[int] = mapped_column(Integer, default=0)

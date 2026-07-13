@@ -596,7 +596,7 @@ async def admin_bots(
     bots = list(
         (
             await session.scalars(
-                select(User).where(User.is_bot.is_(True)).order_by(User.id)
+                select(User).where(User.is_bot.is_(True)).order_by(User.id.desc())
             )
         ).all()
     )
@@ -619,6 +619,8 @@ async def admin_bots(
                 "personality": b.bot_personality,
                 "skill": round(b.bot_skill or 0, 2),
                 "hands": d["hands"],
+                "hands_won": d["hands_won"],
+                "win_rate": d["win_rate"],
                 "hands_played": b.hands_played,
                 "net_won": d["raw"]["net_won"],
                 "style": DNA.style_of(d["scores"]),
@@ -627,8 +629,15 @@ async def admin_bots(
                 "confidence": d["confidence"],
             }
         )
-    out.sort(key=lambda x: -x["hands"])
-    return {"bots": out, "axes": DNA.AXES, "min_hands": DNA.MIN_HANDS}
+    # No re-sorting: the list stays in id-desc order so a bot never moves under your
+    # finger between refreshes.
+    return {
+        "bots": out,
+        "axes": DNA.AXES,
+        "min_hands": DNA.MIN_HANDS,
+        "kpis": DNA.KPI_DOCS,
+        "personalities": DNA.PERSONALITY_KEYS,
+    }
 
 
 @router.get("/bots/{bot_id}")
@@ -663,8 +672,9 @@ async def admin_bot_detail(
         "skill": round(b.bot_skill or 0, 2),
         "coins": b.coins,
         "level": b.level,
-        "hands_played": b.hands_played,
-        "hands_won": b.hands_won,
+        "kpis": DNA.KPI_DOCS,
+        "axis_docs": DNA.AXIS_DOCS,
+        "shrinkage": DNA.SHRINKAGE_NOTE,
         "biggest_pot": b.biggest_pot,
         "style": DNA.style_of(d["scores"]),
         **d,
@@ -681,3 +691,56 @@ async def admin_bot_detail(
             for h in hands
         ],
     }
+
+
+class BotCreate(BaseModel):
+    name: str
+    personality: str = "balanced"
+    skill: float = 0.5
+    avatar: str = "bot"
+
+
+@router.post("/bots")
+async def admin_create_bot(
+    body: BotCreate,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Hand-roll a bot. It joins the pool immediately and starts accruing DNA the
+    moment it's dealt into a table — including the self-play tables."""
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(400, "Give it a name")
+    if body.personality not in DNA.PERSONALITY_KEYS:
+        raise HTTPException(400, f"personality must be one of {DNA.PERSONALITY_KEYS}")
+
+    exists = await session.scalar(
+        select(User).where(User.is_bot.is_(True), User.first_name == name)
+    )
+    if exists:
+        raise HTTPException(409, "A bot with that name already exists")
+
+    bot = User(
+        first_name=name[:64],
+        is_bot=True,
+        bot_personality=body.personality,
+        bot_skill=max(0.0, min(1.0, float(body.skill))),
+        avatar=body.avatar or "bot",
+        coins=1_000_000,   # bots need a bankroll to sit down with
+    )
+    session.add(bot)
+    await session.flush()
+    return {"id": bot.id, "name": bot.display_name}
+
+
+@router.delete("/bots/{bot_id}")
+async def admin_delete_bot(
+    bot_id: int,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    b = await session.get(User, bot_id)
+    if not b or not b.is_bot:
+        raise HTTPException(404, "Bot not found")
+    await session.delete(b)
+    return {"ok": True}
