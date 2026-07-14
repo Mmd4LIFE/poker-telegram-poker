@@ -73,15 +73,50 @@ function BetSlider({
   const pctOf = (v: number) =>
     Math.max(0, Math.min(100, ((v - min) / span) * 100));
 
-  // keep only ticks that are actually reachable, and never stack two on one spot
-  const marks = ticks
-    .map((t) => ({ ...t, value: Math.round(Math.min(max, Math.max(min, t.value))) }))
-    .filter(
-      (t, i, arr) => arr.findIndex((o) => Math.abs(o.value - t.value) < step) === i,
-    );
+  // Drop crowded ticks. Two labels 4% apart print on top of each other — which is
+  // what "Min ½ Pot" was. Spacing is judged in SCREEN distance, not chip value: on a
+  // deep stack min-raise and pot are miles apart, on a short one they're the same
+  // spot. All-in always survives; it's the one that matters.
+  const MIN_GAP = 16; // percent of track
+  const marks = (() => {
+    const scaled = ticks
+      .map((t) => ({
+        ...t,
+        value: Math.round(Math.min(max, Math.max(min, t.value))),
+      }))
+      .map((t) => ({ ...t, pct: pctOf(t.value) }))
+      .sort((a, b) => a.pct - b.pct);
 
-  // a label at 0% or 100% would hang off the edge (and the last one would collide
-  // with the amount), so the end marks align to their own edge instead of centring
+    const kept: typeof scaled = [];
+    for (const t of scaled) {
+      const last = kept[kept.length - 1];
+      if (!last || t.pct - last.pct >= MIN_GAP) {
+        kept.push(t);
+      } else if (t.label === "All-in") {
+        kept[kept.length - 1] = t; // the shove wins any collision
+      }
+    }
+    return kept;
+  })();
+
+  // A speed bump: within a hair of a tick, the thumb magnetises to it and buzzes. You
+  // can still stop anywhere — this just makes the useful sizes easy to hit.
+  const SNAP = span * 0.03;
+  const lastSnap = useRef<number | null>(null);
+  const handle = (raw: number) => {
+    const near = marks.find((t) => Math.abs(raw - t.value) <= SNAP);
+    if (near) {
+      if (lastSnap.current !== near.value) {
+        haptic("light");
+        lastSnap.current = near.value;
+      }
+      onChange(near.value);
+      return;
+    }
+    lastSnap.current = null;
+    onChange(raw);
+  };
+
   const anchor = (pct: number) =>
     pct <= 4 ? "translate-x-0" : pct >= 96 ? "-translate-x-full" : "-translate-x-1/2";
 
@@ -92,26 +127,27 @@ function BetSlider({
         <span className="text-sm font-extrabold text-gold">{fmt(value)}</span>
       </div>
       <div className="relative h-6">
-        {/* track */}
         <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-secondary" />
-        {/* filled */}
         <div
           className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gold"
           style={{ width: `${pctOf(value)}%` }}
         />
-        {/* snap points */}
         {marks.map((t) => (
           <button
             key={t.label}
-            onClick={() => onChange(t.value)}
-            className="absolute top-1/2 z-10 size-4 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${pctOf(t.value)}%` }}
+            onClick={() => handle(t.value)}
+            className="absolute top-1/2 z-10 size-5 -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${t.pct}%` }}
             aria-label={t.label}
           >
             <span
               className={cn(
-                "block size-2 rounded-full ring-2 ring-[#0a0e16] transition-colors",
-                value >= t.value ? "bg-gold" : "bg-white/30",
+                "mx-auto block rounded-full ring-2 ring-[#0a0e16] transition-all",
+                value === t.value
+                  ? "size-3 bg-gold"
+                  : value > t.value
+                    ? "size-2 bg-gold/70"
+                    : "size-2 bg-white/30",
               )}
             />
           </button>
@@ -122,7 +158,7 @@ function BetSlider({
           max={max}
           step={step}
           value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => handle(Number(e.target.value))}
           className="pcm-range absolute inset-0 z-20 w-full cursor-pointer"
         />
       </div>
@@ -131,13 +167,13 @@ function BetSlider({
         {marks.map((t) => (
           <button
             key={t.label}
-            onClick={() => onChange(t.value)}
+            onClick={() => handle(t.value)}
             className={cn(
               "absolute whitespace-nowrap text-[10px] font-semibold transition-colors",
-              anchor(pctOf(t.value)),
+              anchor(t.pct),
               value === t.value ? "text-gold" : "text-muted-foreground",
             )}
-            style={{ left: `${pctOf(t.value)}%` }}
+            style={{ left: `${t.pct}%` }}
           >
             {t.label}
           </button>
