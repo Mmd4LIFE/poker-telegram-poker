@@ -213,10 +213,20 @@ class GameManager:
         while True:
             try:
                 await asyncio.sleep(settings.JANITOR_INTERVAL_SECONDS)
-                await self._reap_idle_seats()
-                await self._close_idle_rooms()
-                await self._ensure_bot_tables()
-                await self._resume_tournaments()
+                # Each chore is isolated. They used to run in one try block, so a
+                # failure in the first silently starved every one behind it.
+                for chore in (
+                    self._reap_idle_seats,
+                    self._close_idle_rooms,
+                    self._ensure_bot_tables,
+                    self._resume_tournaments,
+                ):
+                    try:
+                        await chore()
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        logger.exception("janitor chore %s failed", chore.__name__)
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -256,22 +266,37 @@ class GameManager:
                 select(RoomPlayer, Room, User)
                 .join(Room, Room.id == RoomPlayer.room_id)
                 .join(User, User.id == RoomPlayer.user_id)
-                .where(RoomPlayer.updated_at < cutoff)
+                .where(
+                    RoomPlayer.updated_at < cutoff,
+                    # A tournament seat is not an orphan. You can't be reaped out of a
+                    # Sit & Go — it plays on and blinds you off.
+                    Room.mode != "sng",
+                )
             )).all()
-            for rp, room, user in rows:
-                if room.id in self._runtimes:
+            # Snapshot to plain values FIRST. A rollback below expires every ORM object
+            # in this session, and touching an expired attribute afterwards triggers a
+            # lazy load in async context, which raises and kills the whole janitor pass
+            # — starving the bot tables and the tournament resumer behind it.
+            targets = [(room.id, room.code, user.id) for _rp, room, user in rows]
+
+            for room_id, code, user_id in targets:
+                if room_id in self._runtimes:
                     continue  # handled by the presence logic
-                if hub.has_viewers(room.code):
+                if hub.has_viewers(code):
                     continue  # someone is connecting
+                room = await session.get(Room, room_id)
+                user = await session.get(User, user_id)
+                if not room or not user:
+                    continue
                 try:
                     await self.unseat_player(session, room, user)
                     await session.commit()
-                    logger.info("Reaped orphan seat: user=%s room=%s", user.id, room.code)
+                    logger.info("Reaped orphan seat: user=%s room=%s", user_id, code)
                 except ValueError:
                     await session.rollback()
                 except Exception:
                     await session.rollback()
-                    logger.exception("orphan reap failed user=%s", user.id)
+                    logger.exception("orphan reap failed user=%s", user_id)
 
     async def _reap_seat(self, room_id: int, user_id: int) -> None:
         async with SessionLocal() as session:
@@ -317,7 +342,8 @@ class GameManager:
                 ).all()
             )
             for r in rooms:
-                if r.id in self._runtimes and not self._runtimes[r.id]._task.done():
+                rt0 = self._runtimes.get(r.id)
+                if rt0 is not None and rt0._task is not None and not rt0._task.done():
                     continue
                 rt = await self.get_runtime(session, r)
                 rt.start()
