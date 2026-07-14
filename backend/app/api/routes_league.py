@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -210,3 +210,62 @@ async def play(
     rt = await manager.get_runtime(session, room)
     rt.start()
     return {"code": code, "size": size, "stack": stack}
+
+
+@router.get("/history")
+async def history(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Every league day you've finished, newest first."""
+    cfg = await L.get_config(session)
+    rows = (
+        await session.execute(
+            select(LeagueSeason, Cohort, CohortMember)
+            .join(Cohort, Cohort.season_id == LeagueSeason.id)
+            .join(CohortMember, CohortMember.cohort_id == Cohort.id)
+            .where(
+                CohortMember.user_id == user.id,
+                LeagueSeason.status == "closed",
+            )
+            .order_by(LeagueSeason.day.desc())
+            .limit(30)
+        )
+    ).all()
+
+    out = []
+    for season, cohort, m in rows:
+        size = int(
+            await session.scalar(
+                select(func.count()).where(CohortMember.cohort_id == cohort.id)
+            )
+            or 0
+        )
+        out.append(
+            {
+                "day": str(season.day),
+                "tier": cohort.tier,
+                "tier_name": L.tier_of(cfg, cohort.tier)["name"],
+                "rank": m.rank,
+                "size": size,
+                "lp": m.lp or 0,
+                "games": m.ranked_games or 0,
+                "wins": m.wins or 0,
+                "outcome": m.outcome or "held",
+            }
+        )
+
+    order = [t["key"] for t in cfg["tiers"]]
+    best = None
+    for h in out:
+        if best is None or order.index(h["tier"]) > order.index(best):
+            best = h["tier"]
+
+    return {
+        "days": out,
+        "played": len(out),
+        "promotions": sum(1 for h in out if h["outcome"] == "promoted"),
+        "wins": sum(h["wins"] for h in out),
+        "best_tier": best,
+        "best_tier_name": L.tier_of(cfg, best)["name"] if best else None,
+    }

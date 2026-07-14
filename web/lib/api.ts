@@ -64,6 +64,7 @@ export const api = {
   dna: () => req("GET", "/dna"),
   league: () => req("GET", "/league"),
   leaguePlay: () => req("POST", "/league/play"),
+  leagueHistory: () => req("GET", "/league/history"),
   redeemShards: (card: string) => req("POST", "/cards/redeem-shards", { card }),
   adminLeague: () => req("GET", "/admin/league"),
   adminLeagueCfg: (b: unknown) => req("PATCH", "/admin/league", b),

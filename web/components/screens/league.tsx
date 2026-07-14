@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Clock,
   Crown,
+  History,
   Info,
   Loader2,
   Lock,
@@ -25,6 +26,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
@@ -50,6 +57,19 @@ export function LeagueScreen() {
   const [d, setD] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [help, setHelp] = useState(false);
+  const [hist, setHist] = useState<any>(null);
+  const [histOpen, setHistOpen] = useState(false);
+
+  async function openHistory() {
+    setHistOpen(true);
+    if (!hist) {
+      try {
+        setHist(await api.leagueHistory());
+      } catch {
+        setHist({ days: [] });
+      }
+    }
+  }
 
   const load = useCallback(() => api.league().then(setD).catch(() => {}), []);
   useEffect(() => {
@@ -135,6 +155,13 @@ export function LeagueScreen() {
             <div className="text-xl font-extrabold">#{d.my_rank}</div>
             <div className="text-[11px] text-muted-foreground">{d.my_lp} LP</div>
           </div>
+          <button
+            onClick={openHistory}
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary active:scale-95"
+            aria-label="League history"
+          >
+            <History className="size-4 text-muted-foreground" />
+          </button>
         </div>
 
         <Button
@@ -250,6 +277,90 @@ export function LeagueScreen() {
           );
         })}
       </Card>
+
+      <Sheet open={histOpen} onOpenChange={setHistOpen}>
+        <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>League history</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-6">
+            {!hist ? (
+              <Loader2 className="mx-auto my-8 size-6 animate-spin text-gold" />
+            ) : hist.days?.length ? (
+              <>
+                <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg bg-secondary/60 p-2">
+                    <div className={cn("text-sm font-bold", TIER_COLOR[hist.best_tier])}>
+                      {hist.best_tier_name ?? "—"}
+                    </div>
+                    <div className="text-[10px] uppercase text-muted-foreground">
+                      best tier
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-secondary/60 p-2">
+                    <div className="text-sm font-bold text-win">{hist.promotions}</div>
+                    <div className="text-[10px] uppercase text-muted-foreground">
+                      promotions
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-secondary/60 p-2">
+                    <div className="text-sm font-bold">{hist.played}</div>
+                    <div className="text-[10px] uppercase text-muted-foreground">
+                      seasons
+                    </div>
+                  </div>
+                </div>
+
+                <Card className="p-2">
+                  {hist.days.map((h: any) => (
+                    <div
+                      key={h.day}
+                      className="flex items-center gap-3 border-b border-white/5 px-1 py-2.5 last:border-0"
+                    >
+                      <Shield className={cn("size-5 shrink-0", TIER_COLOR[h.tier])} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold">
+                          {h.tier_name}
+                          <span className="ml-1 font-normal text-muted-foreground">
+                            #{h.rank}/{h.size}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <span>{h.day}</span>
+                          <span className="flex items-center gap-0.5">
+                            <Swords className="size-3" />
+                            {h.games}
+                          </span>
+                          <span className="flex items-center gap-0.5">
+                            <Crown className="size-3" />
+                            {h.wins}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-sm font-extrabold tabular-nums">{h.lp}</span>
+                      {h.outcome === "promoted" ? (
+                        <ChevronUp className="size-4 shrink-0 text-win" />
+                      ) : h.outcome === "demoted" ? (
+                        <ChevronDown className="size-4 shrink-0 text-lose" />
+                      ) : (
+                        <span className="w-4 text-center text-muted-foreground">·</span>
+                      )}
+                    </div>
+                  ))}
+                </Card>
+              </>
+            ) : (
+              <Card className="items-center gap-1 p-8 text-center">
+                <History className="size-7 text-muted-foreground" />
+                <div className="text-sm font-semibold">No finished seasons yet</div>
+                <div className="text-xs text-muted-foreground">
+                  Today&apos;s league closes at midnight — it&apos;ll show up here.
+                </div>
+              </Card>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={help} onOpenChange={setHelp}>
         <DialogContent>
