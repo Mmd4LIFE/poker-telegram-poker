@@ -5,16 +5,17 @@ import {
   ChevronUp,
   ChevronDown,
   Clock,
-  Gem,
+  Crown,
   Info,
   Loader2,
   Lock,
   Shield,
   Sparkles,
+  Swords,
   Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, fmt } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { notify } from "@/lib/telegram";
 import { Card } from "@/components/ui/card";
@@ -120,12 +121,13 @@ export function LeagueScreen() {
               {d.tier_name}
             </div>
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Clock className="size-3" /> resets in {countdown(d.seconds_to_close)}
+              <Clock className="size-3" /> {countdown(d.seconds_to_close)}
               <button
                 onClick={() => setHelp(true)}
-                className="ml-1 flex items-center gap-0.5 font-semibold text-gold active:opacity-70"
+                className="ml-0.5 text-gold active:opacity-70"
+                aria-label="How the league works"
               >
-                <Info className="size-3" /> how it works
+                <Info className="size-3.5" />
               </button>
             </div>
           </div>
@@ -144,17 +146,16 @@ export function LeagueScreen() {
           {busy ? (
             <Loader2 className="size-4 animate-spin" />
           ) : d.games_left > 0 ? (
-            <>Play Sit &amp; Go · {d.games_left} left today</>
+            <>
+              Play
+              <span className="ml-1 rounded-full bg-black/25 px-2 py-0.5 text-xs">
+                {d.games_left}
+              </span>
+            </>
           ) : (
-            <>Daily limit reached</>
+            <>Back tomorrow</>
           )}
         </Button>
-        {d.games_left <= 0 && (
-          <p className="text-center text-[11px] leading-snug text-muted-foreground">
-            Only your first {d.games_cap} games count. The ladder measures how well you
-            play, not how long.
-          </p>
-        )}
 
         {d.shards > 0 && (
           <div className="flex items-center gap-2 rounded-lg bg-secondary/60 p-2.5">
@@ -168,13 +169,6 @@ export function LeagueScreen() {
           </div>
         )}
       </Card>
-
-      <h2 className="mb-1.5 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        <span>Standings</span>
-        <span className="font-normal normal-case">
-          top {d.promote} promote{d.demote ? ` · bottom ${d.demote} drop` : ""}
-        </span>
-      </h2>
 
       <Card className="p-2">
         {rows.map((r, i) => {
@@ -220,8 +214,15 @@ export function LeagueScreen() {
                   >
                     {r.name}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {r.games} games · {r.wins} won
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-0.5">
+                      <Swords className="size-3" />
+                      {r.games}
+                    </span>
+                    <span className="flex items-center gap-0.5">
+                      <Crown className="size-3" />
+                      {r.wins}
+                    </span>
                   </div>
                 </div>
                 <span className="text-sm font-extrabold tabular-nums">{r.lp}</span>
@@ -298,25 +299,6 @@ export function LeagueScreen() {
         </DialogContent>
       </Dialog>
 
-      <div className="mt-3 flex flex-wrap justify-center gap-2">
-        {(d.rewards || []).map((r: any, i: number) => (
-          <span
-            key={i}
-            className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold"
-          >
-            <Trophy className="size-3 text-gold" /> top {r.upto}:
-            {r.coins ? ` ${fmt(r.coins)}c` : ""}
-            {r.gems ? (
-              <>
-                {" "}
-                <Gem className="size-3 text-gem" />
-                {r.gems}
-              </>
-            ) : null}
-            {r.shards ? ` · ${r.shards} shards` : ""}
-          </span>
-        ))}
-      </div>
     </>
   );
 }

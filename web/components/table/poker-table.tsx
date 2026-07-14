@@ -298,32 +298,38 @@ export function PokerTable({ code }: { code: string }) {
             )}
           >
             <Shield className="size-3.5" /> {leagueTier}
-            {lg?.my_rank ? (
-              <span className="font-normal normal-case text-muted-foreground">
-                #{lg.my_rank} · {lg.my_lp} LP
-              </span>
-            ) : null}
           </div>
         ) : (
           <div className="rounded-full bg-card px-3 py-1 text-sm font-bold">#{code}</div>
         )}
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() =>
-              user &&
-              shareInvite(user, "room", code, "Join my poker table on Poker CM!")
-            }
-          >
-            <UserPlus className="size-4" />
-          </Button>
+          {!isLeague && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() =>
+                user &&
+                shareInvite(user, "room", code, "Join my poker table on Poker CM!")
+              }
+            >
+              <UserPlus className="size-4" />
+            </Button>
+          )}
           <Button variant="outline" size="icon" onClick={() => setEmoteOpen((v) => !v)}>
             <Smile className="size-4" />
           </Button>
           <Button variant="outline" size="icon" onClick={() => setRanksOpen(true)}>
             <BookOpen className="size-4" />
           </Button>
+          {isLeague && lg?.my_rank ? (
+            <div className="flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-sm font-bold">
+              <Trophy className="size-3.5 text-gold" />
+              <span className="tabular-nums">{lg.my_rank}</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {lg.my_lp}
+              </span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-1 rounded-full bg-card px-3 py-1 text-sm font-bold text-gold">
             <Coins className="size-3.5" /> {me ? fmt(me.stack) : 0}
           </div>
@@ -395,6 +401,30 @@ export function PokerTable({ code }: { code: string }) {
         </div>
       </div>
 
+      {/* Hole cards live on their OWN ring, inside the seat ring. Offsetting them
+          from each avatar (any direction) drops them onto somebody's face or name at
+          six seats — they need their own orbit, not a nudge. */}
+      {ordered.map((p, i) => {
+        if (!p.hole?.length) return null;
+        const a = (i * 2 * Math.PI) / n;
+        const cx = 50 + 29 * Math.sin(a);
+        const cy = 52 + 18 * Math.cos(a);
+        return (
+          <div
+            key={"cards-" + p.user_id}
+            className={cn(
+              "absolute z-[6] flex -translate-x-1/2 -translate-y-1/2 gap-0.5 transition-opacity",
+              p.folded && "opacity-30",
+            )}
+            style={{ left: `${cx}%`, top: `${cy}%` }}
+          >
+            {p.hole.map((c: string, k: number) => (
+              <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
+            ))}
+          </div>
+        );
+      })}
+
       {/* seats */}
       {ordered.map((p, i) => {
         const a = (i * 2 * Math.PI) / n;
@@ -423,21 +453,6 @@ export function PokerTable({ code }: { code: string }) {
                 </div>
               );
             })()}
-            {/* Cards are laid ON the felt, pushed toward the middle of the table
-                along this seat's own angle. Stacking them above/below the avatar threw
-                the side seats' cards over the rail and off the screen edge. */}
-            {p.hole?.length ? (
-              <div
-                className="absolute left-1/2 top-1/2 z-[6] flex gap-0.5"
-                style={{
-                  transform: `translate(calc(-50% + ${-Math.sin(a) * 30}px), calc(-50% + ${-Math.cos(a) * 34}px))`,
-                }}
-              >
-                {p.hole.map((c: string, k: number) => (
-                  <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
-                ))}
-              </div>
-            ) : null}
             <button
               disabled={p.is_bot || p.user_id === meId}
               onClick={() => !p.is_bot && p.user_id !== meId && openUser(p.user_id)}
