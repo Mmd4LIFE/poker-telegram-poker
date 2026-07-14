@@ -50,6 +50,8 @@ export interface RoomSummary {
   host_name?: string | null;
   is_mine?: boolean;
   host_is_friend?: boolean;
+  mode?: string;
+  league_tier?: string | null;
 }
 
 export type View =

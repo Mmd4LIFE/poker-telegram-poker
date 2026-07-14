@@ -53,7 +53,21 @@ async def _summary(
         host_is_friend=bool(
             friend_ids and room.host_id and room.host_id in friend_ids
         ),
+        mode=getattr(room, "mode", "cash") or "cash",
+        league_tier=await _tier_of_room(session, room),
     )
+
+
+async def _tier_of_room(session: AsyncSession, room: Room) -> str | None:
+    """A league table dresses itself in its tier's colours, so you can never be
+    confused about whether the hand you're playing counts."""
+    cid = getattr(room, "cohort_id", None)
+    if not cid:
+        return None
+    from app.models import Cohort
+
+    c = await session.get(Cohort, cid)
+    return c.tier if c else None
 
 
 def _touch(room: Room) -> None:

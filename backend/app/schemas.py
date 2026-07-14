@@ -129,6 +129,8 @@ class RoomSummary(BaseModel):
     is_mine: bool = False
     host_is_friend: bool = False
     stack: int | None = None
+    mode: str = "cash"          # cash | sng
+    league_tier: str | None = None
 
 
 # ---- economy ---------------------------------------------------------------

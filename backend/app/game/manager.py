@@ -100,6 +100,17 @@ class GameManager:
     async def unseat_player(
         self, session: AsyncSession, room: Room, user: User
     ) -> dict:
+        # You cannot cash out of a tournament. Sit & Go chips are TOURNAMENT chips —
+        # they are not money, and paying a stack out as coins would mint currency from
+        # nothing (league entry is free). Busting out or walking away leaves the seat
+        # in place; the tournament plays on and blinds you off.
+        #
+        # Every cash-out path in the app funnels through here — leaving, the idle-seat
+        # janitor, and close_room — so this one guard seals all of them. The callers
+        # already treat ValueError as "skip this seat".
+        if getattr(room, "mode", "cash") == "sng":
+            raise ValueError("You can't cash out of a tournament")
+
         rp = (await session.execute(
             select(RoomPlayer).where(
                 RoomPlayer.room_id == room.id, RoomPlayer.user_id == user.id

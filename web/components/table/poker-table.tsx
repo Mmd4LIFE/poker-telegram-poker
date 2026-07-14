@@ -7,6 +7,7 @@ import {
   Coins,
   Loader2,
   LogIn,
+  Shield,
   Smile,
   Trophy,
   UserPlus,
@@ -28,6 +29,27 @@ import {
 import { cn } from "@/lib/utils";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/* A league table looks nothing like a cash table — deliberately. You should never
+   have to check the lobby to find out whether the hand you're in counts for LP. */
+const LEAGUE_FELT: Record<string, string> = {
+  bronze: "radial-gradient(ellipse at center, rgba(205,127,50,.30) 0%, rgba(60,20,0,.75) 100%)",
+  silver: "radial-gradient(ellipse at center, rgba(192,192,192,.28) 0%, rgba(20,30,45,.78) 100%)",
+  gold: "radial-gradient(ellipse at center, rgba(245,197,24,.30) 0%, rgba(50,35,0,.78) 100%)",
+  diamond: "radial-gradient(ellipse at center, rgba(63,169,255,.30) 0%, rgba(4,25,50,.80) 100%)",
+};
+const LEAGUE_RING: Record<string, string> = {
+  bronze: "border-[#8a5a2b]",
+  silver: "border-[#8e99a8]",
+  gold: "border-[#b8860b]",
+  diamond: "border-[#2b6ca8]",
+};
+const LEAGUE_TEXT: Record<string, string> = {
+  bronze: "text-[#cd7f32]",
+  silver: "text-[#c0c0c0]",
+  gold: "text-gold",
+  diamond: "text-[#3fa9ff]",
+};
 
 export function PokerTable({ code }: { code: string }) {
   const { user, exitTable, openUser, refresh } = useApp();
@@ -115,13 +137,21 @@ export function PokerTable({ code }: { code: string }) {
   async function leave() {
     aliveRef.current = false;
     wsRef.current?.close();
-    try {
-      await api.leaveRoom(code);
-    } catch {
-      /* ignore */
+    // A Sit & Go can't be left — your seat plays on and blinds off. Closing the view
+    // is all "Leave" means here; calling leaveRoom would try to cash out tournament
+    // chips as coins.
+    if (!isLeague) {
+      try {
+        await api.leaveRoom(code);
+      } catch {
+        /* ignore */
+      }
     }
     exitTable();
   }
+
+  const isLeague = (room?.mode ?? "cash") === "sng";
+  const leagueTier = room?.league_tier || "bronze";
 
   const seats: any[] = state?.seats ?? [];
   const me = seats.find((s) => s.user_id === meId);
@@ -224,7 +254,18 @@ export function PokerTable({ code }: { code: string }) {
         <Button variant="outline" size="sm" onClick={leave}>
           <ArrowLeft className="size-4" /> Leave
         </Button>
-        <div className="rounded-full bg-card px-3 py-1 text-sm font-bold">#{code}</div>
+        {isLeague ? (
+          <div
+            className={cn(
+              "flex items-center gap-1 rounded-full bg-card px-3 py-1 text-sm font-bold uppercase",
+              LEAGUE_TEXT[leagueTier],
+            )}
+          >
+            <Shield className="size-3.5" /> {leagueTier}
+          </div>
+        ) : (
+          <div className="rounded-full bg-card px-3 py-1 text-sm font-bold">#{code}</div>
+        )}
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -275,12 +316,19 @@ export function PokerTable({ code }: { code: string }) {
         </>
       )}
 
-      {/* felt */}
+      {/* felt — a league table wears its tier's colours so you can never be unsure
+          whether the hand you're playing counts */}
       <div
-        className="absolute left-1/2 top-[50%] aspect-[4/4.2] w-[86%] max-w-[430px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[46%/40%] border-[10px] border-[#3a2415]"
+        className={cn(
+          "absolute left-1/2 top-[50%] aspect-[4/4.2] w-[86%] max-w-[430px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[46%/40%] border-[10px]",
+          isLeague ? LEAGUE_RING[leagueTier] : "border-[#3a2415]",
+        )}
         style={{
           backgroundImage:
-            "radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,.45) 100%), url(/poker-table.jpg)",
+            (isLeague
+              ? LEAGUE_FELT[leagueTier] + ", "
+              : "radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,.45) 100%), ") +
+            "url(/poker-table.jpg)",
           backgroundSize: "cover",
           backgroundPosition: "center",
           boxShadow: "inset 0 0 60px rgba(0,0,0,.5), 0 10px 40px rgba(0,0,0,.6)",
@@ -322,7 +370,7 @@ export function PokerTable({ code }: { code: string }) {
             style={{ left: `${x}%`, top: `${y}%` }}
           >
             {p.bet > 0 && (
-              <div className="absolute left-1/2 top-[-14px] -translate-x-1/2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-bold text-gold">
+              <div className="absolute bottom-[-16px] left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-bold text-gold ring-1 ring-gold/30">
                 {fmt(p.bet)}
               </div>
             )}
@@ -358,13 +406,11 @@ export function PokerTable({ code }: { code: string }) {
             <div className="text-[11px] font-bold text-gold">
               {p.sitting_out ? "SIT OUT" : fmt(p.stack)}
             </div>
-            {p.user_id !== meId && (
-              <div className="mt-0.5 flex justify-center gap-0.5">
-                {(p.hole?.length ? p.hole : []).map((c: string, k: number) => (
-                  <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
-                ))}
-              </div>
-            )}
+            <div className="mt-0.5 flex justify-center gap-0.5">
+              {(p.hole?.length ? p.hole : []).map((c: string, k: number) => (
+                <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
+              ))}
+            </div>
             {p.last_action && (
               <div className="absolute left-1/2 top-[-22px] -translate-x-1/2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] uppercase tracking-wide">
                 {p.last_action}

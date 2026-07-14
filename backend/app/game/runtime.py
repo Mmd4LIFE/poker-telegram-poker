@@ -132,7 +132,7 @@ class RoomRuntime:
         # Pause when nobody is watching — except a self-play table, which exists
         # precisely to run unwatched. (The bots' own think-delay throttles the CPU:
         # a table only burns a slice of a core, not a whole one.)
-        if not hub.has_viewers(self.code) and not self.bots_only:
+        if not hub.has_viewers(self.code) and not self.bots_only and not self.is_sng:
             await asyncio.sleep(2)
             return
 
