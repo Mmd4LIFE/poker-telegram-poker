@@ -612,7 +612,12 @@ export function PokerTable({ code }: { code: string }) {
               <div className="text-[11px] font-bold text-gold">
                 {p.sitting_out ? "SIT OUT" : fmt(p.stack)}
               </div>
-              {p.user_id !== meId && p.hole?.length ? (
+              {/* Opponents' card BACKS are drawn only at showdown — face down they say
+                  nothing (everyone holds two) and they were covering the action labels
+                  at the side seats. A revealed hand still shows, in its owner's skin. */}
+              {p.user_id !== meId &&
+              p.hole?.length &&
+              p.hole.some((c: string) => c !== "??") ? (
                 <div className="mt-0.5 flex justify-center gap-0.5">
                   {p.hole.map((c: string, k: number) => (
                     <PlayingCard key={k} card={c} size="xs" design={p.skins?.[c]} />
