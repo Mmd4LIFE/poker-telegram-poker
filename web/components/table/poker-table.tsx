@@ -277,6 +277,7 @@ export function PokerTable({ code }: { code: string }) {
   const eqColor = eqPct === null ? "" : eqPct >= 60 ? "text-win" : eqPct >= 33 ? "text-gold" : "text-lose";
   const eqBar = eqPct === null ? "bg-muted" : eqPct >= 60 ? "bg-win" : eqPct >= 33 ? "bg-gold" : "bg-lose";
 
+  const canAct = !!legal?.can_act;
   const deadline = state?.you?.deadline;
   const secsLeft = deadline ? Math.max(0, deadline - now / 1000) : null;
 
@@ -293,16 +294,19 @@ export function PokerTable({ code }: { code: string }) {
         {isLeague ? (
           <div
             className={cn(
-              "flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-sm font-bold uppercase",
+              "grid size-8 shrink-0 place-items-center rounded-full bg-card",
               LEAGUE_TEXT[leagueTier],
             )}
+            title={leagueTier}
           >
-            <Shield className="size-3.5" /> {leagueTier}
+            <Shield className="size-4" />
           </div>
         ) : (
-          <div className="rounded-full bg-card px-3 py-1 text-sm font-bold">#{code}</div>
+          <div className="shrink-0 rounded-full bg-card px-3 py-1 text-sm font-bold">
+            #{code}
+          </div>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
           {!isLeague && (
             <Button
               variant="outline"
@@ -322,16 +326,13 @@ export function PokerTable({ code }: { code: string }) {
             <BookOpen className="size-4" />
           </Button>
           {isLeague && lg?.my_rank ? (
-            <div className="flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-sm font-bold">
-              <Trophy className="size-3.5 text-gold" />
+            <div className="flex shrink-0 items-center gap-1 rounded-full bg-card px-2 py-1 text-xs font-bold">
+              <Trophy className="size-3 text-gold" />
               <span className="tabular-nums">{lg.my_rank}</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                {lg.my_lp}
-              </span>
             </div>
           ) : null}
-          <div className="flex items-center gap-1 rounded-full bg-card px-3 py-1 text-sm font-bold text-gold">
-            <Coins className="size-3.5" /> {me ? fmt(me.stack) : 0}
+          <div className="flex shrink-0 items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-bold text-gold">
+            <Coins className="size-3" /> {me ? fmt(me.stack) : 0}
           </div>
         </div>
       </div>
@@ -363,128 +364,129 @@ export function PokerTable({ code }: { code: string }) {
         </>
       )}
 
-      {/* felt — a league table wears its tier's colours so you can never be unsure
-          whether the hand you're playing counts */}
+      {/* The playing area is its own box, and it stops where the bottom panel
+          starts. Everything inside is positioned in %% of THIS box — so when the
+          action controls open, the table lifts instead of my seat and my cards
+          disappearing underneath them. */}
       <div
-        className={cn(
-          "absolute left-1/2 top-[50%] aspect-[4/4.2] w-[86%] max-w-[430px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[46%/40%] border-[10px]",
-          isLeague ? LEAGUE_RING[leagueTier] : "border-[#3a2415]",
-        )}
-        style={{
-          backgroundImage:
-            (isLeague
-              ? LEAGUE_FELT[leagueTier] + ", "
-              : "radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,.45) 100%), ") +
-            "url(/poker-table.jpg)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          boxShadow: "inset 0 0 60px rgba(0,0,0,.5), 0 10px 40px rgba(0,0,0,.6)",
-        }}
-      />
-      {/* board + pot */}
-      <div className="absolute left-1/2 top-[47%] w-[90%] -translate-x-1/2 -translate-y-1/2 text-center">
-        <div className="flex min-h-[52px] items-center justify-center gap-1.5">
-          {board.map((c, i) => (
-            <PlayingCard key={i} card={c} />
-          ))}
-        </div>
-        <div className="mt-2 text-sm font-extrabold text-gold">
-          {state?.pot ? (
-            <>
-              POT {fmt(state.pot)} <span className="text-xs font-normal text-muted-foreground">· {state.street}</span>
-            </>
-          ) : (
-            <span className="text-xs font-normal text-muted-foreground">
-              {state?.street === "idle" ? "Waiting…" : state?.street}
-            </span>
+        className="absolute inset-x-0 top-0 transition-[bottom] duration-200"
+        style={{ bottom: canAct ? 250 : 78 }}
+      >
+        {/* felt — a league table wears its tier's colours so you can never be unsure
+            whether the hand you're playing counts */}
+        <div
+          className={cn(
+            "absolute left-1/2 top-[50%] aspect-[4/4.2] w-[86%] max-w-[430px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[46%/40%] border-[10px]",
+            isLeague ? LEAGUE_RING[leagueTier] : "border-[#3a2415]",
           )}
-        </div>
-      </div>
-
-      {/* Hole cards live on their OWN ring, inside the seat ring. Offsetting them
-          from each avatar (any direction) drops them onto somebody's face or name at
-          six seats — they need their own orbit, not a nudge. */}
-      {ordered.map((p, i) => {
-        if (!p.hole?.length) return null;
-        const a = (i * 2 * Math.PI) / n;
-        const cx = 50 + 29 * Math.sin(a);
-        const cy = 52 + 18 * Math.cos(a);
-        return (
-          <div
-            key={"cards-" + p.user_id}
-            className={cn(
-              "absolute z-[6] flex -translate-x-1/2 -translate-y-1/2 gap-0.5 transition-opacity",
-              p.folded && "opacity-30",
-            )}
-            style={{ left: `${cx}%`, top: `${cy}%` }}
-          >
-            {p.hole.map((c: string, k: number) => (
-              <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
+          style={{
+            backgroundImage:
+              (isLeague
+                ? LEAGUE_FELT[leagueTier] + ", "
+                : "radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,.45) 100%), ") +
+              "url(/poker-table.jpg)",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            boxShadow: "inset 0 0 60px rgba(0,0,0,.5), 0 10px 40px rgba(0,0,0,.6)",
+          }}
+        />
+        {/* board + pot */}
+        <div className="absolute left-1/2 top-[47%] w-[90%] -translate-x-1/2 -translate-y-1/2 text-center">
+          <div className="flex min-h-[52px] items-center justify-center gap-1.5">
+            {board.map((c, i) => (
+              <PlayingCard key={i} card={c} />
             ))}
           </div>
-        );
-      })}
-
-      {/* seats */}
-      {ordered.map((p, i) => {
-        const a = (i * 2 * Math.PI) / n;
-        const x = 50 + 42 * Math.sin(a);
-        const y = 52 + 27 * Math.cos(a);
-        const isDealer = state?.button === p.user_id;
-        return (
-          <div
-            key={p.user_id}
-            className={cn(
-              "absolute z-[5] w-24 -translate-x-1/2 -translate-y-1/2 text-center transition-opacity",
-              p.folded && "opacity-40",
-            )}
-            style={{ left: `${x}%`, top: `${y}%` }}
-          >
-            {p.bet > 0 && (
-              <div className="absolute bottom-[-16px] left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-bold text-gold ring-1 ring-gold/30">
-                {fmt(p.bet)}
-              </div>
-            )}
-            {emotes[p.user_id] && (() => {
-              const EmoteIcon = EMOTE_ICONS[emotes[p.user_id].e];
-              return (
-                <div className="absolute left-1/2 top-[-30px] z-10 -translate-x-1/2 animate-bounce rounded-full bg-card p-1.5 text-gold shadow-lg">
-                  {EmoteIcon ? <EmoteIcon className="size-5" /> : null}
-                </div>
-              );
-            })()}
-            <button
-              disabled={p.is_bot || p.user_id === meId}
-              onClick={() => !p.is_bot && p.user_id !== meId && openUser(p.user_id)}
-              className={cn(
-                "relative mx-auto grid size-11 place-items-center rounded-full border-2 bg-secondary text-gold",
-                p.is_turn ? "border-gold shadow-[0_0_14px_var(--color-gold)]" : "border-white/10",
-              )}
-            >
-              <AvatarIcon code={p.avatar} color={p.avatar_color} className="size-5" />
-              {isDealer && (
-                <span className="absolute -left-1 top-6 grid size-4 place-items-center rounded-full bg-white text-[9px] font-bold text-black">
-                  D
-                </span>
-              )}
-            </button>
-            <div
-              className="mt-0.5 truncate text-[11px] font-semibold"
-              style={p.name_color ? { color: p.name_color } : undefined}
-            >
-              {p.name}
-            </div>
-            <div className="text-[11px] font-bold text-gold">
-              {p.sitting_out ? "SIT OUT" : fmt(p.stack)}
-            </div>
-            {p.last_action && (
-              <div className="absolute left-1/2 top-[-22px] -translate-x-1/2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] uppercase tracking-wide">
-                {p.last_action}
-              </div>
+          <div className="mt-2 text-sm font-extrabold text-gold">
+            {state?.pot ? (
+              <>
+                POT {fmt(state.pot)} <span className="text-xs font-normal text-muted-foreground">· {state.street}</span>
+              </>
+            ) : (
+              <span className="text-xs font-normal text-muted-foreground">
+                {state?.street === "idle" ? "Waiting…" : state?.street}
+              </span>
             )}
           </div>
-        );
-      })}
+        </div>
+
+        {/* seats */}
+        {ordered.map((p, i) => {
+          const a = (i * 2 * Math.PI) / n;
+          const x = 50 + 42 * Math.sin(a);
+          const y = 52 + 27 * Math.cos(a);
+          const isDealer = state?.button === p.user_id;
+          return (
+            <div
+              key={p.user_id}
+              className={cn(
+                "absolute z-[5] w-24 -translate-x-1/2 -translate-y-1/2 text-center transition-opacity",
+                p.folded && "opacity-40",
+              )}
+              style={{ left: `${x}%`, top: `${y}%` }}
+            >
+              {p.bet > 0 && (
+                <div className="absolute bottom-[-16px] left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-bold text-gold ring-1 ring-gold/30">
+                  {fmt(p.bet)}
+                </div>
+              )}
+              {emotes[p.user_id] && (() => {
+                const EmoteIcon = EMOTE_ICONS[emotes[p.user_id].e];
+                return (
+                  <div className="absolute left-1/2 top-[-30px] z-10 -translate-x-1/2 animate-bounce rounded-full bg-card p-1.5 text-gold shadow-lg">
+                    {EmoteIcon ? <EmoteIcon className="size-5" /> : null}
+                  </div>
+                );
+              })()}
+              {/* my hand sits ON the felt in front of me */}
+              {p.user_id === meId && p.hole?.length ? (
+                <div className="mb-1 flex justify-center gap-0.5">
+                  {p.hole.map((c: string, k: number) => (
+                    <PlayingCard key={k} card={c} size="md" design={p.skins?.[c]} />
+                  ))}
+                </div>
+              ) : null}
+              <button
+                disabled={p.is_bot || p.user_id === meId}
+                onClick={() => !p.is_bot && p.user_id !== meId && openUser(p.user_id)}
+                className={cn(
+                  "relative mx-auto grid size-11 place-items-center rounded-full border-2 bg-secondary text-gold",
+                  p.is_turn ? "border-gold shadow-[0_0_14px_var(--color-gold)]" : "border-white/10",
+                )}
+              >
+                <AvatarIcon code={p.avatar} color={p.avatar_color} className="size-5" />
+                {isDealer && (
+                  <span className="absolute -left-1 top-6 grid size-4 place-items-center rounded-full bg-white text-[9px] font-bold text-black">
+                    D
+                  </span>
+                )}
+              </button>
+              <div
+                className="mt-0.5 truncate text-[11px] font-semibold"
+                style={p.name_color ? { color: p.name_color } : undefined}
+              >
+                {p.name}
+              </div>
+              <div className="text-[11px] font-bold text-gold">
+                {p.sitting_out ? "SIT OUT" : fmt(p.stack)}
+              </div>
+              {p.user_id !== meId && p.hole?.length ? (
+                <div className="mt-0.5 flex justify-center gap-0.5">
+                  {p.hole.map((c: string, k: number) => (
+                    <PlayingCard key={k} card={c} size="xs" design={p.skins?.[c]} />
+                  ))}
+                </div>
+              ) : null}
+              {p.last_action && (
+                <div className="absolute left-1/2 top-[-22px] -translate-x-1/2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] uppercase tracking-wide">
+                  {p.last_action}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+      </div>
 
       {/* result banner */}
       {result && (
@@ -618,10 +620,26 @@ export function PokerTable({ code }: { code: string }) {
               {/* the five cards your hand is actually built from — the fastest way to
                   learn what "King-high" or "two pair" is pointing at */}
               {made.five?.length ? (
-                <div className="flex shrink-0 gap-0.5">
-                  {made.five.map((c, k) => (
-                    <PlayingCard key={k} card={c} size="xs" />
-                  ))}
+                <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex gap-0.5">
+                    {made.five
+                      .filter((c) => myHole.includes(c))
+                      .map((c, k) => (
+                        <PlayingCard key={"m" + k} card={c} size="xs" />
+                      ))}
+                  </div>
+                  {made.five.some((c) => !myHole.includes(c)) && (
+                    <>
+                      <span className="text-[10px] text-muted-foreground">+</span>
+                      <div className="flex gap-0.5 opacity-70">
+                        {made.five
+                          .filter((c) => !myHole.includes(c))
+                          .map((c, k) => (
+                            <PlayingCard key={"b" + k} card={c} size="xs" />
+                          ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : null}
               <div className="min-w-0 flex-1">
