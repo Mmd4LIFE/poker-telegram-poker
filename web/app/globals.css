@@ -222,3 +222,39 @@ body {
     transform: translateX(60%);
   }
 }
+
+/* Bet slider: a transparent native range on top of our own track, so the ticks and
+   the fill are ours to draw but the drag/keyboard behaviour stays native. */
+.pcm-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.pcm-range::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 100%;
+}
+.pcm-range::-moz-range-track {
+  background: transparent;
+}
+.pcm-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--color-gold);
+  border: 3px solid #0a0e16;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+.pcm-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--color-gold);
+  border: 3px solid #0a0e16;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  border-color: #0a0e16;
+}

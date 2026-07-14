@@ -51,6 +51,102 @@ const LEAGUE_TEXT: Record<string, string> = {
   diamond: "text-[#3fa9ff]",
 };
 
+/* Bet slider with snap points — the crypto-exchange pattern: one control, with the
+   useful amounts marked ON the track instead of a separate row of buttons. Tap a tick
+   to jump to it, or drag anywhere in between. */
+function BetSlider({
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  ticks,
+}: {
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (v: number) => void;
+  ticks: { label: string; value: number }[];
+}) {
+  const span = Math.max(1, max - min);
+  const pctOf = (v: number) =>
+    Math.max(0, Math.min(100, ((v - min) / span) * 100));
+
+  // keep only ticks that are actually reachable, and never stack two on one spot
+  const marks = ticks
+    .map((t) => ({ ...t, value: Math.round(Math.min(max, Math.max(min, t.value))) }))
+    .filter(
+      (t, i, arr) => arr.findIndex((o) => Math.abs(o.value - t.value) < step) === i,
+    );
+
+  // a label at 0% or 100% would hang off the edge (and the last one would collide
+  // with the amount), so the end marks align to their own edge instead of centring
+  const anchor = (pct: number) =>
+    pct <= 4 ? "translate-x-0" : pct >= 96 ? "-translate-x-full" : "-translate-x-1/2";
+
+  return (
+    <div className="mb-2.5">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[10px] uppercase text-muted-foreground">Raise to</span>
+        <span className="text-sm font-extrabold text-gold">{fmt(value)}</span>
+      </div>
+      <div className="relative h-6">
+        {/* track */}
+        <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-secondary" />
+        {/* filled */}
+        <div
+          className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gold"
+          style={{ width: `${pctOf(value)}%` }}
+        />
+        {/* snap points */}
+        {marks.map((t) => (
+          <button
+            key={t.label}
+            onClick={() => onChange(t.value)}
+            className="absolute top-1/2 z-10 size-4 -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${pctOf(t.value)}%` }}
+            aria-label={t.label}
+          >
+            <span
+              className={cn(
+                "block size-2 rounded-full ring-2 ring-[#0a0e16] transition-colors",
+                value >= t.value ? "bg-gold" : "bg-white/30",
+              )}
+            />
+          </button>
+        ))}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="pcm-range absolute inset-0 z-20 w-full cursor-pointer"
+        />
+      </div>
+
+      <div className="relative mt-0.5 h-4">
+        {marks.map((t) => (
+          <button
+            key={t.label}
+            onClick={() => onChange(t.value)}
+            className={cn(
+              "absolute whitespace-nowrap text-[10px] font-semibold transition-colors",
+              anchor(pctOf(t.value)),
+              value === t.value ? "text-gold" : "text-muted-foreground",
+            )}
+            style={{ left: `${pctOf(t.value)}%` }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PokerTable({ code }: { code: string }) {
   const { user, exitTable, openUser, refresh } = useApp();
   const meId = user!.id;
@@ -549,18 +645,28 @@ export function PokerTable({ code }: { code: string }) {
           <div className="border-t border-white/10 p-3">
             {legal.raise && (
               <>
-                <div className="mb-2.5 flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={legal.min_raise_to}
-                    max={legal.max_raise_to}
-                    step={state.big_blind || 1}
-                    value={raiseTo}
-                    onChange={(e) => setRaiseTo(Number(e.target.value))}
-                    className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-secondary accent-[var(--color-gold)]"
-                  />
-                  <span className="min-w-[70px] text-center text-sm font-extrabold text-gold">{fmt(raiseTo)}</span>
-                </div>
+                <BetSlider
+                  min={legal.min_raise_to}
+                  max={legal.max_raise_to}
+                  step={state.big_blind || 1}
+                  value={raiseTo}
+                  onChange={setRaiseTo}
+                  ticks={[
+                    { label: "Min", value: legal.min_raise_to },
+                    {
+                      label: "½ Pot",
+                      value:
+                        Math.round((legal.pot ?? state.pot) / 2) +
+                        (legal.call_amount ?? 0) +
+                        legal.min_raise_to,
+                    },
+                    {
+                      label: "Pot",
+                      value: (legal.pot ?? state.pot) + (legal.to_call ?? 0),
+                    },
+                    { label: "All-in", value: legal.max_raise_to },
+                  ]}
+                />
               </>
             )}
             <div className="flex gap-2">
