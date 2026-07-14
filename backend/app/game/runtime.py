@@ -65,6 +65,30 @@ class RoomRuntime:
             self._task.cancel()
 
     # ---- seat management (called by manager, holds glock) ----------------
+    async def reseat(self, user: User, stack: int, seat_no: int) -> int:
+        """Put a player who is already persisted in RoomPlayer back into the live
+        game — used when a seat row exists but the running table never got it."""
+        async with self.glock:
+            if self.game.get_seat(user.id) is not None:
+                return seat_no
+            used = {s.seat for s in self.game.seats}
+            if seat_no in used:
+                seat_no = next(
+                    (i for i in range(self.max_players) if i not in used), seat_no
+                )
+            self.game.add_seat(Seat(
+                user_id=user.id, name=user.display_name, seat=seat_no,
+                stack=stack, is_bot=user.is_bot, avatar=user.avatar or "user",
+                name_color=user.name_color or "",
+                avatar_color=effective_avatar_color(user),
+                skins=equipped_map(user),
+                owes_bb=self.game.hand_no > 0,
+                bot_personality=user.bot_personality, bot_skill=user.bot_skill,
+            ))
+        self.start()
+        await self.broadcast_state()
+        return seat_no
+
     async def add_seat(self, user: User, stack: int) -> int:
         async with self.glock:
             used = {s.seat for s in self.game.seats}

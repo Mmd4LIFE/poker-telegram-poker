@@ -80,25 +80,37 @@ function* combos(arr: string[], k: number, start = 0, cur: string[] = []): Gener
 }
 
 function bestScore(cards: string[]): number[] | null {
+  return bestOf(cards)?.score ?? null;
+}
+
+/** The best five-card hand AND the five cards that make it — showing a player which
+ *  cards their hand is actually built from is the fastest way to teach the game. */
+function bestOf(cards: string[]): { score: number[]; five: string[] } | null {
   if (cards.length < 5) return null;
-  if (cards.length === 5) return eval5(cards);
-  let best: number[] | null = null;
+  if (cards.length === 5) return { score: eval5(cards), five: cards };
+  let best: { score: number[]; five: string[] } | null = null;
   for (const c of combos(cards, 5)) {
     const s = eval5(c);
-    if (!best || cmp(s, best) > 0) best = s;
+    if (!best || cmp(s, best.score) > 0) best = { score: s, five: c };
   }
   return best;
+}
+
+export function bestFive(cards: string[]): string[] {
+  return bestOf(cards)?.five ?? [];
 }
 
 export interface Made {
   cat: number;
   name: string;
   detail: string;
+  five?: string[];
 }
 
 export function describe(cards: string[]): Made {
-  const s = bestScore(cards);
-  if (!s) return { cat: 0, name: "", detail: "" };
+  const b = bestOf(cards);
+  if (!b) return { cat: 0, name: "", detail: "" };
+  const s = b.score;
   const cat = s[0];
   const rn = (v: number) => RNAME[v];
   let detail = "";
@@ -110,7 +122,7 @@ export function describe(cards: string[]): Made {
     case 6: detail = rn(s[1]) + "s full of " + rn(s[2]) + "s"; break;
     case 5: case 4: case 8: case 0: detail = rn(s[1]) + "-high"; break;
   }
-  return { cat, name: CAT[cat], detail };
+  return { cat, name: CAT[cat], detail, five: b.five };
 }
 
 export function preflopLabel(hole: string[]): Made {

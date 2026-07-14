@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Clock,
   Gem,
+  Info,
   Loader2,
   Lock,
   Shield,
@@ -17,6 +18,12 @@ import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { notify } from "@/lib/telegram";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
@@ -41,6 +48,7 @@ export function LeagueScreen() {
   const { enterTable, refresh } = useApp();
   const [d, setD] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [help, setHelp] = useState(false);
 
   const load = useCallback(() => api.league().then(setD).catch(() => {}), []);
   useEffect(() => {
@@ -113,6 +121,12 @@ export function LeagueScreen() {
             </div>
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Clock className="size-3" /> resets in {countdown(d.seconds_to_close)}
+              <button
+                onClick={() => setHelp(true)}
+                className="ml-1 flex items-center gap-0.5 font-semibold text-gold active:opacity-70"
+              >
+                <Info className="size-3" /> how it works
+              </button>
             </div>
           </div>
           <div className="text-right">
@@ -235,6 +249,54 @@ export function LeagueScreen() {
           );
         })}
       </Card>
+
+      <Dialog open={help} onOpenChange={setHelp}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>How the league works</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] space-y-3 overflow-y-auto text-sm leading-snug text-muted-foreground">
+            <p>
+              <b className="text-foreground">A game counts when it finishes.</b> LP is
+              awarded on your <i>finishing place</i> in the Sit &amp; Go — not per hand.
+              If you bust out, the tournament keeps playing without you and your place
+              is booked when the last player standing takes the chips. So your LP can
+              land a few minutes after you leave the table.
+            </p>
+            <div className="rounded-lg bg-secondary/60 p-2.5 text-foreground">
+              <div className="mb-1 text-[11px] font-bold uppercase text-muted-foreground">
+                LP by finishing place
+              </div>
+              <div className="grid grid-cols-6 gap-1 text-center text-xs font-bold">
+                {["1st","2nd","3rd","4th","5th","6th"].map((p, i) => (
+                  <div key={p}>
+                    <div className="text-[10px] text-muted-foreground">{p}</div>
+                    <div className={i < 3 ? "text-win" : "text-lose"}>
+                      {[25, 15, 8, -6, -18, -24][i] > 0 ? "+" : ""}
+                      {[25, 15, 8, -6, -18, -24][i]}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p>
+              <b className="text-foreground">Only your first {d.games_cap} games a day
+              count.</b> LP is roughly zero-sum at the table, so grinding more games
+              can&apos;t lift you — the ladder measures how well you play, not how long.
+            </p>
+            <p>
+              <b className="text-foreground">At midnight ({d.tier_name} resets)</b> the
+              top {d.promote} promote
+              {d.demote ? ` and the bottom ${d.demote} drop a tier` : ""}. Rewards go to
+              the top finishers, and League Shards build toward the exclusive Champion
+              card skin — the only way to get one.
+            </p>
+            <p className="text-[11px]">
+              Play zero games and you hold no slot: you can&apos;t climb by doing nothing.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="mt-3 flex flex-wrap justify-center gap-2">
         {(d.rewards || []).map((r: any, i: number) => (

@@ -61,6 +61,9 @@ export function PokerTable({ code }: { code: string }) {
   const [now, setNow] = useState(() => Date.now());
   const [minBuy, setMinBuy] = useState(2000);
   const [room, setRoom] = useState<any>(null);
+  const [lg, setLg] = useState<any>(null);        // my league standing
+  const [lgDelta, setLgDelta] = useState<any>(null);  // what this tournament changed
+  const sngOverRef = useRef<null | (() => void)>(null);
   const [seating, setSeating] = useState(false);
   const [emotes, setEmotes] = useState<Record<number, { e: string; id: number }>>({});
   const [emoteOpen, setEmoteOpen] = useState(false);
@@ -95,6 +98,8 @@ export function PokerTable({ code }: { code: string }) {
           clearTimeout(resultTimer.current);
           resultTimer.current = setTimeout(() => setResult(null), 4500);
         }
+      } else if (msg.type === "sng_over") {
+        sngOverRef.current?.();
       } else if (msg.type === "emote") {
         const id = ++emoteSeq.current;
         setEmotes((m) => ({ ...m, [msg.user_id]: { e: msg.emote, id } }));
@@ -152,6 +157,37 @@ export function PokerTable({ code }: { code: string }) {
 
   const isLeague = (room?.mode ?? "cash") === "sng";
   const leagueTier = room?.league_tier || "bronze";
+
+  // Your standing, so you can see what you're playing for without leaving the table.
+  useEffect(() => {
+    if (!isLeague) return;
+    api.league().then(setLg).catch(() => {});
+  }, [isLeague]);
+
+  // When the tournament ends, re-pull and show what actually moved. A ladder that
+  // changes silently teaches you nothing.
+  const onSngOver = useCallback(async () => {
+    const before = lg;
+    await new Promise((r) => setTimeout(r, 1200)); // let the result be booked
+    try {
+      const after: any = await api.league();
+      setLg(after);
+      if (before) {
+        setLgDelta({
+          lp: (after.my_lp ?? 0) - (before.my_lp ?? 0),
+          fromRank: before.my_rank,
+          toRank: after.my_rank,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [lg]);
+
+  // the socket handler is built once, so it reaches the latest callback through a ref
+  useEffect(() => {
+    sngOverRef.current = onSngOver;
+  }, [onSngOver]);
 
   const seats: any[] = state?.seats ?? [];
   const me = seats.find((s) => s.user_id === meId);
@@ -257,11 +293,16 @@ export function PokerTable({ code }: { code: string }) {
         {isLeague ? (
           <div
             className={cn(
-              "flex items-center gap-1 rounded-full bg-card px-3 py-1 text-sm font-bold uppercase",
+              "flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-sm font-bold uppercase",
               LEAGUE_TEXT[leagueTier],
             )}
           >
             <Shield className="size-3.5" /> {leagueTier}
+            {lg?.my_rank ? (
+              <span className="font-normal normal-case text-muted-foreground">
+                #{lg.my_rank} · {lg.my_lp} LP
+              </span>
+            ) : null}
           </div>
         ) : (
           <div className="rounded-full bg-card px-3 py-1 text-sm font-bold">#{code}</div>
@@ -382,15 +423,21 @@ export function PokerTable({ code }: { code: string }) {
                 </div>
               );
             })()}
-            {/* your own cards sit ON the felt, above your seat — where they'd be at a
-                real table. Everyone else's sit below theirs. */}
-            {p.user_id === meId && (
-              <div className="mb-0.5 flex justify-center gap-0.5">
-                {(p.hole?.length ? p.hole : []).map((c: string, k: number) => (
+            {/* Cards are laid ON the felt, pushed toward the middle of the table
+                along this seat's own angle. Stacking them above/below the avatar threw
+                the side seats' cards over the rail and off the screen edge. */}
+            {p.hole?.length ? (
+              <div
+                className="absolute left-1/2 top-1/2 z-[6] flex gap-0.5"
+                style={{
+                  transform: `translate(calc(-50% + ${-Math.sin(a) * 30}px), calc(-50% + ${-Math.cos(a) * 34}px))`,
+                }}
+              >
+                {p.hole.map((c: string, k: number) => (
                   <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
                 ))}
               </div>
-            )}
+            ) : null}
             <button
               disabled={p.is_bot || p.user_id === meId}
               onClick={() => !p.is_bot && p.user_id !== meId && openUser(p.user_id)}
@@ -415,13 +462,6 @@ export function PokerTable({ code }: { code: string }) {
             <div className="text-[11px] font-bold text-gold">
               {p.sitting_out ? "SIT OUT" : fmt(p.stack)}
             </div>
-            {p.user_id !== meId && (
-              <div className="mt-0.5 flex justify-center gap-0.5">
-                {(p.hole?.length ? p.hole : []).map((c: string, k: number) => (
-                  <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
-                ))}
-              </div>
-            )}
             {p.last_action && (
               <div className="absolute left-1/2 top-[-22px] -translate-x-1/2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] uppercase tracking-wide">
                 {p.last_action}
@@ -450,15 +490,125 @@ export function PokerTable({ code }: { code: string }) {
         </div>
       )}
 
+      {/* what the tournament changed — a ladder that moves silently teaches nothing */}
+      {lgDelta && (
+        <div className="absolute inset-x-0 top-24 z-30 flex justify-center px-6">
+          <div className="w-full max-w-xs rounded-2xl border border-gold/40 bg-card/95 p-4 text-center shadow-xl backdrop-blur">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+              Sit &amp; Go complete
+            </div>
+            <div
+              className={cn(
+                "mt-1 text-3xl font-extrabold",
+                lgDelta.lp >= 0 ? "text-win" : "text-lose",
+              )}
+            >
+              {lgDelta.lp >= 0 ? "+" : ""}
+              {lgDelta.lp} LP
+            </div>
+            {lgDelta.fromRank && lgDelta.toRank && (
+              <div className="mt-1 flex items-center justify-center gap-1.5 text-sm font-bold">
+                <span className="text-muted-foreground">#{lgDelta.fromRank}</span>
+                <ArrowLeft className="size-3.5 rotate-180 text-muted-foreground" />
+                <span
+                  className={
+                    lgDelta.toRank < lgDelta.fromRank ? "text-win" : "text-lose"
+                  }
+                >
+                  #{lgDelta.toRank}
+                </span>
+              </div>
+            )}
+            <Button size="sm" className="mt-3 w-full" onClick={() => { setLgDelta(null); exitTable(); }}>
+              Back to the league
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* bottom: hand tray + controls */}
       <div
         className="absolute inset-x-0 bottom-0 z-20 bg-[#0a0e16]"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        {/* hand tray */}
+        {/* controls */}
+        {legal?.can_act ? (
+          <div className="border-t border-white/10 p-3">
+            {legal.raise && (
+              <>
+                <div className="mb-2 flex gap-1.5">
+                  {[
+                    { l: "Min", v: legal.min_raise_to },
+                    { l: "½ Pot", v: Math.round((legal.pot ?? state.pot) / 2) + (legal.call_amount ?? 0) + legal.min_raise_to },
+                    { l: "Pot", v: (legal.pot ?? state.pot) + (legal.to_call ?? 0) },
+                    { l: "All-in", v: legal.max_raise_to },
+                  ].map((q) => (
+                    <button
+                      key={q.l}
+                      onClick={() => setRaiseTo(Math.min(legal.max_raise_to, Math.max(legal.min_raise_to, Math.round(q.v))))}
+                      className="flex-1 rounded-lg bg-secondary py-1.5 text-xs font-semibold"
+                    >
+                      {q.l}
+                    </button>
+                  ))}
+                </div>
+                <div className="mb-2.5 flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={legal.min_raise_to}
+                    max={legal.max_raise_to}
+                    step={state.big_blind || 1}
+                    value={raiseTo}
+                    onChange={(e) => setRaiseTo(Number(e.target.value))}
+                    className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-secondary accent-[var(--color-gold)]"
+                  />
+                  <span className="min-w-[70px] text-center text-sm font-extrabold text-gold">{fmt(raiseTo)}</span>
+                </div>
+              </>
+            )}
+            <div className="flex gap-2">
+              <Button variant="destructive" className="flex-1 font-bold" onClick={() => act("fold")}>
+                Fold
+              </Button>
+              {legal.check ? (
+                <Button variant="secondary" className="flex-1 font-bold" onClick={() => act("check")}>
+                  Check
+                </Button>
+              ) : (
+                <Button variant="secondary" className="flex-1 font-bold" onClick={() => act("call")}>
+                  Call {fmt(legal.call_amount)}
+                </Button>
+              )}
+              {legal.raise && (
+                <Button className="flex-1 font-bold" onClick={() => act("raise", raiseTo)}>
+                  {legal.to_call > 0 ? "Raise" : "Bet"} {fmt(raiseTo)}
+                </Button>
+              )}
+            </div>
+            {secsLeft !== null && (
+              <div className="mt-1.5 text-center text-xs text-muted-foreground">⏱ {secsLeft.toFixed(0)}s</div>
+            )}
+          </div>
+        ) : me && me.stack <= 0 && me.sitting_out ? (
+          <div className="border-t border-white/10 p-3">
+            <Button className="w-full font-bold" onClick={rebuy}>
+              <Coins className="size-4" /> Rebuy {fmt(minBuy)}
+            </Button>
+          </div>
+        ) : null}
+        {/* hand tray — the read, kept BELOW the buttons */}
         <div className="flex min-h-[66px] items-center gap-3 border-t border-white/10 px-4 py-2.5">
           {made ? (
             <>
+              {/* the five cards your hand is actually built from — the fastest way to
+                  learn what "King-high" or "two pair" is pointing at */}
+              {made.five?.length ? (
+                <div className="flex shrink-0 gap-0.5">
+                  {made.five.map((c, k) => (
+                    <PlayingCard key={k} card={c} size="xs" />
+                  ))}
+                </div>
+              ) : null}
               <div className="min-w-0 flex-1">
                 <div
                   className={cn(
@@ -525,71 +675,6 @@ export function PokerTable({ code }: { code: string }) {
           )}
         </div>
 
-        {/* controls */}
-        {legal?.can_act ? (
-          <div className="border-t border-white/10 p-3">
-            {legal.raise && (
-              <>
-                <div className="mb-2 flex gap-1.5">
-                  {[
-                    { l: "Min", v: legal.min_raise_to },
-                    { l: "½ Pot", v: Math.round((legal.pot ?? state.pot) / 2) + (legal.call_amount ?? 0) + legal.min_raise_to },
-                    { l: "Pot", v: (legal.pot ?? state.pot) + (legal.to_call ?? 0) },
-                    { l: "All-in", v: legal.max_raise_to },
-                  ].map((q) => (
-                    <button
-                      key={q.l}
-                      onClick={() => setRaiseTo(Math.min(legal.max_raise_to, Math.max(legal.min_raise_to, Math.round(q.v))))}
-                      className="flex-1 rounded-lg bg-secondary py-1.5 text-xs font-semibold"
-                    >
-                      {q.l}
-                    </button>
-                  ))}
-                </div>
-                <div className="mb-2.5 flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={legal.min_raise_to}
-                    max={legal.max_raise_to}
-                    step={state.big_blind || 1}
-                    value={raiseTo}
-                    onChange={(e) => setRaiseTo(Number(e.target.value))}
-                    className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-secondary accent-[var(--color-gold)]"
-                  />
-                  <span className="min-w-[70px] text-center text-sm font-extrabold text-gold">{fmt(raiseTo)}</span>
-                </div>
-              </>
-            )}
-            <div className="flex gap-2">
-              <Button variant="destructive" className="flex-1 font-bold" onClick={() => act("fold")}>
-                Fold
-              </Button>
-              {legal.check ? (
-                <Button variant="secondary" className="flex-1 font-bold" onClick={() => act("check")}>
-                  Check
-                </Button>
-              ) : (
-                <Button variant="secondary" className="flex-1 font-bold" onClick={() => act("call")}>
-                  Call {fmt(legal.call_amount)}
-                </Button>
-              )}
-              {legal.raise && (
-                <Button className="flex-1 font-bold" onClick={() => act("raise", raiseTo)}>
-                  {legal.to_call > 0 ? "Raise" : "Bet"} {fmt(raiseTo)}
-                </Button>
-              )}
-            </div>
-            {secsLeft !== null && (
-              <div className="mt-1.5 text-center text-xs text-muted-foreground">⏱ {secsLeft.toFixed(0)}s</div>
-            )}
-          </div>
-        ) : me && me.stack <= 0 && me.sitting_out ? (
-          <div className="border-t border-white/10 p-3">
-            <Button className="w-full font-bold" onClick={rebuy}>
-              <Coins className="size-4" /> Rebuy {fmt(minBuy)}
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       {/* rankings sheet */}

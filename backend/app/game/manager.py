@@ -66,6 +66,20 @@ class GameManager:
             )
         )).scalar_one_or_none()
         if existing:
+            # The DB says you're seated; the live table may disagree. A runtime only
+            # hydrates seats from RoomPlayer when it is FIRST built, so a row added to
+            # an already-running table (a bot table, say) never reached the game — and
+            # the player got stuck as a spectator who "is already seated" and cannot
+            # sit. Re-attach them instead of shouting at them. No debit: they already
+            # paid for this seat.
+            rt = await self.get_runtime(session, room)
+            if rt.game.get_seat(user.id) is None:
+                await rt.reseat(user, existing.stack, existing.seat)
+                logger.info(
+                    "Re-attached orphaned seat: user=%s room=%s stack=%s",
+                    user.id, room.code, existing.stack,
+                )
+                return {"seat": existing.seat, "stack": existing.stack, "resumed": True}
             raise ValueError("Already seated at this table")
 
         seated_count = (await session.execute(
