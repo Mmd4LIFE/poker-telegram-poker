@@ -216,6 +216,7 @@ class GameManager:
                 await self._reap_idle_seats()
                 await self._close_idle_rooms()
                 await self._ensure_bot_tables()
+                await self._resume_tournaments()
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -296,6 +297,31 @@ class GameManager:
             self._janitor.cancel()
         for rt in self._runtimes.values():
             await rt.stop()
+
+    async def _resume_tournaments(self) -> None:
+        """Restart any Sit & Go that isn't finished.
+
+        A tournament that stops mid-way never books anyone's result — no finishing
+        places, no LP, nothing. That can happen across a deploy, or if the process
+        restarts. They're not optional to finish: someone's league standing depends
+        on it. So we hunt them down and play them out.
+        """
+        async with SessionLocal() as session:
+            rooms = list(
+                (
+                    await session.scalars(
+                        select(Room).where(
+                            Room.mode == "sng", Room.status != "finished"
+                        )
+                    )
+                ).all()
+            )
+            for r in rooms:
+                if r.id in self._runtimes and not self._runtimes[r.id]._task.done():
+                    continue
+                rt = await self.get_runtime(session, r)
+                rt.start()
+                logger.info("resumed unfinished tournament %s", r.code)
 
     # ---- self-play tables ---------------------------------------------------
     async def _ensure_bot_tables(self) -> None:
