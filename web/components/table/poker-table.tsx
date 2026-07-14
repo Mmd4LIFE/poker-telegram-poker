@@ -277,7 +277,6 @@ export function PokerTable({ code }: { code: string }) {
   const eqColor = eqPct === null ? "" : eqPct >= 60 ? "text-win" : eqPct >= 33 ? "text-gold" : "text-lose";
   const eqBar = eqPct === null ? "bg-muted" : eqPct >= 60 ? "bg-win" : eqPct >= 33 ? "bg-gold" : "bg-lose";
 
-  const canAct = !!legal?.can_act;
   const deadline = state?.you?.deadline;
   const secsLeft = deadline ? Math.max(0, deadline - now / 1000) : null;
 
@@ -368,10 +367,7 @@ export function PokerTable({ code }: { code: string }) {
           starts. Everything inside is positioned in %% of THIS box — so when the
           action controls open, the table lifts instead of my seat and my cards
           disappearing underneath them. */}
-      <div
-        className="absolute inset-x-0 top-0 transition-[bottom] duration-200"
-        style={{ bottom: canAct ? 250 : 78 }}
-      >
+      <div className="absolute inset-x-0 top-0" style={{ bottom: 196 }}>
         {/* felt — a league table wears its tier's colours so you can never be unsure
             whether the hand you're playing counts */}
         <div
@@ -553,22 +549,6 @@ export function PokerTable({ code }: { code: string }) {
           <div className="border-t border-white/10 p-3">
             {legal.raise && (
               <>
-                <div className="mb-2 flex gap-1.5">
-                  {[
-                    { l: "Min", v: legal.min_raise_to },
-                    { l: "½ Pot", v: Math.round((legal.pot ?? state.pot) / 2) + (legal.call_amount ?? 0) + legal.min_raise_to },
-                    { l: "Pot", v: (legal.pot ?? state.pot) + (legal.to_call ?? 0) },
-                    { l: "All-in", v: legal.max_raise_to },
-                  ].map((q) => (
-                    <button
-                      key={q.l}
-                      onClick={() => setRaiseTo(Math.min(legal.max_raise_to, Math.max(legal.min_raise_to, Math.round(q.v))))}
-                      className="flex-1 rounded-lg bg-secondary py-1.5 text-xs font-semibold"
-                    >
-                      {q.l}
-                    </button>
-                  ))}
-                </div>
                 <div className="mb-2.5 flex items-center gap-3">
                   <input
                     type="range"
