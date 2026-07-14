@@ -502,11 +502,29 @@ export function PokerTable({ code }: { code: string }) {
           </div>
         </div>
 
+        {/* Bet chips ride their own ring, on the felt between each player and the pot
+            — where chips actually go. Hung off the seat they landed on the cards. */}
+        {ordered.map((p, i) => {
+          if (!p.bet) return null;
+          const a = (i * 2 * Math.PI) / n;
+          const bx = 50 + 30 * Math.sin(a);
+          const by = 52 + 17 * Math.cos(a);
+          return (
+            <div
+              key={"bet-" + p.user_id}
+              className="absolute z-[7] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/75 px-2 py-0.5 text-[11px] font-bold text-gold ring-1 ring-gold/30"
+              style={{ left: `${bx}%`, top: `${by}%` }}
+            >
+              {fmt(p.bet)}
+            </div>
+          );
+        })}
+
         {/* seats */}
         {ordered.map((p, i) => {
           const a = (i * 2 * Math.PI) / n;
           const x = 50 + 42 * Math.sin(a);
-          const y = 52 + 27 * Math.cos(a);
+          const y = 50 + 25 * Math.cos(a);
           const isDealer = state?.button === p.user_id;
           return (
             <div
@@ -517,11 +535,7 @@ export function PokerTable({ code }: { code: string }) {
               )}
               style={{ left: `${x}%`, top: `${y}%` }}
             >
-              {p.bet > 0 && (
-                <div className="absolute bottom-[-16px] left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-bold text-gold ring-1 ring-gold/30">
-                  {fmt(p.bet)}
-                </div>
-              )}
+
               {emotes[p.user_id] && (() => {
                 const EmoteIcon = EMOTE_ICONS[emotes[p.user_id].e];
                 return (
@@ -643,7 +657,7 @@ export function PokerTable({ code }: { code: string }) {
         {/* controls */}
         {legal?.can_act ? (
           <div className="border-t border-white/10 p-3">
-            {legal.raise && (
+            {legal.raise && legal.max_raise_to > legal.min_raise_to && (
               <>
                 <BetSlider
                   min={legal.min_raise_to}
@@ -682,11 +696,20 @@ export function PokerTable({ code }: { code: string }) {
                   Call {fmt(legal.call_amount)}
                 </Button>
               )}
-              {legal.raise && (
-                <Button className="flex-1 font-bold" onClick={() => act("raise", raiseTo)}>
-                  {legal.to_call > 0 ? "Raise" : "Bet"} {fmt(raiseTo)}
-                </Button>
-              )}
+              {legal.raise &&
+                (legal.max_raise_to > legal.min_raise_to ? (
+                  <Button className="flex-1 font-bold" onClick={() => act("raise", raiseTo)}>
+                    {legal.to_call > 0 ? "Raise" : "Bet"} {fmt(raiseTo)}
+                  </Button>
+                ) : (
+                  // min-raise == max-raise: the only raise available is shoving
+                  <Button
+                    className="flex-1 font-bold"
+                    onClick={() => act("raise", legal.max_raise_to)}
+                  >
+                    All-in {fmt(legal.max_raise_to)}
+                  </Button>
+                ))}
             </div>
             {secsLeft !== null && (
               <div className="mt-1.5 text-center text-xs text-muted-foreground">⏱ {secsLeft.toFixed(0)}s</div>
