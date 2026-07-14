@@ -25,6 +25,9 @@ interface AppState {
   exitTable: () => void;
   levelUp: number | null;
   clearLevelUp: () => void;
+  /** an unclaimed daily reward is waiting — drives the dot on the Shop tab */
+  dailyReady: boolean;
+  refreshDaily: () => Promise<void>;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -41,6 +44,7 @@ export function AppProvider({
   const [tableCode, setTableCode] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [levelUp, setLevelUp] = useState<number | null>(null);
+  const [dailyReady, setDailyReady] = useState(false);
   const levelRef = useRef(initialUser.level);
 
   const setUser = useCallback((u: UserProfile) => {
@@ -63,6 +67,21 @@ export function AppProvider({
     api.setTz(-new Date().getTimezoneOffset()).catch(() => {});
   }, []);
 
+  const refreshDaily = useCallback(async () => {
+    try {
+      const d: { claimed_today?: boolean } = await api.dailyStatus();
+      setDailyReady(!d.claimed_today);
+    } catch {
+      /* a badge is never worth breaking a screen over */
+    }
+  }, []);
+
+  // Checked once on open — that's the whole point: you should see the dot the moment
+  // you launch the app, without opening Shop to find out there was something there.
+  useEffect(() => {
+    refreshDaily();
+  }, [refreshDaily]);
+
   const value: AppState = {
     user,
     setUser,
@@ -76,6 +95,8 @@ export function AppProvider({
     enterTable: setTableCode,
     exitTable: () => setTableCode(null),
     levelUp,
+    dailyReady,
+    refreshDaily,
     clearLevelUp: () => setLevelUp(null),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

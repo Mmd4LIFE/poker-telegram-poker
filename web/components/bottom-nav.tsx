@@ -16,7 +16,7 @@ const TABS: { view: View; label: string; icon: React.ElementType; match: View[] 
 ];
 
 export function BottomNav() {
-  const { view, go } = useApp();
+  const { view, go, dailyReady } = useApp();
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 flex border-t border-white/10 bg-background/95 backdrop-blur"
@@ -51,7 +51,12 @@ export function BottomNav() {
                 <span className="size-6" aria-hidden />
               </>
             ) : (
-              <Icon className="size-6" />
+              <span className="relative">
+                <Icon className="size-6" />
+                {t.view === "shop" && dailyReady && (
+                  <span className="absolute -right-1 -top-0.5 size-2 rounded-full bg-lose ring-2 ring-background" />
+                )}
+              </span>
             )}
           </button>
         );

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 
 /** The 7-day ladder. One look tells you: can I claim, where am I, what's coming. */
 export function DailyReward() {
-  const { refresh } = useApp();
+  const { refresh, refreshDaily } = useApp();
   const [d, setD] = useState<any>(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,7 +35,7 @@ export function DailyReward() {
         toast("Already claimed — come back tomorrow");
       }
       setD(r.ladder ? r : d);
-      await Promise.all([load(), refresh()]);
+      await Promise.all([load(), refresh(), refreshDaily()]);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
