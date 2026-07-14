@@ -18,7 +18,7 @@ import { useApp } from "@/lib/store";
 import { haptic, notify, shareInvite } from "@/lib/telegram";
 import { AvatarIcon, EMOTES, EMOTE_ICONS } from "@/lib/avatars";
 import * as Poker from "@/lib/poker";
-import { PlayingCard, CardRow } from "@/components/table/playing-card";
+import { PlayingCard } from "@/components/table/playing-card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -382,6 +382,15 @@ export function PokerTable({ code }: { code: string }) {
                 </div>
               );
             })()}
+            {/* your own cards sit ON the felt, above your seat — where they'd be at a
+                real table. Everyone else's sit below theirs. */}
+            {p.user_id === meId && (
+              <div className="mb-0.5 flex justify-center gap-0.5">
+                {(p.hole?.length ? p.hole : []).map((c: string, k: number) => (
+                  <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
+                ))}
+              </div>
+            )}
             <button
               disabled={p.is_bot || p.user_id === meId}
               onClick={() => !p.is_bot && p.user_id !== meId && openUser(p.user_id)}
@@ -406,11 +415,13 @@ export function PokerTable({ code }: { code: string }) {
             <div className="text-[11px] font-bold text-gold">
               {p.sitting_out ? "SIT OUT" : fmt(p.stack)}
             </div>
-            <div className="mt-0.5 flex justify-center gap-0.5">
-              {(p.hole?.length ? p.hole : []).map((c: string, k: number) => (
-                <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
-              ))}
-            </div>
+            {p.user_id !== meId && (
+              <div className="mt-0.5 flex justify-center gap-0.5">
+                {(p.hole?.length ? p.hole : []).map((c: string, k: number) => (
+                  <PlayingCard key={k} card={c} size="sm" design={p.skins?.[c]} />
+                ))}
+              </div>
+            )}
             {p.last_action && (
               <div className="absolute left-1/2 top-[-22px] -translate-x-1/2 rounded-full bg-black/70 px-2 py-0.5 text-[9px] uppercase tracking-wide">
                 {p.last_action}
@@ -448,7 +459,6 @@ export function PokerTable({ code }: { code: string }) {
         <div className="flex min-h-[66px] items-center gap-3 border-t border-white/10 px-4 py-2.5">
           {made ? (
             <>
-              <CardRow cards={myHole} size="lg" />
               <div className="min-w-0 flex-1">
                 <div
                   className={cn(
