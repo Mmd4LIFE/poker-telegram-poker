@@ -6,7 +6,7 @@ import logging
 import secrets
 import time
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.config import settings
 from app.database import SessionLocal
@@ -328,6 +328,12 @@ class RoomRuntime:
                 )
             if room:
                 room.status = "finished"
+            # Clear the seats. They can't be cashed out (tournament chips aren't money),
+            # but left behind they'd make the player look "seated" forever — which is
+            # exactly what dragged Quick Play back into finished league tables.
+            await session.execute(
+                delete(RoomPlayer).where(RoomPlayer.room_id == self.room_id)
+            )
             await session.commit()
 
         await hub.broadcast(

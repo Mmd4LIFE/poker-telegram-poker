@@ -92,11 +92,21 @@ async def find_open_rooms(
 async def get_user_membership(
     session: AsyncSession, user_id: int
 ) -> tuple[RoomPlayer, Room] | None:
-    """Return the (RoomPlayer, Room) the user is currently seated at, if any."""
+    """The CASH table the user is currently seated at, if any.
+
+    Deliberately ignores tournaments. A Sit & Go seat can never be cashed out, so its
+    RoomPlayer row lives forever — and this function is what Quick Play and the lobby's
+    "resume" card use to decide where you already are. Counting a league seat here sent
+    Quick Play straight back into a dead league table, over and over.
+    """
     row = (await session.execute(
         select(RoomPlayer, Room)
         .join(Room, Room.id == RoomPlayer.room_id)
-        .where(RoomPlayer.user_id == user_id)
+        .where(
+            RoomPlayer.user_id == user_id,
+            Room.mode != "sng",
+            Room.status != "finished",
+        )
         .limit(1)
     )).first()
     return (row[0], row[1]) if row else None
