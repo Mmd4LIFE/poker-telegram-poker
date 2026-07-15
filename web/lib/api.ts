@@ -77,6 +77,7 @@ export const api = {
   adminBots: () => req("GET", "/admin/bots"),
   adminBot: (id: number) => req("GET", `/admin/bots/${id}`),
   adminDq: () => req("GET", "/admin/dq"),
+  adminDqRecompute: () => req("POST", "/admin/dq/recompute"),
   adminCreateBot: (b: unknown) => req("POST", "/admin/bots", b),
   adminDeleteBot: (id: number) => req("DELETE", `/admin/bots/${id}`),
   notifications: () => req("GET", "/notifications"),

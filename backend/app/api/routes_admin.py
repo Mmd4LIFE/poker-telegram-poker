@@ -712,7 +712,24 @@ async def admin_dq(
     """The validation machine: is DQ actually measuring skill?"""
     from app.services import dq as DQ
     from app.poker.scoring import DEFAULTS
-    return {**await DQ.validate(session), "model": DEFAULTS}
+    return {
+        **await DQ.validate(session),
+        "model": DEFAULTS,
+        "distribution": await DQ.distribution(session),
+        "grades": await DQ.get_grades(session),
+    }
+
+
+@router.post("/dq/recompute")
+async def admin_dq_recompute(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Recompute grade cutoffs from the live DQ distribution (percentile bands)."""
+    from app.services import dq as DQ
+    res = await DQ.recompute_grades(session)
+    await session.flush()
+    return res
 
 
 async def _bot_league_roadmap(session: AsyncSession, bot_id: int) -> dict:

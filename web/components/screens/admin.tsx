@@ -815,10 +815,22 @@ function Bots() {
 
   const load = useCallback(() => api.adminBots().then(setD).catch(() => {}), []);
   const [dq, setDq] = useState<any>(null);
+  const loadDq = useCallback(() => api.adminDq().then(setDq).catch(() => {}), []);
   useEffect(() => {
     load();
-    api.adminDq().then(setDq).catch(() => {});
-  }, [load]);
+    loadDq();
+  }, [load, loadDq]);
+
+  async function recompute() {
+    try {
+      await api.adminDqRecompute();
+      toast.success("Grade cutoffs recomputed from the distribution");
+      loadDq();
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
 
   async function open(id: number) {
     try {
@@ -908,6 +920,68 @@ function Bots() {
             ρ is rank-correlation of each bot&apos;s DQ with its configured skill. Above
             0.5 = the score measures skill; near 0 = the model needs retuning.
           </p>
+
+          {dq.distribution?.n > 0 && (
+            <>
+              <div className="mt-3 flex items-center justify-between">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  DQ distribution ({dq.distribution.n})
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {dq.distribution.min}–{dq.distribution.max}, mean {dq.distribution.mean}
+                </span>
+              </div>
+              {/* histogram */}
+              <div className="mt-1.5 flex h-16 items-end gap-0.5">
+                {dq.distribution.bins.map((b: any, i: number) => {
+                  const max = Math.max(...dq.distribution.bins.map((x: any) => x.n), 1);
+                  return (
+                    <div
+                      key={i}
+                      className="flex-1 rounded-t bg-gold/70"
+                      style={{ height: `${(100 * b.n) / max}%` }}
+                      title={`${b.lo}-${b.hi}: ${b.n}`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="mt-0.5 flex justify-between text-[9px] text-muted-foreground">
+                <span>{dq.distribution.min}</span>
+                <span>p50 {dq.distribution.pcts?.["50"]}</span>
+                <span>p90 {dq.distribution.pcts?.["90"]}</span>
+                <span>{dq.distribution.max}</span>
+              </div>
+            </>
+          )}
+
+          {dq.grades?.length > 0 && (
+            <>
+              <div className="mt-3 mb-1 flex items-center justify-between">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Grade cutoffs (percentile bands)
+                </div>
+                <Button size="sm" variant="outline" className="h-7" onClick={recompute}>
+                  Recompute
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {[...dq.grades].sort((a: any, b: any) => b.level - a.level).map((g: any) => (
+                  <span
+                    key={g.level}
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                    style={{ backgroundColor: g.color + "22", color: g.color }}
+                  >
+                    {g.name} ≥{g.min}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+                Grades are percentiles of the live population — Master is the top slice
+                by construction, so &quot;everyone&apos;s a Master&quot; can&apos;t happen.
+                Recompute pulls fresh cutoffs from the current distribution.
+              </p>
+            </>
+          )}
         </Card>
       )}
 

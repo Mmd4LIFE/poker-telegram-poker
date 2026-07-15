@@ -15,30 +15,98 @@ from app.models import PlayerStats, User
 
 MIN_DECISIONS = 50  # below this a DQ figure is noise
 
-# A player's DQ (0-100) mapped to a named skill grade + level. Phase 2, player-facing:
-# an Elo-like read of HOW WELL you play, distinct from XP level (how MUCH you play).
-GRADES = [
-    {"level": 1, "name": "Rookie", "min": 0, "color": "#9aa4b2"},
-    {"level": 2, "name": "Amateur", "min": 45, "color": "#7cc4ff"},
-    {"level": 3, "name": "Steady", "min": 55, "color": "#4ade80"},
-    {"level": 4, "name": "Sharp", "min": 65, "color": "#f5c518"},
-    {"level": 5, "name": "Expert", "min": 75, "color": "#a06bff"},
-    {"level": 6, "name": "Master", "min": 85, "color": "#ff6bd6"},
+# Grades are RELATIVE, not absolute. The DQ metric is compressed at the top (most
+# poker decisions are easy, so competent play scores 85-92) — so a fixed "Master = 85"
+# makes everyone a Master. Instead each grade is a PERCENTILE band of the live
+# population: Master is always the top slice, by construction, whatever the scale does.
+# The band widths are admin-tunable.
+GRADES_KEY = "dq_grades"
+
+DEFAULT_BANDS = [
+    {"level": 6, "name": "Master", "pct": 95, "color": "#ff6bd6"},
+    {"level": 5, "name": "Expert", "pct": 80, "color": "#a06bff"},
+    {"level": 4, "name": "Sharp", "pct": 55, "color": "#f5c518"},
+    {"level": 3, "name": "Steady", "pct": 30, "color": "#4ade80"},
+    {"level": 2, "name": "Amateur", "pct": 10, "color": "#7cc4ff"},
+    {"level": 1, "name": "Rookie", "pct": 0, "color": "#9aa4b2"},
 ]
 
 
-def grade_of(dq: float | None) -> dict:
-    g = GRADES[0]
-    for cand in GRADES:
+def _percentile(sorted_vals: list[float], pct: float) -> float:
+    if not sorted_vals:
+        return 0.0
+    if pct <= 0:
+        return sorted_vals[0]
+    if pct >= 100:
+        return sorted_vals[-1]
+    k = (len(sorted_vals) - 1) * (pct / 100.0)
+    lo = int(k)
+    hi = min(lo + 1, len(sorted_vals) - 1)
+    return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (k - lo)
+
+
+def thresholds_from(dqs: list[float], bands: list[dict]) -> list[dict]:
+    """Turn the population's DQ values into a concrete cutoff per grade band."""
+    vals = sorted(v for v in dqs if v is not None)
+    out = []
+    for b in bands:
+        out.append({**b, "min": round(_percentile(vals, b["pct"]), 1)})
+    # bands come high->low; make cutoffs monotonic just in case of ties
+    return out
+
+
+async def get_grades(session) -> list[dict]:
+    """Current grade cutoffs — stored (admin-recomputed) or derived live as a fallback."""
+    from app.models import AppSetting
+
+    row = await session.get(AppSetting, GRADES_KEY)
+    if row and isinstance(row.value, dict) and row.value.get("grades"):
+        return row.value["grades"]
+    dqs = await _population_dqs(session)
+    return thresholds_from(dqs, DEFAULT_BANDS)
+
+
+async def recompute_grades(session, bands: list[dict] | None = None) -> dict:
+    """Recompute cutoffs from the live distribution and persist them."""
+    from datetime import datetime, timezone
+
+    from app.models import AppSetting
+
+    b = bands or DEFAULT_BANDS
+    dqs = await _population_dqs(session)
+    grades = thresholds_from(dqs, b)
+    payload = {
+        "grades": grades,
+        "bands": b,
+        "sample": len(dqs),
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
+    row = await session.get(AppSetting, GRADES_KEY)
+    if row:
+        row.value = payload
+    else:
+        session.add(AppSetting(key=GRADES_KEY, value=payload))
+    return payload
+
+
+def grade_of(dq: float | None, grades: list[dict]) -> dict:
+    """Grade a DQ against dynamic (percentile) cutoffs. `grades` high->low."""
+    ordered = sorted(grades, key=lambda g: g["level"])  # low -> high
+    g = ordered[0]
+    for cand in ordered:
         if dq is not None and dq >= cand["min"]:
             g = cand
-    nxt = next((x for x in GRADES if x["level"] == g["level"] + 1), None)
-    # progress toward the next grade, for a bar
+    nxt = next((x for x in ordered if x["level"] == g["level"] + 1), None)
     prog = 0.0
     if nxt and dq is not None:
         span = nxt["min"] - g["min"]
-        prog = max(0.0, min(1.0, (dq - g["min"]) / span)) if span else 0.0
-    return {**g, "next": nxt["name"] if nxt else None, "next_at": nxt["min"] if nxt else None, "progress": round(prog, 2)}
+        prog = max(0.0, min(1.0, (dq - g["min"]) / span)) if span else 1.0
+    return {
+        "level": g["level"], "name": g["name"], "color": g["color"], "min": g["min"],
+        "next": nxt["name"] if nxt else None,
+        "next_at": nxt["min"] if nxt else None,
+        "progress": round(prog, 2),
+    }
 
 
 def compute(st: PlayerStats | None) -> dict:
@@ -81,6 +149,44 @@ def _spearman(pairs: list[tuple[float, float]]) -> float | None:
     ry = ranks([p[1] for p in pairs])
     d2 = sum((rx[i] - ry[i]) ** 2 for i in range(n))
     return round(1 - 6 * d2 / (n * (n * n - 1)), 3)
+
+
+async def _population_dqs(session: AsyncSession, include_humans: bool = True) -> list[float]:
+    """DQ of every rated player (bots + humans) for percentile grading and histograms."""
+    q = select(PlayerStats, User).join(User, User.id == PlayerStats.user_id).where(
+        PlayerStats.dq_decisions >= MIN_DECISIONS
+    )
+    if not include_humans:
+        q = q.where(User.is_bot.is_(True))
+    out = []
+    for st, _u in (await session.execute(q)).all():
+        d = compute(st)
+        if d["dq"] is not None:
+            out.append(d["dq"])
+    return out
+
+
+async def distribution(session: AsyncSession) -> dict:
+    """Histogram + percentiles of DQ across the rated population — so the admin can SEE
+    the compression and decide whether to retune the grade bands or the EV model."""
+    dqs = sorted(await _population_dqs(session))
+    n = len(dqs)
+    if not n:
+        return {"n": 0, "bins": [], "pcts": {}}
+    lo, hi = dqs[0], dqs[-1]
+    # 10 bins across the observed range (min span so it never collapses)
+    span = max(1.0, hi - lo)
+    nb = 10
+    bins = [{"lo": round(lo + span * i / nb, 1),
+             "hi": round(lo + span * (i + 1) / nb, 1), "n": 0} for i in range(nb)]
+    for v in dqs:
+        idx = min(nb - 1, int((v - lo) / span * nb))
+        bins[idx]["n"] += 1
+    pcts = {p: round(_percentile(dqs, p), 1) for p in (1, 10, 25, 50, 75, 90, 99)}
+    return {
+        "n": n, "min": round(lo, 1), "max": round(hi, 1),
+        "mean": round(sum(dqs) / n, 1), "bins": bins, "pcts": pcts,
+    }
 
 
 async def validate(session: AsyncSession) -> dict:

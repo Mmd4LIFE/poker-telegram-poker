@@ -32,7 +32,8 @@ async def my_skill(
 
     st = await session.get(PlayerStats, user.id)
     d = DQ.compute(st)
-    grade = DQ.grade_of(d["dq"]) if d["ready"] else None
+    grades = await DQ.get_grades(session)
+    grade = DQ.grade_of(d["dq"], grades) if d["ready"] else None
     return {
         "locked": False,
         "ready": d["ready"],
@@ -68,12 +69,13 @@ async def leaderboard(
             )
         ).all()
     )
+    grades = await DQ.get_grades(session)
     board = []
     for u, st in rows:
         d = DQ.compute(st)
         if d["dq"] is None:
             continue
-        g = DQ.grade_of(d["dq"])
+        g = DQ.grade_of(d["dq"], grades)
         board.append(
             {
                 "user_id": u.id,
