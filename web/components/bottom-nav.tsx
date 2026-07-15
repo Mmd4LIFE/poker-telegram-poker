@@ -12,7 +12,7 @@ const TABS: { view: View; label: string; icon: React.ElementType; match: View[] 
   { view: "cards", label: "Cards", icon: Layers, match: ["cards"] },
   { view: "lobby", label: "Play", icon: Gamepad2, match: ["lobby", "create", "squad"] },
   { view: "leaderboard", label: "Ranks", icon: Trophy, match: ["leaderboard", "friends", "league"] },
-  { view: "profile", label: "Me", icon: User, match: ["profile", "invite", "admin", "quests", "customize"] },
+  { view: "profile", label: "Me", icon: User, match: ["profile", "invite", "admin", "quests", "customize", "changelog"] },
 ];
 
 export function BottomNav() {

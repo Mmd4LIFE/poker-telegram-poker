@@ -2,17 +2,18 @@
 
 import { useState, useEffect } from "react";
 import {
-  Target,
-  UserPlus,
-  TrendingUp,
-  Coins,
-  Trophy,
-  Flame,
   Armchair,
-  Wrench,
-  Spade,
-  Palette,
   ChevronRight,
+  Coins,
+  Flame,
+  Palette,
+  Spade,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Trophy,
+  UserPlus,
+  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
@@ -144,6 +145,21 @@ export function ProfileScreen() {
       </Card>
 
 
+
+      <button className="mt-4 w-full" onClick={() => go("changelog")}>
+        <Card className="flex-row items-center gap-3 p-4 active:scale-[0.99]">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-gold/25 to-secondary text-gold">
+            <Sparkles className="size-5" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="text-sm font-extrabold">What&apos;s New</div>
+            <div className="text-xs text-muted-foreground">
+              Latest updates &amp; the team behind Poker CM
+            </div>
+          </div>
+          <ChevronRight className="size-5 text-muted-foreground" />
+        </Card>
+      </button>
 
       {user.is_admin && (
         <Button
