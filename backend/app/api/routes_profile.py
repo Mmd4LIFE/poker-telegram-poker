@@ -23,6 +23,12 @@ async def changelog():
     from app.services.changelog import load
 
     data = load()
+    # The [Unreleased] section is a developer note (upcoming/internal) — not something
+    # to show players as a mysterious "Next". Only shipped, dated releases are public.
+    data["releases"] = [
+        r for r in data.get("releases", [])
+        if r.get("version", "").lower() != "unreleased"
+    ]
     data["team"] = {
         "name": "Mmd",
         "handle": "@mmdsvm",
