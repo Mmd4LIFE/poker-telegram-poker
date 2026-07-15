@@ -258,3 +258,13 @@ body {
   cursor: pointer;
   border-color: #0a0e16;
 }
+
+/* Hide the scrollbar chrome on things that scroll horizontally — the content still
+   scrolls (swipe / drag), we just don't show the bar. */
+.no-scrollbar {
+  -ms-overflow-style: none;   /* IE/old Edge */
+  scrollbar-width: none;      /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;              /* Chrome/Safari/WebKit */
+}

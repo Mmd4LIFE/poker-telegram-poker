@@ -260,7 +260,7 @@ export function AdminData() {
         <Loader2 className="mx-auto mt-6 size-6 animate-spin text-gold" />
       ) : (
         <Card className="gap-0 overflow-hidden p-0">
-          <div className="overflow-x-auto">
+          <div className="no-scrollbar overflow-x-auto">
             <table className="min-w-full text-left text-[11px]">
               <thead>
                 <tr className="border-b border-white/10">

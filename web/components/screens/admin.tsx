@@ -47,7 +47,7 @@ export function AdminScreen() {
       <PageHeader title="Admin" onBack={() => go("profile")} />
       <Tabs defaultValue="overview">
         {/* too many tabs to fit — scroll horizontally instead of cramming */}
-        <TabsList className="mb-3 flex w-full justify-start gap-1 overflow-x-auto">
+        <TabsList className="no-scrollbar mb-3 flex w-full justify-start gap-1 overflow-x-auto">
           <TabsTrigger value="overview" className="shrink-0">Sales</TabsTrigger>
           <TabsTrigger value="boxes" className="shrink-0">Boxes</TabsTrigger>
           <TabsTrigger value="packs" className="shrink-0">Packs</TabsTrigger>
