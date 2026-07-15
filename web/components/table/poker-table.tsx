@@ -25,6 +25,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
@@ -198,6 +199,7 @@ export function PokerTable({ code }: { code: string }) {
   const sngOverRef = useRef<null | (() => void)>(null);
   const onSngOverRef = useRef<null | (() => void)>(null);
   const [myResult, setMyResult] = useState<{ place: number; lp: number } | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [seating, setSeating] = useState(false);
   const [emotes, setEmotes] = useState<Record<number, { e: string; id: number }>>({});
   const [emoteOpen, setEmoteOpen] = useState(false);
@@ -278,12 +280,22 @@ export function PokerTable({ code }: { code: string }) {
 
   const send = (obj: any) => wsRef.current?.readyState === 1 && wsRef.current.send(JSON.stringify(obj));
 
-  async function leave() {
+  // Leaving is a two-step for a LIVE league seat: forfeiting locks in a finish and
+  // its LP, so we make you confirm the exact stakes first. A busted/spectating player
+  // (no live seat) just closes the view.
+  function leave() {
+    if (isLeague && me && !me.folded && (me.stack ?? 0) > 0) {
+      setConfirmLeave(true);
+      return;
+    }
+    doLeave();
+  }
+
+  async function doLeave() {
+    setConfirmLeave(false);
     aliveRef.current = false;
     wsRef.current?.close();
-    // Leaving a league game FORFEITS: you finish at your current standing, LP booked
-    // now. This is the anti-coast rule — walking away can't ladder you up by folding.
-    // (leaveRoom would try to cash out tournament chips as coins, so never call it.)
+    // leaveRoom would try to cash out tournament chips as coins, so never call it.
     try {
       if (isLeague) await api.leagueForfeit(code);
       else await api.leaveRoom(code);
@@ -673,6 +685,39 @@ export function PokerTable({ code }: { code: string }) {
             ))}
         </div>
       )}
+
+      {/* forfeit confirm: leaving locks a finish + LP, so show the exact stakes */}
+      <Dialog open={confirmLeave} onOpenChange={setConfirmLeave}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Leave the tournament?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm leading-snug text-muted-foreground">
+            You&apos;re still in with {alive.length} player{alive.length === 1 ? "" : "s"}.
+            Leaving locks you in{" "}
+            <b className="text-foreground">
+              {projPlace ? `${projPlace}${["", "st", "nd", "rd"][projPlace] ?? "th"}` : "last"}
+            </b>{" "}
+            right now for{" "}
+            <b className={cn(projLp != null && projLp >= 0 ? "text-win" : "text-lose")}>
+              {projLp != null ? `${projLp >= 0 ? "+" : ""}${projLp} LP` : "your standing"}
+            </b>
+            . Stay and you can still climb.
+          </p>
+          <DialogFooter className="mt-2 flex-row gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setConfirmLeave(false)}
+            >
+              Keep playing
+            </Button>
+            <Button variant="destructive" className="flex-1" onClick={doLeave}>
+              Leave · lock {projLp != null ? `${projLp >= 0 ? "+" : ""}${projLp}` : ""} LP
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* what the tournament changed — a ladder that moves silently teaches nothing */}
       {lgDelta && (
