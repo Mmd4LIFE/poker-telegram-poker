@@ -324,6 +324,19 @@ export function PokerTable({ code }: { code: string }) {
   const seats: any[] = state?.seats ?? [];
   const me = seats.find((s) => s.user_id === meId);
 
+  // live LP projection for a Sit & Go
+  const lpTable: number[] = room?.lp_table ?? [];
+  const alive = seats.filter((s) => (s.stack ?? 0) > 0 || s.in_hand);
+  const myStack = me?.stack ?? 0;
+  // place-if-it-ended-now = 1 + how many survivors have MORE chips than me
+  const projPlace = isLeague && me
+    ? 1 + alive.filter((s) => (s.stack ?? 0) > myStack && s.user_id !== meId).length
+    : null;
+  const projLp =
+    projPlace && lpTable.length
+      ? lpTable[Math.min(projPlace - 1, lpTable.length - 1)]
+      : null;
+
   // spectator -> seat
   const seatBuyIn = Math.min(
     Math.max(minBuy, room?.min_buy_in ?? minBuy),
@@ -763,6 +776,31 @@ export function PokerTable({ code }: { code: string }) {
             </Button>
           </div>
         ) : null}
+        {/* Live LP projection — this is what makes "when is LP calculated" legible:
+            where you'd finish RIGHT NOW, and what it pays. Updates every hand. */}
+        {isLeague && projPlace && projLp !== null && (
+          <div className="flex items-center gap-2 border-t border-white/10 bg-black/20 px-4 py-1.5 text-[11px]">
+            <Trophy className="size-3.5 text-gold" />
+            <span className="text-muted-foreground">
+              Finish now:{" "}
+              <span className="font-bold text-foreground">
+                {projPlace}
+                {projPlace === 1 ? "st" : projPlace === 2 ? "nd" : projPlace === 3 ? "rd" : "th"}
+              </span>{" "}
+              of {alive.length}
+            </span>
+            <span
+              className={cn(
+                "ml-auto rounded-full px-2 py-0.5 font-bold",
+                projLp >= 0 ? "bg-win/20 text-win" : "bg-lose/20 text-lose",
+              )}
+            >
+              {projLp >= 0 ? "+" : ""}
+              {projLp} LP
+            </span>
+          </div>
+        )}
+
         {/* hand tray — the read, kept BELOW the buttons */}
         <div className="flex min-h-[66px] items-center gap-3 border-t border-white/10 px-4 py-2.5">
           {made ? (

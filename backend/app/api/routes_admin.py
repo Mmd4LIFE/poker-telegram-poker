@@ -690,6 +690,54 @@ async def admin_bot_detail(
             }
             for h in hands
         ],
+        "league": await _bot_league_roadmap(session, bot_id),
+    }
+
+
+async def _bot_league_roadmap(session: AsyncSession, bot_id: int) -> dict:
+    """A bot's climb and fall through the tiers, newest first — so the admin can
+    watch which bots are grinding upward and which are sinking."""
+    from app.models import Cohort as _C
+    from app.models import CohortMember as _CM
+    from app.models import LeagueSeason as _S
+    from app.services import league as _L
+
+    cfg = await _L.get_config(session)
+    rows = (
+        await session.execute(
+            select(_S, _C, _CM)
+            .join(_C, _C.season_id == _S.id)
+            .join(_CM, _CM.cohort_id == _C.id)
+            .where(_CM.user_id == bot_id, _S.status == "closed")
+            .order_by(_S.day.desc())
+            .limit(30)
+        )
+    ).all()
+    days = [
+        {
+            "day": str(season.day),
+            "tier": cohort.tier,
+            "tier_name": _L.tier_of(cfg, cohort.tier)["name"],
+            "rank": m.rank,
+            "lp": m.lp or 0,
+            "games": m.ranked_games or 0,
+            "wins": m.wins or 0,
+            "outcome": m.outcome or "held",
+        }
+        for season, cohort, m in rows
+    ]
+    order = [t["key"] for t in cfg["tiers"]]
+    best = None
+    for d in days:
+        if best is None or order.index(d["tier"]) > order.index(best):
+            best = d["tier"]
+    return {
+        "days": days,
+        "seasons": len(days),
+        "promotions": sum(1 for d in days if d["outcome"] == "promoted"),
+        "demotions": sum(1 for d in days if d["outcome"] == "demoted"),
+        "best_tier": best,
+        "best_tier_name": _L.tier_of(cfg, best)["name"] if best else None,
     }
 
 

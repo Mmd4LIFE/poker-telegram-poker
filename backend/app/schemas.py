@@ -131,6 +131,7 @@ class RoomSummary(BaseModel):
     stack: int | None = None
     mode: str = "cash"          # cash | sng
     league_tier: str | None = None
+    lp_table: list[int] | None = None   # LP by finishing place, for the live projection
 
 
 # ---- economy ---------------------------------------------------------------

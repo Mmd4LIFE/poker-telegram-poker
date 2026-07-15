@@ -1005,6 +1005,49 @@ function Bots() {
                 />
               </div>
 
+              {pick.league?.days?.length > 0 && (
+                <>
+                  <h3 className="mb-1.5 mt-4 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <span>League roadmap</span>
+                    <span className="font-normal normal-case">
+                      best {pick.league.best_tier_name} · {pick.league.promotions}↑{" "}
+                      {pick.league.demotions}↓
+                    </span>
+                  </h3>
+                  <Card className="mb-3 p-2">
+                    {pick.league.days.map((h: any, i: number) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 border-b border-white/5 px-1 py-1.5 last:border-0"
+                      >
+                        <span className="w-16 text-[10px] text-muted-foreground">
+                          {h.day.slice(5)}
+                        </span>
+                        <span className="flex-1 text-xs font-semibold capitalize">
+                          {h.tier}
+                          <span className="ml-1 font-normal text-muted-foreground">
+                            #{h.rank}
+                          </span>
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {h.games}g · {h.wins}w
+                        </span>
+                        <span className="w-7 text-right text-xs font-bold tabular-nums">
+                          {h.lp}
+                        </span>
+                        {h.outcome === "promoted" ? (
+                          <span className="text-win">↑</span>
+                        ) : h.outcome === "demoted" ? (
+                          <span className="text-lose">↓</span>
+                        ) : (
+                          <span className="text-muted-foreground">·</span>
+                        )}
+                      </div>
+                    ))}
+                  </Card>
+                </>
+              )}
+
               {pick.recent?.length > 0 && (
                 <>
                   <h3 className="mb-1.5 mt-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">

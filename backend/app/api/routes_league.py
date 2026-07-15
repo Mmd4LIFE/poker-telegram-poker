@@ -212,6 +212,45 @@ async def play(
     return {"code": code, "size": size, "stack": stack}
 
 
+@router.get("/active")
+async def active_game(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """The league Sit & Go the user is currently seated in, if one is live.
+
+    Kept separate from /rooms/state/current on purpose: that endpoint ignores
+    tournaments (so Quick Play never resumes into one), but the homepage still wants
+    to show 'you have a league game running' as its own kind of card.
+    """
+    row = (
+        await session.execute(
+            select(Room)
+            .join(RoomPlayer, RoomPlayer.room_id == Room.id)
+            .where(
+                RoomPlayer.user_id == user.id,
+                Room.mode == "sng",
+                Room.status != "finished",
+            )
+            .order_by(Room.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if not row:
+        return {"active": False}
+    cfg = await L.get_config(session)
+    tier = await _tier_of_room(session, row) if False else None
+    from app.models import Cohort
+
+    c = await session.get(Cohort, row.cohort_id) if row.cohort_id else None
+    return {
+        "active": True,
+        "code": row.code,
+        "tier": c.tier if c else "bronze",
+        "tier_name": L.tier_of(cfg, c.tier)["name"] if c else "Bronze",
+    }
+
+
 @router.get("/history")
 async def history(
     user: User = Depends(get_current_user),

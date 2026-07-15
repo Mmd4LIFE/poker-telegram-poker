@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  Zap, Plus, Shield, Play, Spade, ChevronRight, ChevronDown, Trash2, Users,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Play, Plus, Shield, Spade, Trash2, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -45,6 +43,7 @@ export function LobbyScreen() {
   const { go, enterTable } = useApp();
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
   const [current, setCurrent] = useState<RoomSummary | null>(null);
+  const [league, setLeague] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
@@ -53,6 +52,7 @@ export function LobbyScreen() {
   const load = useCallback(() => {
     api.listRooms().then(setRooms).catch(() => setRooms([]));
     api.currentRoom().then(setCurrent).catch(() => {});
+    api.leagueActive().then((r: any) => setLeague(r.active ? r : null)).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -100,6 +100,27 @@ export function LobbyScreen() {
     <>
       <WalletBar />
       <NotifyGate />
+      {/* a live league Sit & Go looks nothing like a cash resume — tier-coloured,
+          labelled, and it goes back to the tournament you're already in */}
+      {league && (
+        <Card
+          onClick={() => enterTable(league.code)}
+          className={cn(
+            "mb-3 cursor-pointer flex-row items-center gap-3 border p-4 active:scale-[0.99]",
+            LEAGUE_CARD[league.tier] || "border-gold/40 bg-gradient-to-br from-gold/20 to-secondary",
+          )}
+        >
+          <Shield className={cn("size-6", LEAGUE_ICON[league.tier])} />
+          <div className="flex-1">
+            <div className="font-bold">{league.tier_name} Sit &amp; Go in progress</div>
+            <div className="text-xs text-muted-foreground">
+              Tap to return — it plays on without you
+            </div>
+          </div>
+          <ChevronRight className="size-5 text-muted-foreground" />
+        </Card>
+      )}
+
       {current && (
         <Card
           onClick={() => enterTable(current.code)}

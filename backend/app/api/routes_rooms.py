@@ -55,6 +55,7 @@ async def _summary(
         ),
         mode=getattr(room, "mode", "cash") or "cash",
         league_tier=await _tier_of_room(session, room),
+        lp_table=await _lp_table(session, room),
     )
 
 
@@ -68,6 +69,16 @@ async def _tier_of_room(session: AsyncSession, room: Room) -> str | None:
 
     c = await session.get(Cohort, cid)
     return c.tier if c else None
+
+
+async def _lp_table(session: AsyncSession, room: Room) -> list[int] | None:
+    """LP by finishing place, so the table can project 'if I finish here, +N LP'."""
+    if getattr(room, "mode", "cash") != "sng":
+        return None
+    from app.services import league as L
+
+    cfg = await L.get_config(session)
+    return list(cfg.get("lp", []))
 
 
 def _touch(room: Room) -> None:
