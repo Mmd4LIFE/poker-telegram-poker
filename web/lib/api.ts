@@ -58,6 +58,7 @@ export const api = {
   },
 
   me: () => req<UserProfile>("GET", "/me"),
+  changelog: () => req("GET", "/changelog"),
   daily: () => req("POST", "/daily"),
   dailyStatus: () => req("GET", "/daily"),
   setTz: (offset_min: number) => req("POST", "/me/tz", { offset_min }),

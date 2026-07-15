@@ -28,6 +28,10 @@ services:
     command: ["/app/entrypoint.sh"]
     expose:
       - "8000"
+    volumes:
+      # canonical changelog lives at the repo root; mount it so the API can serve it
+      # (updates need only a restart, no rebuild)
+      - ./CHANGELOG.md:/app/CHANGELOG.md:ro
     networks:
       - pokernet
 

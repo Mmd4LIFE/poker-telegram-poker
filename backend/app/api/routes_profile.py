@@ -16,6 +16,25 @@ from app.services.users import claim_daily  # noqa: F401
 router = APIRouter(prefix="/api", tags=["profile"])
 
 
+@router.get("/changelog")
+async def changelog():
+    """Structured release notes parsed from the canonical CHANGELOG.md, plus the team
+    intro. Single source of truth: add a release in CHANGELOG.md and it appears here."""
+    from app.services.changelog import load
+
+    data = load()
+    data["team"] = {
+        "name": "Mmd",
+        "handle": "@mmdsvm",
+        "telegram_id": 592354162,
+        "blurb": (
+            "Poker CM is built and run by one person — design, engine, economy, and "
+            "every pixel. Feedback and bug reports are always welcome; message me directly."
+        ),
+    }
+    return data
+
+
 @router.get("/me", response_model=UserProfile)
 async def me(
     user: User = Depends(get_current_user),
