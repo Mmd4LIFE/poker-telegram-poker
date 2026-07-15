@@ -1002,3 +1002,53 @@ async def admin_dash_backfill(
     n = await ANALYTICS.backfill(session, max(1, min(120, days)))
     await session.commit()
     return {"snapshotted": n}
+
+
+async def _fresh_today(session: AsyncSession) -> None:
+    """Keep today's snapshot current before a dashboard reads the series."""
+    from datetime import datetime, timezone
+    await ANALYTICS.snapshot_daily(session, datetime.now(timezone.utc).date())
+    await session.commit()
+
+
+@router.get("/dash/revenue")
+async def admin_dash_revenue(
+    days: int = 30,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    await _fresh_today(session)
+    return await ANALYTICS.revenue_dashboard(session, max(7, min(90, days)))
+
+
+@router.get("/dash/poker")
+async def admin_dash_poker(
+    days: int = 30,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    return await ANALYTICS.poker_dashboard(session, max(7, min(90, days)))
+
+
+@router.get("/dash/bots")
+async def admin_dash_bots(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    return await ANALYTICS.bots_dashboard(session)
+
+
+@router.get("/dash/league")
+async def admin_dash_league(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    return await ANALYTICS.league_dashboard(session)
+
+
+@router.get("/dash/behaviour")
+async def admin_dash_behaviour(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    return await ANALYTICS.behaviour_dashboard(session)

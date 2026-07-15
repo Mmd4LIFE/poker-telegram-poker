@@ -41,6 +41,12 @@ class FactDaily(Base):
     fee_coins_burned: Mapped[int] = mapped_column(BigInteger, default=0)
     fee_gems_burned: Mapped[int] = mapped_column(BigInteger, default=0)
 
+    # real-money revenue (accurately backfillable from the purchases ledger)
+    stars_revenue: Mapped[int] = mapped_column(BigInteger, default=0)      # XTR paid this day
+    ton_revenue_nano: Mapped[int] = mapped_column(BigInteger, default=0)   # nanoTON paid
+    purchases_paid: Mapped[int] = mapped_column(Integer, default=0)        # count of paid orders
+    active_payers: Mapped[int] = mapped_column(Integer, default=0)         # distinct payers
+
     # engagement
     hands_played: Mapped[int] = mapped_column(Integer, default=0)
     league_games: Mapped[int] = mapped_column(Integer, default=0)
