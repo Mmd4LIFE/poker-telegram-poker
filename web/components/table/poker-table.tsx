@@ -196,6 +196,8 @@ export function PokerTable({ code }: { code: string }) {
   const [lg, setLg] = useState<any>(null);        // my league standing
   const [lgDelta, setLgDelta] = useState<any>(null);  // what this tournament changed
   const sngOverRef = useRef<null | (() => void)>(null);
+  const onSngOverRef = useRef<null | (() => void)>(null);
+  const [myResult, setMyResult] = useState<{ place: number; lp: number } | null>(null);
   const [seating, setSeating] = useState(false);
   const [emotes, setEmotes] = useState<Record<number, { e: string; id: number }>>({});
   const [emoteOpen, setEmoteOpen] = useState(false);
@@ -229,6 +231,11 @@ export function PokerTable({ code }: { code: string }) {
           refresh(); // update coins/level (triggers level-up animation)
           clearTimeout(resultTimer.current);
           resultTimer.current = setTimeout(() => setResult(null), 4500);
+        }
+      } else if (msg.type === "placed") {
+        if (msg.user_id === meId) {
+          setMyResult({ place: msg.place, lp: msg.lp });
+          onSngOverRef.current?.();
         }
       } else if (msg.type === "sng_over") {
         sngOverRef.current?.();
@@ -274,15 +281,14 @@ export function PokerTable({ code }: { code: string }) {
   async function leave() {
     aliveRef.current = false;
     wsRef.current?.close();
-    // A Sit & Go can't be left — your seat plays on and blinds off. Closing the view
-    // is all "Leave" means here; calling leaveRoom would try to cash out tournament
-    // chips as coins.
-    if (!isLeague) {
-      try {
-        await api.leaveRoom(code);
-      } catch {
-        /* ignore */
-      }
+    // Leaving a league game FORFEITS: you finish at your current standing, LP booked
+    // now. This is the anti-coast rule — walking away can't ladder you up by folding.
+    // (leaveRoom would try to cash out tournament chips as coins, so never call it.)
+    try {
+      if (isLeague) await api.leagueForfeit(code);
+      else await api.leaveRoom(code);
+    } catch {
+      /* ignore */
     }
     exitTable();
   }
@@ -319,6 +325,7 @@ export function PokerTable({ code }: { code: string }) {
   // the socket handler is built once, so it reaches the latest callback through a ref
   useEffect(() => {
     sngOverRef.current = onSngOver;
+    onSngOverRef.current = onSngOver;
   }, [onSngOver]);
 
   const seats: any[] = state?.seats ?? [];
@@ -864,32 +871,52 @@ export function PokerTable({ code }: { code: string }) {
             </>
           ) : (
             !me ? (
-              <div className="flex w-full items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-extrabold">Watching</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Buy in for {fmt(seatBuyIn)} · blinds {fmt(room?.small_blind ?? 0)}/
-                    {fmt(room?.big_blind ?? 0)}
+              isLeague ? (
+                <div className="flex w-full items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-extrabold">
+                      {myResult
+                        ? `You finished ${myResult.place}${["", "st", "nd", "rd"][myResult.place] ?? "th"}`
+                        : "You're out"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {myResult
+                        ? `${myResult.lp >= 0 ? "+" : ""}${myResult.lp} LP · watching the rest`
+                        : "Watching the rest play out"}
+                    </div>
                   </div>
+                  <Button size="lg" onClick={() => exitTable()}>
+                    <Trophy className="size-4" /> League
+                  </Button>
                 </div>
-                <Button
-                  size="lg"
-                  disabled={seating || !canAffordSeat || tableFull}
-                  onClick={takeSeat}
-                >
-                  {seating ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : tableFull ? (
-                    "Table full"
-                  ) : !canAffordSeat ? (
-                    "Not enough coins"
-                  ) : (
-                    <>
-                      <LogIn className="size-4" /> Take seat
-                    </>
-                  )}
-                </Button>
-              </div>
+              ) : (
+                <div className="flex w-full items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-extrabold">Watching</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Buy in for {fmt(seatBuyIn)} · blinds {fmt(room?.small_blind ?? 0)}/
+                      {fmt(room?.big_blind ?? 0)}
+                    </div>
+                  </div>
+                  <Button
+                    size="lg"
+                    disabled={seating || !canAffordSeat || tableFull}
+                    onClick={takeSeat}
+                  >
+                    {seating ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : tableFull ? (
+                      "Table full"
+                    ) : !canAffordSeat ? (
+                      "Not enough coins"
+                    ) : (
+                      <>
+                        <LogIn className="size-4" /> Take seat
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )
             ) : (
               <div className="w-full text-center text-sm text-muted-foreground">
                 {me?.folded

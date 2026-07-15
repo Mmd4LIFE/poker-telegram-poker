@@ -40,6 +40,7 @@ class RoomRuntime:
         self.is_sng = self.mode == "sng"
         # finishing order, filled from the bottom up as players bust out
         self._knockouts: list[int] = []
+        self._placed: set[int] = set()   # league members already awarded their place
         self._sng_done = False
         self.min_buy_in = room.min_buy_in
         self.max_buy_in = room.max_buy_in
@@ -165,19 +166,32 @@ class RoomRuntime:
             return
 
         started = False
+        newly_out: list[int] = []
+        alive_after = 0
+        finished = False
         async with self.glock:
             if self.game.street == Street.IDLE:
                 if self.is_sng:
-                    self._reap_busted()
+                    newly_out = self._reap_busted()
+                    alive_after = len(self.game.seats)
                     if self._sng_over():
-                        await self._finish_sng()
-                        return
-                    self._apply_blind_level()
+                        finished = True
+                    else:
+                        self._apply_blind_level()
                 else:
                     await self._fill_bots()
-                if self.game.can_start():
+                if not finished and self.game.can_start():
                     self.game.start_hand()
                     started = True
+
+        # eliminations are booked immediately — a busted player's place is already
+        # locked, so there's no reason to make them wait for the game to end
+        for i, uid in enumerate(newly_out):
+            place = alive_after + len(newly_out) - i  # worst-first -> lowest place
+            await self._award(uid, place)
+        if finished:
+            await self._finish_sng()
+            return
 
         if not started and self.game.street == Street.IDLE:
             await self.broadcast_state()
@@ -284,47 +298,91 @@ class RoomRuntime:
         sb, bb = self.BLIND_LEVELS[lvl]
         self.game.small_blind, self.game.big_blind = sb, bb
 
-    def _reap_busted(self) -> None:
-        """Anyone who ran out of chips is out — for good. Their finishing place is
-        decided by WHEN they busted: last one standing is 1st."""
+    def _reap_busted(self) -> list[int]:
+        """Anyone who ran out of chips is out — for good. Returns the newly-busted
+        user_ids, worst finisher first (they get the lowest remaining place)."""
         busted = [s for s in self.game.seats if s.stack <= 0]
-        # two players out on the same hand: the one who started it with more chips
-        # outlasted the other, so they finish higher
+        # two players out on the same hand: the one who put MORE in outlasted the
+        # other, so they finish higher — award the smaller stack the worse place
         busted.sort(key=lambda s: s.committed)
+        out = []
         for s in busted:
             if s.user_id not in self._knockouts:
                 self._knockouts.append(s.user_id)
+                out.append(s.user_id)
             self.game.remove_seat(s.user_id)
+        return out
 
     def _sng_over(self) -> bool:
         return len(self.game.seats) <= 1
+
+    async def forfeit(self, user_id: int) -> dict:
+        """A player leaves a league game. They finish at their CURRENT standing —
+        the worst of everyone still in — booked immediately. This is the anti-coast
+        rule: walking away can only lock your place, never ladder you up by folding.
+        """
+        async with self.glock:
+            seat = self.game.get_seat(user_id)
+            if seat is None:
+                return {"forfeited": False}
+            place = len(self.game.active_seats())  # you + everyone still alive
+            if user_id not in self._knockouts:
+                self._knockouts.append(user_id)
+            self.game.remove_seat(user_id)
+            over = len(self.game.seats) <= 1
+        await self._award(user_id, place)
+        if over:
+            await self._finish_sng()
+        else:
+            await self.broadcast_state()
+        return {"forfeited": True, "place": place}
+
+    async def _award(self, user_id: int, place: int) -> None:
+        """Book one league finish immediately (bust, forfeit, or win) and tell the
+        player. Guarded so nobody is paid twice."""
+        if not self.cohort_id or user_id in self._placed:
+            return
+        self._placed.add(user_id)
+        from app.services import league as L
+
+        res = None
+        async with SessionLocal() as session:
+            cfg = await L.get_config(session)
+            res = await L.award_place(session, self.cohort_id, user_id, place, cfg)
+            await session.commit()
+        if res:
+            await hub.broadcast(
+                self.code,
+                {"type": "placed", "user_id": user_id, "place": place, "lp": res["lp"]},
+            )
 
     async def _finish_sng(self) -> None:
         if self._sng_done:
             return
         self._sng_done = True
 
-        survivors = [s.user_id for s in self.game.seats]
-        # knockouts were recorded worst-first; the winner is whoever is left
-        order = survivors + list(reversed(self._knockouts))
+        # the winner is the last one standing — place 1. Everyone else was already
+        # paid the instant they busted or forfeited.
+        for s in self.game.seats:
+            await self._award(s.user_id, 1)
+
+        order = [s.user_id for s in self.game.seats] + list(reversed(self._knockouts))
 
         from app.services import league as L
+        from app.models import LeagueGame
 
         async with SessionLocal() as session:
             room = await session.get(Room, self.room_id)
-            cfg = await L.get_config(session)
             if self.cohort_id and order:
-                bots = {}
-                for uid in order:
-                    u = await session.get(User, uid)
-                    bots[uid] = bool(u and u.is_bot)
-                await L.record_result(
-                    session,
-                    self.cohort_id,
-                    [(uid, bots.get(uid, False)) for uid in order],
-                    cfg,
-                    room_code=self.code,
-                    simulated=False,
+                # one history row for the whole game (LP already booked per elimination)
+                results = [{"user_id": uid, "place": i + 1} for i, uid in enumerate(order)]
+                session.add(
+                    LeagueGame(
+                        cohort_id=self.cohort_id,
+                        room_code=self.code,
+                        simulated=False,
+                        results=results,
+                    )
                 )
             if room:
                 room.status = "finished"

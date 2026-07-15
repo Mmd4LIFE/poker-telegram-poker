@@ -4,6 +4,7 @@ from __future__ import annotations
 import random
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -249,6 +250,26 @@ async def active_game(
         "tier": c.tier if c else "bronze",
         "tier_name": L.tier_of(cfg, c.tier)["name"] if c else "Bronze",
     }
+
+
+class ForfeitIn(BaseModel):
+    code: str
+
+
+@router.post("/forfeit")
+async def forfeit(
+    body: ForfeitIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Leave a league Sit & Go — you finish at your current standing, LP booked now."""
+    room = (
+        await session.execute(select(Room).where(Room.code == body.code))
+    ).scalar_one_or_none()
+    if not room or room.mode != "sng":
+        raise HTTPException(404, "Not a league game")
+    res = await manager.forfeit_league(room, user.id)
+    return res
 
 
 @router.get("/history")

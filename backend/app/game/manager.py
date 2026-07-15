@@ -178,6 +178,12 @@ class GameManager:
     def get_live(self, room_id: int) -> RoomRuntime | None:
         return self._runtimes.get(room_id)
 
+    async def forfeit_league(self, room: Room, user_id: int) -> dict:
+        rt = self._runtimes.get(room.id)
+        if rt is None:
+            return {"forfeited": False}
+        return await rt.forfeit(user_id)
+
     async def close_room(self, session: AsyncSession, room: Room) -> dict:
         """Cash everyone out, stop the runtime and retire the table."""
         players = (await session.execute(

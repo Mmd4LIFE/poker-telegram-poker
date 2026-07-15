@@ -292,6 +292,52 @@ async def _populate(session: AsyncSession, season: LeagueSeason, cfg: dict) -> N
 # --------------------------------------------------------------------- result
 
 
+async def award_place(
+    session: AsyncSession,
+    cohort_id: int,
+    user_id: int,
+    place: int,
+    cfg: dict,
+) -> dict | None:
+    """Book one player's finish the moment it's decided — on bust or on forfeit.
+
+    A tournament place is locked when you're eliminated: if N players remain when you
+    go out, you finished N+1, and nothing later can change that. So there's no reason
+    to defer LP to the end of the game.
+    """
+    m = await session.get(CohortMember, {"cohort_id": cohort_id, "user_id": user_id})
+    if m is None:
+        return None
+    lp_table = cfg["lp"]
+    lp = lp_table[place - 1] if place - 1 < len(lp_table) else lp_table[-1]
+    cap = int(cfg["ranked_games_per_day"])
+
+    m.games = (m.games or 0) + 1
+    if place == 1:
+        m.wins = (m.wins or 0) + 1
+    counted = (m.ranked_games or 0) < cap
+    if counted:
+        m.ranked_games = (m.ranked_games or 0) + 1
+        m.lp = (m.lp or 0) + lp
+
+    u = await session.get(User, user_id)
+    if u and not u.is_bot:
+        session.add(
+            Notification(
+                user_id=user_id,
+                kind="league",
+                title=f"Finished {place}{_ord(place)}",
+                body=(f"{'+' if lp >= 0 else ''}{lp} LP." if counted else "Doesn't count today (daily cap reached)."),
+                meta={"place": place, "lp": lp if counted else 0},
+            )
+        )
+    return {"place": place, "lp": lp if counted else 0, "counted": counted}
+
+
+def _ord(n: int) -> str:
+    return {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else n % 10, "th")
+
+
 async def record_result(
     session: AsyncSession,
     cohort_id: int,

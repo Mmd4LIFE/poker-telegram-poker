@@ -66,6 +66,7 @@ export const api = {
   leaguePlay: () => req("POST", "/league/play"),
   leagueHistory: () => req("GET", "/league/history"),
   leagueActive: () => req("GET", "/league/active"),
+  leagueForfeit: (code: string) => req("POST", "/league/forfeit", { code }),
   redeemShards: (card: string) => req("POST", "/cards/redeem-shards", { card }),
   adminLeague: () => req("GET", "/admin/league"),
   adminLeagueCfg: (b: unknown) => req("PATCH", "/admin/league", b),
