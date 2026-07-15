@@ -770,11 +770,17 @@ export function PokerTable({ code }: { code: string }) {
             )}
           </div>
         ) : me && me.stack <= 0 && me.sitting_out ? (
-          <div className="border-t border-white/10 p-3">
-            <Button className="w-full font-bold" onClick={rebuy}>
-              <Coins className="size-4" /> Rebuy {fmt(minBuy)}
-            </Button>
-          </div>
+          isLeague ? (
+            <div className="border-t border-white/10 p-3 text-center text-sm font-semibold text-muted-foreground">
+              You busted out — no rebuys in a tournament
+            </div>
+          ) : (
+            <div className="border-t border-white/10 p-3">
+              <Button className="w-full font-bold" onClick={rebuy}>
+                <Coins className="size-4" /> Rebuy {fmt(minBuy)}
+              </Button>
+            </div>
+          )
         ) : null}
         {/* Live LP projection — this is what makes "when is LP calculated" legible:
             where you'd finish RIGHT NOW, and what it pays. Updates every hand. */}

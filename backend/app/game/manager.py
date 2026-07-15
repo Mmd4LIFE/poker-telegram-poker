@@ -142,6 +142,12 @@ class GameManager:
     async def rebuy(
         self, session: AsyncSession, room: Room, user: User, amount: int
     ) -> dict:
+        # A tournament has no rebuys. Buying more chips mid-Sit&Go would break its
+        # whole premise (fixed stacks, play to the death) and — since league entry is
+        # free — it would also debit real coins for tournament chips that are never
+        # cashed back out. Bust = you're out.
+        if getattr(room, "mode", "cash") == "sng":
+            raise ValueError("No rebuys in a tournament")
         rp = (await session.execute(
             select(RoomPlayer).where(
                 RoomPlayer.room_id == room.id, RoomPlayer.user_id == user.id
