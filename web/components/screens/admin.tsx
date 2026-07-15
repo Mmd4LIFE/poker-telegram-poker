@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadarChart } from "@/components/radar-chart";
+import { AdminData } from "@/components/screens/admin-data";
 import { KpiTile, AxisLegend } from "@/components/kpi";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
@@ -53,6 +54,7 @@ export function AdminScreen() {
           <TabsTrigger value="reach" className="flex-1">Reach</TabsTrigger>
           <TabsTrigger value="bots" className="flex-1">Bots</TabsTrigger>
           <TabsTrigger value="league" className="flex-1">League</TabsTrigger>
+          <TabsTrigger value="data" className="flex-1">Data</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
         <TabsContent value="boxes"><Boxes /></TabsContent>
@@ -61,6 +63,7 @@ export function AdminScreen() {
         <TabsContent value="reach"><Reach /></TabsContent>
         <TabsContent value="bots"><Bots /></TabsContent>
         <TabsContent value="league"><League /></TabsContent>
+        <TabsContent value="data"><AdminData /></TabsContent>
       </Tabs>
     </>
   );
