@@ -7,6 +7,7 @@ import { initTelegram, startParam } from "@/lib/telegram";
 import { AppProvider } from "@/lib/store";
 import { SkinProvider } from "@/lib/skins";
 import { NotificationProvider } from "@/components/notifications";
+import { ErrorBoundary } from "@/components/error-boundary";
 import type { UserProfile } from "@/lib/types";
 import { AppShell } from "@/components/app-shell";
 
@@ -53,6 +54,7 @@ export default function Home() {
   }
 
   return (
+    <ErrorBoundary>
     <AppProvider initialUser={user}>
       <SkinProvider>
         <NotificationProvider>
@@ -60,5 +62,6 @@ export default function Home() {
         </NotificationProvider>
       </SkinProvider>
     </AppProvider>
+    </ErrorBoundary>
   );
 }

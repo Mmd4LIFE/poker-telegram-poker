@@ -39,6 +39,19 @@ function Tile({
   );
 }
 
+const LEAGUE_CARD: Record<string, string> = {
+  bronze: "border-[#cd7f32]/40 bg-gradient-to-br from-[#cd7f32]/20 to-secondary",
+  silver: "border-[#c0c0c0]/40 bg-gradient-to-br from-[#c0c0c0]/15 to-secondary",
+  gold: "border-gold/50 bg-gradient-to-br from-gold/20 to-secondary",
+  diamond: "border-[#3fa9ff]/40 bg-gradient-to-br from-[#3fa9ff]/20 to-secondary",
+};
+const LEAGUE_ICON: Record<string, string> = {
+  bronze: "text-[#cd7f32]",
+  silver: "text-[#c0c0c0]",
+  gold: "text-gold",
+  diamond: "text-[#3fa9ff]",
+};
+
 export function LobbyScreen() {
   const { go, enterTable } = useApp();
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
