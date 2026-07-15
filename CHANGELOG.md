@@ -13,6 +13,18 @@ the fuller, technical record.
 ### Added
 - Project documentation under [`/docs`](docs/README.md) — architecture, every feature,
   API reference, and operations runbook.
+- **Admin analytics dashboards** — five derived dashboards on the analytics layer:
+  **Revenue** (Stars/TON gross, paying users, conversion, ARPPU, top packs),
+  **Poker** (hands/day, showdown rate, pot distribution, population VPIP/PFR/AF and
+  playing styles), **Bots** (roster, DQ-by-skill-band with a Spearman skill↔DQ check,
+  league fill), **League** (tier distribution human vs bot, participation,
+  promotions/relegations), and **Behaviour** (weekly retention triangle, feature-adoption
+  funnel, engagement-depth buckets). Daily real-money revenue is now snapshotted into
+  `fact_daily`.
+
+### Changed
+- Admin panel: the tab bar and the Dashboards sub-nav scroll horizontally without a
+  visible scrollbar.
 
 ## [0.9.0] — 2026-07-15 — Skill & Decision Quality
 
