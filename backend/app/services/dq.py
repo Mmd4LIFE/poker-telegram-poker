@@ -15,6 +15,31 @@ from app.models import PlayerStats, User
 
 MIN_DECISIONS = 50  # below this a DQ figure is noise
 
+# A player's DQ (0-100) mapped to a named skill grade + level. Phase 2, player-facing:
+# an Elo-like read of HOW WELL you play, distinct from XP level (how MUCH you play).
+GRADES = [
+    {"level": 1, "name": "Rookie", "min": 0, "color": "#9aa4b2"},
+    {"level": 2, "name": "Amateur", "min": 45, "color": "#7cc4ff"},
+    {"level": 3, "name": "Steady", "min": 55, "color": "#4ade80"},
+    {"level": 4, "name": "Sharp", "min": 65, "color": "#f5c518"},
+    {"level": 5, "name": "Expert", "min": 75, "color": "#a06bff"},
+    {"level": 6, "name": "Master", "min": 85, "color": "#ff6bd6"},
+]
+
+
+def grade_of(dq: float | None) -> dict:
+    g = GRADES[0]
+    for cand in GRADES:
+        if dq is not None and dq >= cand["min"]:
+            g = cand
+    nxt = next((x for x in GRADES if x["level"] == g["level"] + 1), None)
+    # progress toward the next grade, for a bar
+    prog = 0.0
+    if nxt and dq is not None:
+        span = nxt["min"] - g["min"]
+        prog = max(0.0, min(1.0, (dq - g["min"]) / span)) if span else 0.0
+    return {**g, "next": nxt["name"] if nxt else None, "next_at": nxt["min"] if nxt else None, "progress": round(prog, 2)}
+
 
 def compute(st: PlayerStats | None) -> dict:
     s = st or PlayerStats()

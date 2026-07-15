@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
 import { OnlineDot } from "@/components/online-dot";
 import { LeagueScreen } from "@/components/screens/league";
+import { SkillScreen } from "@/components/screens/skill";
 import { FriendsPanel } from "@/components/friends-panel";
 import { cn } from "@/lib/utils";
 
@@ -117,18 +118,19 @@ function Board({ scope }: { scope: "global" | "friends" }) {
 }
 
 export function LeaderboardScreen() {
+  const { user } = useApp();
+  const showSkill = (user?.level ?? 0) >= 10;
   return (
     <>
       <WalletBar />
       <Tabs defaultValue="league">
         <TabsList className="mb-3 w-full">
           <TabsTrigger value="league" className="flex-1">League</TabsTrigger>
-          <TabsTrigger value="global" className="flex-1">
-            Global
-          </TabsTrigger>
-          <TabsTrigger value="friends" className="flex-1">
-            Friends
-          </TabsTrigger>
+          {showSkill && (
+            <TabsTrigger value="skill" className="flex-1">Skill</TabsTrigger>
+          )}
+          <TabsTrigger value="global" className="flex-1">Global</TabsTrigger>
+          <TabsTrigger value="friends" className="flex-1">Friends</TabsTrigger>
         </TabsList>
         <TabsContent value="global">
           <Board scope="global" />
@@ -140,6 +142,11 @@ export function LeaderboardScreen() {
         <TabsContent value="league">
           <LeagueScreen />
         </TabsContent>
+        {showSkill && (
+          <TabsContent value="skill">
+            <SkillScreen />
+          </TabsContent>
+        )}
       </Tabs>
     </>
   );
