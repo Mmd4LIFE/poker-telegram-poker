@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadarChart } from "@/components/radar-chart";
-import { AdminData } from "@/components/screens/admin-data";
+import { Dashboards } from "@/components/screens/admin-dash";
 import { KpiTile, AxisLegend } from "@/components/kpi";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
@@ -64,7 +64,7 @@ export function AdminScreen() {
         <TabsContent value="reach"><Reach /></TabsContent>
         <TabsContent value="bots"><Bots /></TabsContent>
         <TabsContent value="league"><League /></TabsContent>
-        <TabsContent value="data"><AdminData /></TabsContent>
+        <TabsContent value="data"><Dashboards /></TabsContent>
       </Tabs>
     </>
   );
