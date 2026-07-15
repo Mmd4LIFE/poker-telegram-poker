@@ -118,35 +118,31 @@ function Board({ scope }: { scope: "global" | "friends" }) {
 }
 
 export function LeaderboardScreen() {
-  const { user } = useApp();
-  const showSkill = (user?.level ?? 0) >= 10;
   return (
     <>
       <WalletBar />
-      <Tabs defaultValue="league">
+      <Tabs defaultValue="global">
         <TabsList className="mb-3 w-full">
-          <TabsTrigger value="league" className="flex-1">League</TabsTrigger>
-          {showSkill && (
-            <TabsTrigger value="skill" className="flex-1">Skill</TabsTrigger>
-          )}
           <TabsTrigger value="global" className="flex-1">Global</TabsTrigger>
+          <TabsTrigger value="league" className="flex-1">League</TabsTrigger>
+          {/* Skill is always visible; the screen itself shows a lock under level 10,
+              exactly like League. */}
+          <TabsTrigger value="skill" className="flex-1">Skill</TabsTrigger>
           <TabsTrigger value="friends" className="flex-1">Friends</TabsTrigger>
         </TabsList>
         <TabsContent value="global">
           <Board scope="global" />
         </TabsContent>
+        <TabsContent value="league">
+          <LeagueScreen />
+        </TabsContent>
+        <TabsContent value="skill">
+          <SkillScreen />
+        </TabsContent>
         <TabsContent value="friends">
           <FriendsPanel />
           <Board scope="friends" />
         </TabsContent>
-        <TabsContent value="league">
-          <LeagueScreen />
-        </TabsContent>
-        {showSkill && (
-          <TabsContent value="skill">
-            <SkillScreen />
-          </TabsContent>
-        )}
       </Tabs>
     </>
   );
