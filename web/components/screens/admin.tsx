@@ -46,15 +46,16 @@ export function AdminScreen() {
     <>
       <PageHeader title="Admin" onBack={() => go("profile")} />
       <Tabs defaultValue="overview">
-        <TabsList className="mb-3 w-full">
-          <TabsTrigger value="overview" className="flex-1">Sales</TabsTrigger>
-          <TabsTrigger value="boxes" className="flex-1">Boxes</TabsTrigger>
-          <TabsTrigger value="packs" className="flex-1">Packs</TabsTrigger>
-          <TabsTrigger value="cards" className="flex-1">Cards</TabsTrigger>
-          <TabsTrigger value="reach" className="flex-1">Reach</TabsTrigger>
-          <TabsTrigger value="bots" className="flex-1">Bots</TabsTrigger>
-          <TabsTrigger value="league" className="flex-1">League</TabsTrigger>
-          <TabsTrigger value="data" className="flex-1">Data</TabsTrigger>
+        {/* too many tabs to fit — scroll horizontally instead of cramming */}
+        <TabsList className="mb-3 flex w-full justify-start gap-1 overflow-x-auto">
+          <TabsTrigger value="overview" className="shrink-0">Sales</TabsTrigger>
+          <TabsTrigger value="boxes" className="shrink-0">Boxes</TabsTrigger>
+          <TabsTrigger value="packs" className="shrink-0">Packs</TabsTrigger>
+          <TabsTrigger value="cards" className="shrink-0">Cards</TabsTrigger>
+          <TabsTrigger value="reach" className="shrink-0">Reach</TabsTrigger>
+          <TabsTrigger value="bots" className="shrink-0">Bots</TabsTrigger>
+          <TabsTrigger value="league" className="shrink-0">League</TabsTrigger>
+          <TabsTrigger value="data" className="shrink-0">Data</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
         <TabsContent value="boxes"><Boxes /></TabsContent>
