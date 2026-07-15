@@ -814,7 +814,11 @@ function Bots() {
   const [form, setForm] = useState<any>({ name: "", personality: "balanced", skill: 0.5, avatar: "bot" });
 
   const load = useCallback(() => api.adminBots().then(setD).catch(() => {}), []);
-  useEffect(() => { load(); }, [load]);
+  const [dq, setDq] = useState<any>(null);
+  useEffect(() => {
+    load();
+    api.adminDq().then(setDq).catch(() => {});
+  }, [load]);
 
   async function open(id: number) {
     try {
@@ -865,6 +869,48 @@ function Bots() {
         </Button>
       </div>
 
+      {/* Decision-Quality validation: does the EV score actually rank bots by skill?
+          If DQ correlates with configured skill, the metric is trustworthy. */}
+      {dq && (
+        <Card className="mb-3 p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Decision-Quality validation
+            </div>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                dq.verdict === "valid"
+                  ? "bg-win/20 text-win"
+                  : dq.verdict === "weak"
+                    ? "bg-gold/20 text-gold"
+                    : "bg-lose/20 text-lose",
+              )}
+            >
+              {dq.verdict}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg bg-secondary/60 p-2">
+              <div className="text-sm font-bold">{dq.rho_dq_vs_skill ?? "—"}</div>
+              <div className="text-[10px] uppercase text-muted-foreground">ρ vs skill</div>
+            </div>
+            <div className="rounded-lg bg-secondary/60 p-2">
+              <div className="text-sm font-bold">{dq.rho_dq_vs_winrate ?? "—"}</div>
+              <div className="text-[10px] uppercase text-muted-foreground">ρ vs winrate</div>
+            </div>
+            <div className="rounded-lg bg-secondary/60 p-2">
+              <div className="text-sm font-bold">{dq.sample}</div>
+              <div className="text-[10px] uppercase text-muted-foreground">bots (≥{dq.min_decisions})</div>
+            </div>
+          </div>
+          <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+            ρ is rank-correlation of each bot&apos;s DQ with its configured skill. Above
+            0.5 = the score measures skill; near 0 = the model needs retuning.
+          </p>
+        </Card>
+      )}
+
       {bots.map((b) => (
         <button key={b.id} onClick={() => open(b.id)} className="mb-2 w-full text-left">
           <Card className="flex-row items-center gap-3 p-3 active:scale-[0.99]">
@@ -876,8 +922,10 @@ function Bots() {
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-bold">{b.name}</div>
               <div className="text-[11px] text-muted-foreground">
-                {b.personality} · skill {b.skill} ·{" "}
-                {b.hands >= d.min_hands ? b.style : `${b.hands}/${d.min_hands} hands`}
+                {b.personality} · skill {b.skill}
+                {b.dq != null && (
+                  <span className="ml-1 text-gold">· DQ {b.dq}</span>
+                )}
               </div>
             </div>
             <div className="text-right">
@@ -1004,6 +1052,43 @@ function Bots() {
                   tone={pick.raw.net_won >= 0 ? "win" : "lose"}
                 />
               </div>
+
+              {pick.dq?.dq != null && (
+                <>
+                  <h3 className="mb-1.5 mt-4 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <span>Decision quality</span>
+                    <span className="font-normal normal-case">
+                      {pick.dq.decisions} decisions
+                    </span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg bg-secondary/60 p-2 text-center">
+                      <div className="text-lg font-extrabold text-gold">{pick.dq.dq}</div>
+                      <div className="text-[10px] uppercase text-muted-foreground">DQ score</div>
+                    </div>
+                    <div className="rounded-lg bg-secondary/60 p-2 text-center">
+                      <div className="text-lg font-extrabold text-lose">{pick.dq.blunder_rate}%</div>
+                      <div className="text-[10px] uppercase text-muted-foreground">blunder rate</div>
+                    </div>
+                  </div>
+                  {pick.dq.worst?.length > 0 && (
+                    <Card className="mt-2 p-2">
+                      <div className="mb-1 px-1 text-[10px] uppercase text-muted-foreground">
+                        Worst decisions
+                      </div>
+                      {pick.dq.worst.map((w: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2 border-b border-white/5 px-1 py-1 text-[11px] last:border-0">
+                          <span className="w-8 font-bold text-lose">{w.dq}</span>
+                          <span className="flex-1 text-muted-foreground capitalize">{w.street}</span>
+                          <span className="text-muted-foreground">
+                            best {fmt(w.best)} · chose {fmt(w.chosen)}
+                          </span>
+                        </div>
+                      ))}
+                    </Card>
+                  )}
+                </>
+              )}
 
               {pick.league?.days?.length > 0 && (
                 <>

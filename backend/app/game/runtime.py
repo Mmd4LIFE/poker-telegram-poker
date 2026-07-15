@@ -13,7 +13,7 @@ from app.database import SessionLocal
 from app.game.bots import pick_bots
 from app.game.connection import hub
 from app.models import Hand, PlayerHand, Room, RoomPlayer, User
-from app.poker import ai, ranges
+from app.poker import ai, ranges, scoring
 from app.poker.holdem import HoldemGame, Seat, Street
 from app.models import PlayerStats
 from app.services import dna as DNA
@@ -41,6 +41,8 @@ class RoomRuntime:
         # finishing order, filled from the bottom up as players bust out
         self._knockouts: list[int] = []
         self._placed: set[int] = set()   # league members already awarded their place
+        self._dq_buffer: list = []       # (user_id, score, street) pending flush
+        self._dq_cfg: dict = {}
         self._sng_done = False
         self.min_buy_in = room.min_buy_in
         self.max_buy_in = room.max_buy_in
@@ -272,6 +274,7 @@ class RoomRuntime:
                 or self.game.seats[self.game.current].user_id != user_id
             ):
                 return
+            self._score_decision(user_id, action, amount, legal)
             try:
                 events = self.game.apply_action(user_id, action, amount)
             except ValueError:
@@ -279,6 +282,75 @@ class RoomRuntime:
                 events = self.game.apply_action(user_id, fallback, 0)
         await self.broadcast_events(events)
         await self.broadcast_state()
+
+    # ---- decision-quality scoring ---------------------------------------
+    async def _flush_dq(self, session) -> None:
+        if not self._dq_buffer:
+            return
+        buf, self._dq_buffer = self._dq_buffer, []
+        by_user: dict[int, list] = {}
+        for uid, res, street in buf:
+            by_user.setdefault(uid, []).append((res, street))
+        for uid, items in by_user.items():
+            st = await session.get(PlayerStats, uid)
+            if st is None:
+                st = PlayerStats(user_id=uid)
+                session.add(st)
+            for f in ("dq_decisions", "dq_weight", "dq_weighted", "dq_blunders"):
+                if getattr(st, f, None) is None:
+                    setattr(st, f, 0)
+            worst = list(st.dq_worst or [])
+            for res, street in items:
+                st.dq_decisions += 1
+                st.dq_weight = (st.dq_weight or 0) + res["weight"]
+                st.dq_weighted = (st.dq_weighted or 0) + res["dq"] * res["weight"]
+                if res["label"] == "blunder":
+                    st.dq_blunders += 1
+                    worst.append({
+                        "dq": res["dq"], "street": street,
+                        "best": res["best"], "chosen": res["chosen"],
+                        "loss": res["ev_loss_frac"],
+                    })
+            # keep only the 8 worst, so the column stays small
+            worst.sort(key=lambda w: w["dq"])
+            st.dq_worst = worst[:8]
+
+
+    def _score_decision(self, user_id: int, action: str, amount: int, legal: dict) -> None:
+        """Grade this action by EV (see poker/scoring.py) and buffer it for the flush
+        at hand end. Equity uses the TRUE hand vs opponent ranges — the answer key a
+        fish's own misjudged equity is graded against."""
+        seat = self.game.get_seat(user_id)
+        if seat is None or not seat.hole or seat.hole[0] == "??":
+            return
+        opp_seats = [
+            o for o in self.game.in_hand_seats()
+            if o.user_id != user_id and not o.folded
+        ]
+        n_opp = max(1, len(opp_seats))
+        try:
+            from app.poker.ranges import range_of
+            from app.poker.ai import estimate_equity
+            opp_ranges = [
+                range_of(o.last_action, o.user_id == self.game.preflop_aggressor)
+                for o in opp_seats
+            ]
+            equity = estimate_equity(list(seat.hole), list(self.game.board), opp_ranges, 80)
+        except Exception:
+            return
+
+        to_call = self.game.current_bet - seat.bet
+        raise_to = amount if action in ("raise", "bet", "all-in", "allin") else 0
+        try:
+            res = scoring.score_action(
+                equity=equity, pot=self.game.pot_total, to_call=to_call,
+                stack=seat.stack, big_blind=self.game.big_blind, n_opp=n_opp,
+                action=action, raise_to=raise_to, current_bet=self.game.current_bet,
+                cfg=self._dq_cfg,
+            )
+        except Exception:
+            return
+        self._dq_buffer.append((user_id, res, self.game.street.value))
 
     # ---- Sit & Go --------------------------------------------------------
     #
@@ -515,6 +587,10 @@ class RoomRuntime:
                 )).scalar_one_or_none()
                 if rp:
                     rp.stack = seat.stack
+
+            # --- flush decision-quality scores (folded players included: they made
+            #     decisions too) ---
+            await self._flush_dq(session)
             await session.commit()
 
         # drop busted bots so fresh ones can join

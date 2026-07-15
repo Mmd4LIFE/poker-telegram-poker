@@ -611,6 +611,8 @@ async def admin_bots(
     out = []
     for b in bots:
         d = DNA.compute(stats.get(b.id))
+        from app.services import dq as DQ
+        dqd = DQ.compute(stats.get(b.id))
         out.append(
             {
                 "id": b.id,
@@ -618,6 +620,8 @@ async def admin_bots(
                 "avatar": b.avatar,
                 "personality": b.bot_personality,
                 "skill": round(b.bot_skill or 0, 2),
+                "dq": dqd["dq"],
+                "dq_blunder_rate": dqd["blunder_rate"],
                 "hands": d["hands"],
                 "hands_won": d["hands_won"],
                 "win_rate": d["win_rate"],
@@ -691,7 +695,24 @@ async def admin_bot_detail(
             for h in hands
         ],
         "league": await _bot_league_roadmap(session, bot_id),
+        "dq": _dq_of(st),
     }
+
+
+def _dq_of(st):
+    from app.services import dq as DQ
+    return DQ.compute(st)
+
+
+@router.get("/dq")
+async def admin_dq(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """The validation machine: is DQ actually measuring skill?"""
+    from app.services import dq as DQ
+    from app.poker.scoring import DEFAULTS
+    return {**await DQ.validate(session), "model": DEFAULTS}
 
 
 async def _bot_league_roadmap(session: AsyncSession, bot_id: int) -> dict:

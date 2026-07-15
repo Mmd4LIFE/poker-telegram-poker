@@ -74,6 +74,7 @@ export const api = {
   adminLeagueSimulate: (n: number) => req("POST", `/admin/league/simulate?rounds=${n}`),
   adminBots: () => req("GET", "/admin/bots"),
   adminBot: (id: number) => req("GET", `/admin/bots/${id}`),
+  adminDq: () => req("GET", "/admin/dq"),
   adminCreateBot: (b: unknown) => req("POST", "/admin/bots", b),
   adminDeleteBot: (id: number) => req("DELETE", `/admin/bots/${id}`),
   notifications: () => req("GET", "/notifications"),

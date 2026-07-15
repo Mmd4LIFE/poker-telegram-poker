@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, func
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -70,6 +71,14 @@ class PlayerStats(Base):
     faced_agg: Mapped[int] = mapped_column(Integer, default=0)
     unopened_actions: Mapped[int] = mapped_column(Integer, default=0)
     unopened_agg: Mapped[int] = mapped_column(Integer, default=0)
+
+    # --- decision quality (EV-based, luck-free) ---
+    dq_decisions: Mapped[int] = mapped_column(Integer, default=0)
+    dq_weight: Mapped[float] = mapped_column(Float, default=0.0)      # Σ weight
+    dq_weighted: Mapped[float] = mapped_column(Float, default=0.0)    # Σ score×weight
+    dq_blunders: Mapped[int] = mapped_column(Integer, default=0)
+    # small rolling sample of the worst decisions, for the admin monitor
+    dq_worst: Mapped[list] = mapped_column(JSONB, default=list)
 
     net_won: Mapped[int] = mapped_column(BigInteger, default=0)
     updated_at: Mapped[datetime] = mapped_column(
