@@ -44,7 +44,7 @@ def upgrade() -> None:
         CREATE OR REPLACE VIEW dim_user AS
         SELECT id, telegram_id, username, first_name, avatar, is_bot,
                bot_personality, bot_skill, referral_code, referred_by,
-               league_tier, is_admin, is_banned, bot_started, created_at
+               league_tier, is_banned, bot_started, created_at
         FROM users
     """)
     op.execute("""
