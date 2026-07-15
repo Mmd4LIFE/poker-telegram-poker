@@ -559,9 +559,17 @@ async def roll_over(session: AsyncSession) -> dict | None:
         ).all()
     )
     result = None
-    for s in stale:
-        result = await close_season(session, s, cfg)
+    for st in stale:
+        result = await close_season(session, st, cfg)
     await ensure_season(session)
+    if stale:
+        # a new league day -> refresh the skill-grade cutoffs from the latest
+        # distribution, so grades track the population without an admin pressing a button
+        try:
+            from app.services import dq as DQ
+            await DQ.recompute_grades(session)
+        except Exception:
+            pass
     return result
 
 
