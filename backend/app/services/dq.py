@@ -15,6 +15,67 @@ from app.models import PlayerStats, User
 
 MIN_DECISIONS = 50  # below this a DQ figure is noise
 
+# --- cumulative Skill Level (XP-style) ---------------------------------------
+# Deliberately Clash-Royale-shaped: levels 1-7 come quickly, 8-10 slow down, 11-12
+# are a grind, 13-15 are a long haul. The CUMULATIVE skill points needed to REACH
+# each level. Distinct from the percentile GRADE: grade = where you rank now (relative,
+# can move down); level = how far you've progressed (absolute, never drops).
+LEVEL_THRESHOLDS = [
+    0,       # 1
+    100,     # 2
+    250,     # 3
+    500,     # 4
+    900,     # 5
+    1500,    # 6
+    2400,    # 7   <- levels 1-7: easy
+    4200,    # 8
+    7000,    # 9
+    11500,   # 10  <- 8-10: harder
+    19000,   # 11
+    31000,   # 12  <- 11-12: very hard
+    52000,   # 13
+    86000,   # 14
+    140000,  # 15  <- 13-15: a long haul
+]
+MAX_LEVEL = len(LEVEL_THRESHOLDS)
+
+# colour tiers, so the badge reads at a glance
+LEVEL_TIERS = [
+    {"upto": 7, "color": "#cd7f32", "tier": "Bronze"},
+    {"upto": 10, "color": "#c0c0c0", "tier": "Silver"},
+    {"upto": 12, "color": "#f5c518", "tier": "Gold"},
+    {"upto": 15, "color": "#ff6bd6", "tier": "Legend"},
+]
+
+
+def _level_color(level: int) -> tuple[str, str]:
+    for t in LEVEL_TIERS:
+        if level <= t["upto"]:
+            return t["color"], t["tier"]
+    return LEVEL_TIERS[-1]["color"], LEVEL_TIERS[-1]["tier"]
+
+
+def level_of(sp: int) -> dict:
+    sp = max(0, int(sp or 0))
+    level = 1
+    for i, th in enumerate(LEVEL_THRESHOLDS):
+        if sp >= th:
+            level = i + 1
+    floor = LEVEL_THRESHOLDS[level - 1]
+    nxt = LEVEL_THRESHOLDS[level] if level < MAX_LEVEL else None
+    prog = 1.0 if nxt is None else max(0.0, min(1.0, (sp - floor) / (nxt - floor)))
+    color, tier = _level_color(level)
+    return {
+        "level": level,
+        "sp": sp,
+        "max_level": MAX_LEVEL,
+        "floor": floor,
+        "next_at": nxt,
+        "progress": round(prog, 3),
+        "color": color,
+        "tier": tier,
+    }
+
 # Grades are RELATIVE, not absolute. The DQ metric is compressed at the top (most
 # poker decisions are easy, so competent play scores 85-92) — so a fixed "Master = 85"
 # makes everyone a Master. Instead each grade is a PERCENTILE band of the live
@@ -121,6 +182,7 @@ def compute(st: PlayerStats | None) -> dict:
         "blunders": int(s.dq_blunders or 0),
         "blunder_rate": round(100 * (s.dq_blunders or 0) / n, 1) if n else 0.0,
         "worst": list(s.dq_worst or []),
+        "skill_sp": int(s.skill_sp or 0),
     }
 
 

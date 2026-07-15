@@ -139,9 +139,18 @@ def score_action(
     # weight: pot at stake, capped so one huge pot can't dominate the average
     weight = min(float(denom), c["weight_cap_bb"] * max(1, big_blind))
 
+    # Skill points: cumulative, XP-style. Only ABOVE-mediocre decisions earn, scaled by
+    # how good AND how big the pot — so grinding tiny pots or playing badly barely moves
+    # it, while strong play in real pots accrues. A blunder earns nothing (but never
+    # subtracts — it's cumulative).
+    quality = max(0.0, min(1.0, (dq - 40.0) / 60.0))
+    pot_bb = min(denom / max(1, big_blind), 25.0)
+    sp = round(quality ** 1.3 * pot_bb, 2)
+
     return {
         "dq": round(dq, 1),
         "label": label,
+        "sp": sp,
         "ev_loss_frac": round(ev_loss_frac, 3),
         "weight": round(weight, 1),
         "best": round(best_ev, 1),

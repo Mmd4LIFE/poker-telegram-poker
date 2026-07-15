@@ -77,6 +77,8 @@ class PlayerStats(Base):
     dq_weight: Mapped[float] = mapped_column(Float, default=0.0)      # Σ weight
     dq_weighted: Mapped[float] = mapped_column(Float, default=0.0)    # Σ score×weight
     dq_blunders: Mapped[int] = mapped_column(Integer, default=0)
+    # cumulative "skill points" — XP-style, earned by good decisions, never decreases
+    skill_sp: Mapped[int] = mapped_column(BigInteger, default=0)
     # small rolling sample of the worst decisions, for the admin monitor
     dq_worst: Mapped[list] = mapped_column(JSONB, default=list)
 

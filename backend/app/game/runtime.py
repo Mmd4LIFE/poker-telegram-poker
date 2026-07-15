@@ -296,7 +296,7 @@ class RoomRuntime:
             if st is None:
                 st = PlayerStats(user_id=uid)
                 session.add(st)
-            for f in ("dq_decisions", "dq_weight", "dq_weighted", "dq_blunders"):
+            for f in ("dq_decisions", "dq_weight", "dq_weighted", "dq_blunders", "skill_sp"):
                 if getattr(st, f, None) is None:
                     setattr(st, f, 0)
             worst = list(st.dq_worst or [])
@@ -304,6 +304,7 @@ class RoomRuntime:
                 st.dq_decisions += 1
                 st.dq_weight = (st.dq_weight or 0) + res["weight"]
                 st.dq_weighted = (st.dq_weighted or 0) + res["dq"] * res["weight"]
+                st.skill_sp = (st.skill_sp or 0) + int(round(res.get("sp", 0)))
                 if res["label"] == "blunder":
                     st.dq_blunders += 1
                     worst.append({

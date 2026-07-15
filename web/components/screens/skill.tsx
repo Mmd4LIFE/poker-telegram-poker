@@ -39,6 +39,7 @@ export function SkillScreen() {
     );
 
   const g = me.grade;
+  const lvl = me.skill_level;
 
   return (
     <>
@@ -47,56 +48,37 @@ export function SkillScreen() {
           <FlaskConical className="size-3" /> Experimental
         </div>
 
-        {me.ready && g ? (
+        {lvl && (
           <>
+            {/* the cumulative Skill Level badge — Clash-Royale-style, never drops */}
             <div
-              className="grid size-16 place-items-center rounded-2xl"
-              style={{ backgroundColor: g.color + "22", color: g.color }}
+              className="grid size-16 place-items-center rounded-2xl text-2xl font-extrabold"
+              style={{ backgroundColor: lvl.color + "22", color: lvl.color, border: `2px solid ${lvl.color}` }}
             >
-              <Brain className="size-8" />
+              {lvl.level}
             </div>
-            <div className="text-2xl font-extrabold" style={{ color: g.color }}>
-              {g.name}
+            <div className="text-lg font-extrabold" style={{ color: lvl.color }}>
+              {lvl.tier} · Level {lvl.level}
             </div>
             <div className="text-xs text-muted-foreground">
-              Skill level {g.level} · DQ {me.dq}
+              {lvl.sp.toLocaleString()} skill points
+              {me.ready && g ? ` · ${g.name}` : ""}
             </div>
-            {g.next && (
-              <>
-                <div className="mt-1 h-2 w-full max-w-52 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.round(g.progress * 100)}%`,
-                      backgroundColor: g.color,
-                    }}
-                  />
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {g.next} at DQ {g.next_at}
-                </div>
-              </>
-            )}
-            <p className="mt-1 max-w-64 text-[11px] leading-snug text-muted-foreground">
-              Decision Quality grades your choices by expected value — not whether they
-              won. It measures how well you play, not how lucky you run.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="grid size-14 place-items-center rounded-2xl bg-secondary">
-              <Brain className="size-7 text-muted-foreground" />
-            </div>
-            <div className="text-sm font-extrabold">Calibrating…</div>
-            <div className="text-xs text-muted-foreground">
-              Play <b className="text-foreground">{me.min_decisions - me.decisions} more decisions</b> to reveal your skill grade.
-            </div>
-            <div className="mt-1 h-1.5 w-full max-w-52 overflow-hidden rounded-full bg-white/10">
+            <div className="mt-1 h-2 w-full max-w-52 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-gold"
-                style={{ width: `${Math.round((100 * me.decisions) / me.min_decisions)}%` }}
+                className="h-full rounded-full"
+                style={{ width: `${Math.round(lvl.progress * 100)}%`, backgroundColor: lvl.color }}
               />
             </div>
+            <div className="text-[11px] text-muted-foreground">
+              {lvl.next_at
+                ? `Level ${lvl.level + 1} at ${lvl.next_at.toLocaleString()} SP`
+                : `Max level ${lvl.max_level}`}
+            </div>
+            <p className="mt-1 max-w-64 text-[11px] leading-snug text-muted-foreground">
+              You earn skill points for good decisions — graded by expected value, not by
+              whether they won. It never drops, and the top levels are a long climb.
+            </p>
           </>
         )}
       </Card>
@@ -124,6 +106,12 @@ export function SkillScreen() {
                   <AvatarIcon code={r.avatar} color={r.avatar_color} className="size-4" />
                 </AvatarFallback>
               </Avatar>
+              <div
+                className="grid size-6 shrink-0 place-items-center rounded-md text-[11px] font-extrabold"
+                style={{ backgroundColor: r.level_color + "22", color: r.level_color, border: `1px solid ${r.level_color}` }}
+              >
+                {r.skill_level}
+              </div>
               <div className="min-w-0 flex-1">
                 <div
                   className="truncate text-sm font-semibold"
@@ -131,14 +119,15 @@ export function SkillScreen() {
                 >
                   {r.name}
                 </div>
-                <div
-                  className="text-[10px] font-bold uppercase"
-                  style={{ color: r.grade_color }}
-                >
-                  {r.grade}
-                </div>
+                {r.grade && (
+                  <div className="text-[10px] font-bold uppercase" style={{ color: r.grade_color }}>
+                    {r.grade}
+                  </div>
+                )}
               </div>
-              <span className="text-sm font-extrabold tabular-nums">{r.dq}</span>
+              <span className="text-sm font-extrabold tabular-nums">
+                {r.skill_sp.toLocaleString()}
+              </span>
             </div>
           ))}
         </Card>
