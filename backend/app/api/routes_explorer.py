@@ -23,7 +23,26 @@ router = APIRouter(prefix="/api/admin/explorer", tags=["admin"])
 
 TABLES = Base.metadata.tables  # name -> sa.Table
 
+# Derived analytics VIEWS aren't ORM-mapped, so reflect them once and add them to the
+# browsable set. They query exactly like tables (SQLAlchemy Core over a reflected Table).
+ANALYTICS_VIEWS = ["dim_user", "fact_transaction", "fact_hand", "fact_trade"]
+_reflected: dict[str, sa.Table] = {}
+
 MAX_LIMIT = 200
+
+
+async def _all_tables(session: AsyncSession) -> dict:
+    """ORM tables + reflected analytics views."""
+    if not _reflected:
+        md = sa.MetaData()
+        def _reflect(conn):
+            for v in ANALYTICS_VIEWS:
+                try:
+                    _reflected[v] = sa.Table(v, md, autoload_with=conn, views=True)
+                except Exception:  # noqa: BLE001 — view may not exist yet
+                    pass
+        await session.run_sync(lambda s: _reflect(s.connection()))
+    return {**TABLES, **_reflected}
 
 
 def _coltype(col: sa.Column) -> str:
@@ -81,8 +100,9 @@ async def tables(
     session: AsyncSession = Depends(get_session),
 ):
     """Every table with its columns and a live row count — the 'Browse Data' list."""
+    all_tables = await _all_tables(session)
     out = []
-    for name, tbl in sorted(TABLES.items()):
+    for name, tbl in sorted(all_tables.items()):
         try:
             n = int(await session.scalar(sa.select(sa.func.count()).select_from(tbl)) or 0)
         except Exception:  # noqa: BLE001
@@ -126,7 +146,7 @@ async def query(
     _: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    tbl = TABLES.get(body.table)
+    tbl = (await _all_tables(session)).get(body.table)
     if tbl is None:
         raise HTTPException(404, "Unknown table")
 

@@ -960,3 +960,45 @@ async def admin_league_simulate(
     n = await LG.simulate_bot_games(session, cfg, rounds=max(1, min(20, rounds)))
     await session.commit()
     return {"games": n}
+
+
+# --- analytics dashboards ---------------------------------------------------
+
+from app.services import analytics as ANALYTICS  # noqa: E402
+
+
+@router.get("/dash/economy")
+async def admin_dash_economy(
+    days: int = 30,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    # keep today's snapshot fresh on view
+    from datetime import datetime, timezone
+    await ANALYTICS.snapshot_daily(session, datetime.now(timezone.utc).date())
+    await session.commit()
+    return await ANALYTICS.economy_dashboard(session, max(7, min(90, days)))
+
+
+@router.get("/dash/engagement")
+async def admin_dash_engagement(
+    days: int = 30,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from datetime import datetime, timezone
+    await ANALYTICS.snapshot_daily(session, datetime.now(timezone.utc).date())
+    await session.commit()
+    return await ANALYTICS.engagement_dashboard(session, max(7, min(90, days)))
+
+
+@router.post("/dash/backfill")
+async def admin_dash_backfill(
+    days: int = 30,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Snapshot the last N days from the event tables (flows are accurate historically)."""
+    n = await ANALYTICS.backfill(session, max(1, min(120, days)))
+    await session.commit()
+    return {"snapshotted": n}

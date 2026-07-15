@@ -570,6 +570,14 @@ async def roll_over(session: AsyncSession) -> dict | None:
             await DQ.recompute_grades(session)
         except Exception:
             pass
+        # ...and snapshot the day that just ended for the analytics trends
+        try:
+            from datetime import timedelta
+            from app.services import analytics as A
+            await A.snapshot_daily(session)  # defaults to yesterday (a complete day)
+            await A.snapshot_daily(session, A.datetime.now(A.timezone.utc).date())  # today so far
+        except Exception:
+            pass
     return result
 
 
