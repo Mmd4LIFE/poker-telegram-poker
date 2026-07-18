@@ -150,7 +150,8 @@ async def public_profile(
         raise HTTPException(404, "User not found")
     return {
         **user_card(target),
-        "telegram_id": target.telegram_id,
+        # telegram_id is intentionally NOT exposed — it's a private identifier and
+        # another player must never be able to read it. Messaging uses the @username.
         "biggest_pot": target.biggest_pot,
         "best_win_streak": target.best_win_streak,
         "games_played": target.games_played,

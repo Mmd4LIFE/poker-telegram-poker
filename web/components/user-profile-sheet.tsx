@@ -40,7 +40,6 @@ interface Profile {
   display_name: string;
   handle?: string | null;
   username?: string | null;
-  telegram_id?: number | null;
   name_color?: string;
   avatar: string;
   avatar_color?: string;
@@ -114,7 +113,6 @@ export function UserProfileSheet() {
   function message() {
     if (!p) return;
     if (p.username) openTelegramLink(`https://t.me/${p.username}`);
-    else if (p.telegram_id) openTelegramLink(`tg://user?id=${p.telegram_id}`);
     else toast("This player can't be messaged directly");
   }
 

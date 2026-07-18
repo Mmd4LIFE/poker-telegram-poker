@@ -27,7 +27,6 @@ class TokenResponse(BaseModel):
 # ---- user ------------------------------------------------------------------
 class UserProfile(BaseModel):
     id: int
-    telegram_id: int | None
     display_name: str
     handle: str | None
     username: str | None
@@ -68,7 +67,7 @@ class UserProfile(BaseModel):
         _, label = degree_for_level(u.level)
         win_rate = round(u.hands_won / u.hands_played * 100, 1) if u.hands_played else 0.0
         return cls(
-            id=u.id, telegram_id=u.telegram_id, display_name=u.display_name,
+            id=u.id, display_name=u.display_name,
             handle=u.handle, username=u.username, avatar=u.avatar,
             name_color=u.name_color or "", avatar_color=effective_avatar_color(u),
             referral_code=u.referral_code, bot_username=get_bot_username(),

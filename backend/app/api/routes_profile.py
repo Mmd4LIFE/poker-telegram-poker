@@ -32,7 +32,6 @@ async def changelog():
     data["team"] = {
         "name": "Mmd",
         "handle": "@mmdsvm",
-        "telegram_id": 592354162,
         "blurb": (
             "Poker CM is built and run by one person — design, engine, economy, and "
             "every pixel. Feedback and bug reports are always welcome; message me directly."
