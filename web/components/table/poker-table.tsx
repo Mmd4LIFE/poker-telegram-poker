@@ -209,7 +209,7 @@ function RailRow({
 }
 
 export function PokerTable({ code }: { code: string }) {
-  const { user, exitTable, openUser, refresh } = useApp();
+  const { user, exitTable, openUser, refresh, go } = useApp();
   const meId = user!.id;
   const [state, setState] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
@@ -253,13 +253,12 @@ export function PokerTable({ code }: { code: string }) {
       else if (msg.type === "events") {
         for (const ev of msg.events) if (ev.type === "action") haptic("light");
       } else if (msg.type === "hand_result") {
-        const winners = msg.result.results.filter((r: any) => r.won > 0);
-        if (winners.length) {
+        if (msg.result?.results?.length) {
           setResult(msg.result);
           notify("success");
           refresh(); // update coins/level (triggers level-up animation)
           clearTimeout(resultTimer.current);
-          resultTimer.current = setTimeout(() => setResult(null), 4500);
+          resultTimer.current = setTimeout(() => setResult(null), 5000);
         }
       } else if (msg.type === "placed") {
         if (msg.user_id === meId) {
@@ -735,22 +734,58 @@ export function PokerTable({ code }: { code: string }) {
 
       </div>
 
-      {/* result banner */}
+      {/* result banner — a real showdown summary: the board, and everyone who got to
+          showdown with their cards and hand, so you can SEE why they won, not just read it */}
       {result && (
-        <div className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-gold bg-black/80 px-6 py-4 text-center">
-          <Trophy className="mx-auto size-7 text-gold" />
-          {result.results
-            .filter((r: any) => r.won > 0)
-            .map((w: any, i: number) => (
-              <div key={i}>
-                <div className="mt-1 font-extrabold">{w.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {w.hand_name}
-                  {result.showdown ? "" : " (uncontested)"}
-                </div>
-                <div className="mt-1 font-extrabold text-gold">+{fmt(w.won)}</div>
-              </div>
-            ))}
+        <div className="absolute left-1/2 top-1/2 z-30 w-[88%] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-gold bg-black/85 px-4 py-3 text-center shadow-2xl">
+          <div className="mb-1.5 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gold">
+            <Trophy className="size-4" /> {result.showdown ? "Showdown" : "Hand won"}
+          </div>
+          {/* the board */}
+          {result.board?.length > 0 && (
+            <div className="mb-2 flex justify-center gap-0.5">
+              {result.board.map((c: string, k: number) => (
+                <PlayingCard key={"rb" + k} card={c} size="sm" />
+              ))}
+            </div>
+          )}
+          {/* players at showdown (winners first), each with cards + hand + winnings */}
+          <div className="space-y-1.5">
+            {[...result.results]
+              .sort((a: any, b: any) => (b.won || 0) - (a.won || 0))
+              .map((r: any, i: number) => {
+                const won = (r.won || 0) > 0;
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-2 py-1",
+                      won ? "bg-gold/15" : "opacity-70",
+                    )}
+                  >
+                    {result.showdown && r.cards?.length ? (
+                      <div className="flex shrink-0 gap-0.5">
+                        {r.cards.map((c: string, k: number) => (
+                          <PlayingCard key={"rc" + i + k} card={c} size="xs" />
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="min-w-0 flex-1 text-left">
+                      <div className="truncate text-sm font-bold">{r.name}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {r.hand_name}
+                        {!result.showdown ? " (uncontested)" : ""}
+                      </div>
+                    </div>
+                    {won && (
+                      <span className="shrink-0 text-sm font-extrabold text-gold">
+                        +{fmt(r.won)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
         </div>
       )}
 
@@ -894,11 +929,34 @@ export function PokerTable({ code }: { code: string }) {
             <div className="border-t border-white/10 p-3 text-center text-sm font-semibold text-muted-foreground">
               You busted out — no rebuys in a tournament
             </div>
-          ) : (
+          ) : (user?.coins ?? 0) >= minBuy ? (
             <div className="border-t border-white/10 p-3">
               <Button className="w-full font-bold" onClick={rebuy}>
                 <Coins className="size-4" /> Rebuy {fmt(minBuy)}
               </Button>
+            </div>
+          ) : (
+            // Out of chips AND can't afford a rebuy — don't leave them stuck staring at a
+            // button that only errors. Tell them, and give a clear way out or to top up.
+            <div className="space-y-2 border-t border-white/10 p-3 text-center">
+              <div className="text-sm font-semibold">You&apos;re out of chips</div>
+              <div className="text-xs text-muted-foreground">
+                A rebuy is {fmt(minBuy)} coins — you have {fmt(user?.coins ?? 0)}.
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={doLeave}>
+                  Leave table
+                </Button>
+                <Button
+                  className="flex-1 font-bold"
+                  onClick={async () => {
+                    await doLeave();
+                    go("shop");
+                  }}
+                >
+                  <Coins className="size-4" /> Get coins
+                </Button>
+              </div>
             </div>
           )
         ) : null}

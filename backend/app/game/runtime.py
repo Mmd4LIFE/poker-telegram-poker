@@ -25,6 +25,8 @@ logger = logging.getLogger("poker.runtime")
 
 # how many seats we try to keep filled (incl. bots) when a human is present
 TARGET_TABLE_SIZE = 4
+# Beat held after an action deals a new community card, so the reveal is legible.
+STREET_REVEAL_PAUSE = 1.1
 
 
 class RoomRuntime:
@@ -256,6 +258,7 @@ class RoomRuntime:
                 n_opp = len(self.game.in_hand_seats()) - 1
                 hole = list(seat.hole)
                 board = list(self.game.board)
+                pre_street = self.game.street
                 pot = self.game.pot_total
                 stack = seat.stack
                 personality = seat.bot_personality or "balanced"
@@ -302,8 +305,18 @@ class RoomRuntime:
                     self._turn_deadline = None
                 await self._apply(seat.user_id, action, amount, legal)
 
+            # A betting round just closed and the board grew (flop/turn/river). Hold a
+            # beat so players SEE the action that closed it and the new card land —
+            # otherwise the card blinks in and the next player's turn instantly steals
+            # focus, and nobody can tell why the board changed.
+            now_street = self.game.street
+            if now_street != pre_street and now_street != Street.IDLE:
+                await self.broadcast_state()
+                await asyncio.sleep(STREET_REVEAL_PAUSE)
+
         await self._settle_hand()
-        await asyncio.sleep(4.5)
+        # Give players time to read the showdown summary before the next hand deals.
+        await asyncio.sleep(5.0)
 
     async def _apply(self, user_id: int, action: str, amount: int, legal: dict) -> None:
         async with self.glock:

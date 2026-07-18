@@ -35,9 +35,17 @@ export function AppShell({ startParam }: { startParam: string | null }) {
       api.joinSquad(code).catch(() => {}).finally(() => go("squad"));
     } else if (p.startsWith("rm-")) {
       const code = p.split("-")[1];
-      api.joinRoom(code, null).then(() => enterTable(code)).catch((e) => {
-        toast.error((e as Error).message);
-      });
+      // One retry: a concurrent invite tap can momentarily lose the seat race, and a
+      // cold runtime can need a beat. Don't strand an invited friend on a transient miss.
+      const tryJoin = (attempt = 0): Promise<unknown> =>
+        api
+          .joinRoom(code, null)
+          .then(() => enterTable(code))
+          .catch((e) => {
+            if (attempt < 1) return new Promise((r) => setTimeout(r, 700)).then(() => tryJoin(attempt + 1));
+            toast.error((e as Error).message);
+          });
+      tryJoin();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startParam]);

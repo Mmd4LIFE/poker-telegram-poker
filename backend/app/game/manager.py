@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -90,8 +91,14 @@ class GameManager:
 
         rt = await self.get_runtime(session, room)
 
+        tried: set[int] = set()
+
         def _free_seat() -> int | None:
-            used = {s.seat for s in rt.game.seats} | {rp.seat for rp in seated_count}
+            used = (
+                {s.seat for s in rt.game.seats}
+                | {rp.seat for rp in seated_count}
+                | tried
+            )
             return next((i for i in range(room.max_players) if i not in used), None)
 
         seat_no = _free_seat()
@@ -114,11 +121,30 @@ class GameManager:
         except InsufficientFunds as e:
             raise ValueError(str(e)) from e
 
-        rp = RoomPlayer(
-            room_id=room.id, user_id=user.id, seat=seat_no, stack=buy_in,
-            status="seated",
-        )
-        session.add(rp)
+        # Two friends tapping the same invite at once can both compute the same free
+        # seat; the loser used to 500 on the unique (room, seat) constraint. Insert in a
+        # SAVEPOINT and, on a collision, pick the next free seat and try again — so a
+        # concurrent join lands cleanly instead of erroring.
+        placed = False
+        for _ in range(room.max_players + 1):
+            try:
+                async with session.begin_nested():
+                    session.add(RoomPlayer(
+                        room_id=room.id, user_id=user.id, seat=seat_no,
+                        stack=buy_in, status="seated",
+                    ))
+                    await session.flush()
+                placed = True
+                break
+            except IntegrityError:
+                tried.add(seat_no)
+                nxt = _free_seat()
+                if nxt is None:
+                    break
+                seat_no = nxt
+        if not placed:
+            raise ValueError("Table is full")
+
         user.games_played += 1
         await session.flush()
         await rt.add_seat(user, buy_in)

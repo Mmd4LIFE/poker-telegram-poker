@@ -36,6 +36,17 @@ players.
   menu button, so the top bar stays clean and your chip count never runs off screen.
 
 ### Fixed
+- **Hand results are now a proper showdown card reveal** — the end-of-hand popup shows
+  the board and every player who reached showdown with their actual cards, hand, and
+  winnings, so you can see *why* a hand was won, not just a name flashing by.
+- **New community cards now land with a beat** — after the action that closes a betting
+  round, the table pauses briefly so you can see the flop/turn/river appear instead of it
+  blinking past as the next player acts.
+- **Busted with no coins to rebuy** no longer strands you at the table — you get a clear
+  message with Leave and Get coins buttons instead of a rebuy button that only errors.
+- **Tapping a room invite is reliable** — a concurrent join no longer 500s on a seat
+  clash (it takes the next seat), the buy-in isn't charged for a failed seat, and the
+  app retries a transient miss so invited friends land in the room.
 - **Quick Play could bounce you with "No free seat"** even when a table showed open
   seats — bot tables now give up a bot's seat so a human can always sit, and you're
   never charged a buy-in for a seat you didn't get.
