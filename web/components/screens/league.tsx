@@ -10,6 +10,7 @@ import {
   Info,
   Loader2,
   Lock,
+  Brain,
   Shield,
   Sparkles,
   Swords,
@@ -198,6 +199,18 @@ export function LeagueScreen() {
       </Card>
 
       <Card className="p-2">
+        {/* DQ and Skill are shown for information only — the ladder still ranks on LP.
+            A future version will use them, once the scoring proves itself. */}
+        {rows.some((r) => r.dq != null || r.skill_score != null) && (
+          <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] text-muted-foreground">
+            <Info className="size-3" />
+            <span>
+              <b className="text-foreground">DQ</b> decision quality ·{" "}
+              <b className="text-gold">S</b> skill score — shown for info, not used to rank
+              yet
+            </span>
+          </div>
+        )}
         {rows.map((r, i) => {
           const line =
             d.promote && i === d.promote - 1
@@ -250,9 +263,26 @@ export function LeagueScreen() {
                       <Crown className="size-3" />
                       {r.wins}
                     </span>
+                    {r.dq != null && (
+                      <span className="flex items-center gap-0.5" title="Decision Quality">
+                        <Brain className="size-3" />
+                        {r.dq}
+                      </span>
+                    )}
+                    {r.skill_score != null && (
+                      <span
+                        className="font-bold text-gold"
+                        title="Skill score (experimental — not used for ranking yet)"
+                      >
+                        S{r.skill_score}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <span className="text-sm font-extrabold tabular-nums">{r.lp}</span>
+                <div className="flex flex-col items-end leading-none">
+                  <span className="text-sm font-extrabold tabular-nums">{r.lp}</span>
+                  <span className="text-[9px] uppercase text-muted-foreground">LP</span>
+                </div>
               </div>
 
               {line === "promote" && (

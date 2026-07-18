@@ -586,6 +586,37 @@ from app.models import PlayerStats  # noqa: E402
 from app.services import dna as DNA  # noqa: E402
 
 
+@router.get("/bots/allocation")
+async def admin_bot_allocation(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Live bot-pool health: how many bots exist, how many are seated right now, how
+    many are free, which tables hold them, and — critically — whether any bot is
+    double-seated (should always be 0 now)."""
+    from app.game.manager import manager
+
+    total = int(await session.scalar(
+        select(func.count()).select_from(User).where(User.is_bot.is_(True))
+    ) or 0)
+    auto = int(await session.scalar(
+        select(func.count()).select_from(User).where(
+            User.is_bot.is_(True), User.bot_auto.is_(True)
+        )
+    ) or 0)
+    alloc = manager.bot_allocation()
+    busy = alloc["busy"]
+    return {
+        "total": total,
+        "seeded": total - auto,
+        "auto_generated": auto,
+        "busy": busy,
+        "free": max(0, total - busy),
+        "tables": alloc["tables"],
+        "double_seated": alloc["double_seated"],
+    }
+
+
 @router.get("/bots")
 async def admin_bots(
     _: User = Depends(require_admin),

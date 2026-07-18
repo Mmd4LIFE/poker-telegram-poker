@@ -39,6 +39,17 @@ players.
 - **Quick Play could bounce you with "No free seat"** even when a table showed open
   seats — bot tables now give up a bot's seat so a human can always sit, and you're
   never charged a buy-in for a seat you didn't get.
+- **A bot could be seated at two tables at once** — bot selection now excludes every bot
+  already playing anywhere, and mints a fresh bot if the whole roster is busy, so no bot
+  ever plays two hands with one brain. *(internal)*
+
+### Added
+- **League now shows Decision Quality and an experimental Skill Score** beside each
+  player's League Points. These measure how *well* you play (not just how you place), so
+  folding every hand to survive no longer looks like skill. Shown for information only —
+  the ladder still ranks on League Points for now.
+- Admin: a live bot-pool monitor (total / busy / free / auto-generated, per-table
+  occupancy, and a double-seating health check). *(internal, admin-only)*
 
 ### Security
 - A player's Telegram ID is never exposed to anyone, and a player's @username is now

@@ -192,6 +192,40 @@ class GameManager:
     def get_live(self, room_id: int) -> RoomRuntime | None:
         return self._runtimes.get(room_id)
 
+    def busy_bot_ids(self) -> set[int]:
+        """Every bot currently seated at ANY live table. The single source of truth for
+        'which bots are taken' — bots have no RoomPlayer row, so this in-memory union is
+        the only way to stop the same bot being seated at two tables at once."""
+        ids: set[int] = set()
+        for rt in self._runtimes.values():
+            ids |= set(rt._bot_ids)
+        return ids
+
+    def bot_allocation(self) -> dict:
+        """Live snapshot of where every seated bot is — for the admin monitor and to
+        surface any (post-fix) double-seating immediately."""
+        per_table: list[dict] = []
+        seen: dict[int, list[str]] = {}
+        for rt in self._runtimes.values():
+            bots = sorted(rt._bot_ids)
+            per_table.append({
+                "code": rt.code,
+                "is_bot_table": rt.bots_only,
+                "bots": len(bots),
+                "seats": len(rt.game.seats),
+                "max": rt.max_players,
+            })
+            for bid in bots:
+                seen.setdefault(bid, []).append(rt.code)
+        doubled = {bid: codes for bid, codes in seen.items() if len(codes) > 1}
+        return {
+            "tables": per_table,
+            "busy": len(seen),
+            "double_seated": [
+                {"bot_id": bid, "tables": codes} for bid, codes in doubled.items()
+            ],
+        }
+
     async def forfeit_league(self, room: Room, user_id: int) -> dict:
         rt = self._runtimes.get(room.id)
         if rt is None:
@@ -432,10 +466,12 @@ class GameManager:
             from app.services.rooms import generate_room_code
 
             for _ in range(missing):
-                hosts = await pick_bots(session, set(), 1)
+                hosts = await pick_bots(session, self.busy_bot_ids(), 1)
                 if not hosts:
-                    return
-                host = hosts[0]
+                    from app.game.bots import generate_bot
+                    host = await generate_bot(session, len(self.busy_bot_ids()))
+                else:
+                    host = hosts[0]
                 code = await generate_room_code(session)
                 room = Room(
                     code=code,

@@ -820,10 +820,18 @@ function Bots() {
   const load = useCallback(() => api.adminBots().then(setD).catch(() => {}), []);
   const [dq, setDq] = useState<any>(null);
   const loadDq = useCallback(() => api.adminDq().then(setDq).catch(() => {}), []);
+  const [alloc, setAlloc] = useState<any>(null);
+  const loadAlloc = useCallback(
+    () => api.adminBotAllocation().then(setAlloc).catch(() => {}),
+    [],
+  );
   useEffect(() => {
     load();
     loadDq();
-  }, [load, loadDq]);
+    loadAlloc();
+    const t = setInterval(loadAlloc, 5000); // live pool view
+    return () => clearInterval(t);
+  }, [load, loadDq, loadAlloc]);
 
   async function recompute() {
     try {
@@ -884,6 +892,58 @@ function Bots() {
           <Plus className="size-4" /> New bot
         </Button>
       </div>
+
+      {/* Live bot-pool allocation — updates every 5s. The double-seated check must
+          always read 0; if it doesn't, a bot is playing two tables at once. */}
+      {alloc && (
+        <Card className="mb-3 p-3">
+          <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Bot pool · live
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "Total", value: alloc.total, tone: "" },
+              { label: "Busy", value: alloc.busy, tone: "text-gold" },
+              { label: "Free", value: alloc.free, tone: "text-win" },
+              { label: "Auto-made", value: alloc.auto_generated, tone: "text-[#7cc4ff]" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-lg bg-secondary/60 p-2 text-center">
+                <div className={cn("text-base font-extrabold", s.tone)}>{s.value}</div>
+                <div className="text-[9px] uppercase text-muted-foreground">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div
+            className={cn(
+              "mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold",
+              alloc.double_seated.length === 0
+                ? "bg-win/15 text-win"
+                : "bg-lose/20 text-lose",
+            )}
+          >
+            {alloc.double_seated.length === 0
+              ? "✓ No bot double-seated"
+              : `⚠ ${alloc.double_seated.length} bot(s) double-seated!`}
+          </div>
+          {alloc.tables?.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {alloc.tables.map((t: any) => (
+                <div key={t.code} className="flex items-center gap-2 text-[11px]">
+                  <span className="font-mono">{t.code}</span>
+                  {t.is_bot_table && (
+                    <span className="rounded bg-white/10 px-1 text-[8px] font-bold uppercase text-muted-foreground">
+                      self-play
+                    </span>
+                  )}
+                  <span className="ml-auto text-muted-foreground">
+                    {t.bots} bots · {t.seats}/{t.max} seats
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Decision-Quality validation: does the EV score actually rank bots by skill?
           If DQ correlates with configured skill, the metric is trustworthy. */}

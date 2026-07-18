@@ -49,6 +49,9 @@ class User(Base, TimestampMixin):
     bot_personality: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # 0.0 (weak / "bad bot") .. 1.0 (strong / "good bot")
     bot_skill: Mapped[float] = mapped_column(Float, default=0.5)
+    # Auto-generated on demand (when every seeded bot was already busy), vs the
+    # hand-authored seed roster. Lets the admin monitor tell them apart.
+    bot_auto: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Economy
     coins: Mapped[int] = mapped_column(BigInteger, default=0)  # soft currency

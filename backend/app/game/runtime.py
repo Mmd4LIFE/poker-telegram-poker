@@ -597,7 +597,16 @@ class RoomRuntime:
         if need <= 0:
             return
         async with SessionLocal() as session:
-            bots = await pick_bots(session, self.seated_user_ids(), need)
+            # Exclude bots seated at THIS table AND every other live table — otherwise
+            # one bot gets dealt into two games at once (the double-seating bug).
+            from app.game.manager import manager  # lazy: avoids an import cycle
+            exclude = self.seated_user_ids() | manager.busy_bot_ids()
+            bots = await pick_bots(session, exclude, need)
+            # Every existing bot is busy — mint fresh ones so a table is never starved.
+            if len(bots) < need:
+                from app.game.bots import generate_bot
+                for k in range(need - len(bots)):
+                    bots.append(await generate_bot(session, len(exclude) + k))
             for bot in bots:
                 buy = min(self.max_buy_in, max(self.min_buy_in, self.game.big_blind * 100))
                 used = {s.seat for s in self.game.seats}

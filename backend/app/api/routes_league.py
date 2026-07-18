@@ -11,8 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.database import get_session
 from app.game.manager import manager
-from app.models import Cohort, CohortMember, LeagueSeason, Room, RoomPlayer, User
+from app.models import (
+    Cohort,
+    CohortMember,
+    LeagueSeason,
+    PlayerStats,
+    Room,
+    RoomPlayer,
+    User,
+)
+from app.services import dq as DQ
 from app.services import league as L
+from app.services import league_score as LSCORE
 from app.services.cosmetics import effective_avatar_color
 from app.services.rooms import generate_room_code
 
@@ -77,10 +87,15 @@ async def standings(
     members.sort(key=lambda m: (-(m.lp or 0), m.ranked_games or 0))
 
     users = {}
+    stats = {}
     ids = [m.user_id for m in members]
     if ids:
         rows = await session.scalars(select(User).where(User.id.in_(ids)))
         users = {u.id: u for u in rows.all()}
+        srows = await session.scalars(
+            select(PlayerStats).where(PlayerStats.user_id.in_(ids))
+        )
+        stats = {s.user_id: s for s in srows.all()}
 
     n = len(members)
     promote_n = int(tier.get("promote", 0))
@@ -96,6 +111,9 @@ async def standings(
             if i < promote_n
             else ("demote" if demote_n and i >= n - demote_n else "hold")
         )
+        st = stats.get(m.user_id)
+        dq = DQ.compute(st)
+        lss = LSCORE.league_skill_score(st)
         rows_out.append(
             {
                 "rank": i + 1,
@@ -109,6 +127,9 @@ async def standings(
                 "lp": m.lp or 0,
                 "games": m.ranked_games or 0,
                 "wins": m.wins or 0,
+                # display-only, not used for ranking yet
+                "dq": dq["dq"] if dq["ready"] else None,
+                "skill_score": lss["score"] if lss["ready"] else None,
                 "zone": zone,
                 "is_me": u.id == user.id,
             }

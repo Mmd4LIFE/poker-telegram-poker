@@ -78,6 +78,7 @@ export const api = {
   adminLeagueHistory: () => req("GET", "/admin/league/history"),
   adminLeagueDay: (day: string) => req("GET", `/admin/league/history/${day}`),
   adminBots: () => req("GET", "/admin/bots"),
+  adminBotAllocation: () => req("GET", "/admin/bots/allocation"),
   adminBot: (id: number) => req("GET", `/admin/bots/${id}`),
   adminDq: () => req("GET", "/admin/dq"),
   adminDqRecompute: () => req("POST", "/admin/dq/recompute"),
