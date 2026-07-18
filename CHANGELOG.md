@@ -5,102 +5,95 @@ All notable changes to **Poker CM** are documented here.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Player-facing highlights are also shown in-app under **Me → What's New**. This file is
-the fuller, technical record.
+Dated releases below are the player-facing notes, also shown in-app under
+**Me → What's New**. Work-in-progress lives under **[Unreleased]** and is not shown to
+players.
 
 ## [Unreleased]
 
 ### Added
 - Project documentation under [`/docs`](docs/README.md) — architecture, every feature,
-  API reference, and operations runbook.
-- **Admin analytics dashboards** — five derived dashboards on the analytics layer:
-  **Revenue** (Stars/TON gross, paying users, conversion, ARPPU, top packs),
-  **Poker** (hands/day, showdown rate, pot distribution, population VPIP/PFR/AF and
-  playing styles), **Bots** (roster, DQ-by-skill-band with a Spearman skill↔DQ check,
-  league fill), **League** (tier distribution human vs bot, participation,
-  promotions/relegations), and **Behaviour** (weekly retention triangle, feature-adoption
-  funnel, engagement-depth buckets). Daily real-money revenue is now snapshotted into
-  `fact_daily`.
+  API reference, and operations runbook. *(internal)*
+- Admin analytics dashboards — Revenue, Players, Poker, Bots, League and Behaviour
+  views for a live read on the game's health. *(internal, admin-only)*
 
 ### Changed
-- Admin panel: the tab bar and the Dashboards sub-nav scroll horizontally without a
-  visible scrollbar.
+- Admin panel: horizontal tab bars scroll cleanly without a visible scrollbar.
+  *(internal, admin-only)*
+
+### Security
+- A player's Telegram ID is never exposed to anyone, and a player's @username is now
+  visible only to their friends — to everyone else you're just your display name.
 
 ## [0.9.0] — 2026-07-15 — Skill & Decision Quality
 
 ### Added
-- **Decision Quality (DQ)** scoring: every action is graded 0–100 by expected value, not
-  by whether it won. Pure EV model in `poker/scoring.py`, validated against the bot
-  skill ladder.
-- **Skill Grade** — a percentile-based rank of the live population (Rookie → Master), so
-  grades stay meaningful however the metric's scale moves.
-- **Skill Level** — a cumulative, XP-style progression (15 levels, Clash-Royale curve:
-  1–7 quick, 13–15 a long haul) that never drops. Shown in **Ranks → Skill** with a
-  leaderboard ordered by cumulative Skill Points.
-- Admin **DQ validation machine**: Spearman correlation of bot DQ vs configured skill, a
-  DQ distribution histogram, and one-click grade-cutoff recompute.
+- **Decision Quality (DQ)** — every action you take is graded from 0 to 100 on how good
+  the decision was, not on whether it happened to win. Play well and get unlucky, and
+  your DQ still reflects the good play.
+- **Skill Grade** — a rank based on where you stand against everyone currently playing
+  (Rookie → Master), so it always means something.
+- **Skill Level** — a steady climb of 15 levels that come quickly at first and become a
+  real grind near the top, and never drops. Find it in **Ranks → Skill**, with its own
+  leaderboard.
 
 ### Changed
-- Skill grades moved from fixed absolute thresholds (which made everyone a "Master") to
-  **percentile bands** recomputed from the live distribution.
+- Skill grades now come from how you compare to the live player base, so the ranks stay
+  meaningful instead of everyone drifting to "Master".
 
 ## [0.8.0] — 2026-07-14 — The Daily League
 
 ### Added
-- **Daily cohort league**: Bronze → Diamond tiers, daily Sit & Go tournaments, promotion
-  and relegation at midnight. League Points by finishing place.
-- Bot-filled cohorts so a table is never empty; bot-vs-bot games are sampled, not dealt.
-- **League Shards** → the exclusive, supply-capped **Champion** card skin.
-- Live **LP projection** at the table, a **league history** sheet, and an in-progress
-  league card on the home page.
+- **Daily league**: Bronze → Diamond tiers with daily Sit & Go tournaments, and
+  promotion or relegation every midnight. Earn League Points by how well you place.
+- Tables always fill out so you're never left waiting for players.
+- **League Shards** → the exclusive, limited-supply **Champion** card skin.
+- A live League Points projection at the table, a league history sheet, and an
+  in-progress league card on the home page.
 
 ### Fixed
-- LP is awarded the instant you're eliminated (your place is locked on bust), not at
-  game end.
-- Leaving a league game now forfeits at your current standing with a confirmation — you
-  can no longer coast to a better finish by folding.
+- League Points are awarded the moment you're knocked out — your place is locked in on
+  the spot.
+- Leaving a league game now locks in your current standing (with a confirmation), so you
+  can't fold your way to a better finish by quitting.
 - Quick Play no longer re-opens a finished league table.
 
 ### Security
-- Tournament chips can never be cashed out as coins (leave / rebuy / janitor all refuse
-  Sit & Go rooms), closing a coin-minting exploit.
+- Tournament chips can never be turned into coins, closing a coin-minting exploit.
 
-## [0.7.0] — 2026-07-13 — Bots that measurably play
+## [0.7.0] — 2026-07-13 — Smarter opponents
 
 ### Added
-- **Poker DNA**: a 7-axis behavioural radar (Aggression, Discipline, Deception, Hand
-  Reading, Position, Composure, Adaptation) computed from real hands, for every player
+- **Poker DNA**: a 7-trait playing-style radar (Aggression, Discipline, Deception, Hand
+  Reading, Position, Composure, Adaptation) built from your real hands, for every player
   and bot.
-- Admin **bot monitor**: per-bot radar, KPIs with formulas, and bot creation/deletion.
-- Self-play bot tables that keep the lobby alive.
+- Self-playing bot tables so the lobby always has action.
 
 ### Changed
-- The AI now reads opponents onto a **range** instead of assuming random cards — it no
-  longer overcalls raises. Range-reading is gated on bot skill.
+- Opponents now put you on a **range of hands** instead of guessing randomly — so they no
+  longer chase every raise.
 
 ### Fixed
-- Newcomers joining a running table post a live big blind to enter, so seating is fair
-  regardless of the button.
+- Joining a table mid-game posts a blind to sit down, so seating is fair no matter where
+  the dealer button is.
 
 ## [0.6.0] — 2026-07-12 — Card market & growth
 
 ### Added
-- **Card skins**: 52 individually skinnable cards, minted with serial numbers, priced by
-  rank and suit.
-- A **player-to-player market** with floor prices, a 5% burned fee, and a public item id
-  per copy.
-- Audience **segments & broadcasts**, a nightly **daily-reward reminder**, and in-app
-  **notifications** with an unread bell.
+- **Card skins**: all 52 cards can be individually skinned, each minted with its own
+  serial number and priced by rank and suit.
+- A **player-to-player market** with floor prices and a unique id on every copy.
+- In-app **notifications** with an unread bell, and a nightly daily-reward reminder.
 
 ### Fixed
-- Invite links land users in the bot chat (`?start=`), so referrals become reachable by
-  reminders and broadcasts.
+- Invite links now open the bot chat directly, so invited friends can receive reminders
+  and updates.
 
 ## [0.5.0] — 2026-07-11 — Economy & polish
 
 ### Added
-- Telegram **Stars** and **TON** purchases, DB-driven coin/gem packs, loot boxes with an
-  RTP monitor and per-box daily limits.
+- **Telegram Stars** and **TON** purchases, coin and gem packs, and loot boxes with
+  per-box daily limits.
 - Profile customization: buyable name colors and per-avatar colors.
 - A 7-day **daily reward** ladder.
 
@@ -112,15 +105,14 @@ the fuller, technical record.
 
 ### Added
 - **Squads** (clans) with roles, chat, browse, and a leaderboard.
-- Friends: search, requests, private messaging, referral auto-friending.
+- Friends: search, requests, private messaging, and auto-friending from invites.
 
 ## [0.1.0] — 2026-07-09 — First playable
 
 ### Added
-- The core game: a pure No-Limit Hold'em engine, per-room async runtime, WebSocket
-  tables, and AI opponents with personalities and skill.
-- Next.js Mini App with Telegram auth, the poker table, rooms, and profiles.
-- FastAPI + Postgres + Alembic + Docker Compose, behind a Cloudflare Tunnel.
+- The core game: real-time No-Limit Hold'em tables with AI opponents that each have their
+  own personality and skill.
+- A Telegram Mini App with the poker table, rooms, and player profiles.
 
 [Unreleased]: https://github.com/Mmd4LIFE/poker-telegram-poker/compare/v0.9.0...HEAD
 [0.9.0]: https://github.com/Mmd4LIFE/poker-telegram-poker/releases/tag/v0.9.0
