@@ -5,7 +5,8 @@ import {
   ArrowLeft,
   BarChart3,
   BookOpen,
-  MoreVertical,
+  ChevronDown,
+  ChevronUp,
   Coins,
   Loader2,
   LogIn,
@@ -186,7 +187,7 @@ function BetSlider({
   );
 }
 
-function MenuRow({
+function RailRow({
   icon: Icon,
   label,
   onClick,
@@ -196,11 +197,13 @@ function MenuRow({
   onClick: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold active:bg-secondary"
-    >
-      <Icon className="size-4 text-gold" /> {label}
+    <button onClick={onClick} className="flex items-center gap-2.5 active:scale-95">
+      <span className="rounded-md bg-black/55 px-2 py-0.5 text-sm font-bold text-white backdrop-blur">
+        {label}
+      </span>
+      <span className="grid size-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur">
+        <Icon className="size-5" />
+      </span>
     </button>
   );
 }
@@ -213,7 +216,7 @@ export function PokerTable({ code }: { code: string }) {
   const [ranksOpen, setRanksOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
   const [scoreRows, setScoreRows] = useState<any[] | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
   const [raiseTo, setRaiseTo] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [minBuy, setMinBuy] = useState(2000);
@@ -509,55 +512,60 @@ export function PokerTable({ code }: { code: string }) {
           <div className="flex shrink-0 items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-bold text-gold">
             <Coins className="size-3" /> {me ? fmt(me.stack) : 0}
           </div>
-          {/* all the table actions live behind one button so the bar never overflows */}
-          <div className="relative shrink-0">
-            <Button variant="outline" size="icon" onClick={() => setMenuOpen((v) => !v)}>
-              <MoreVertical className="size-4" />
-            </Button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full z-40 mt-1.5 w-48 overflow-hidden rounded-xl border border-white/10 bg-card py-1 shadow-2xl">
-                  {!isLeague && (
-                    <MenuRow
-                      icon={UserPlus}
-                      label="Invite a player"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        if (user)
-                          shareInvite(user, "room", code, "Join my poker table on Poker CM!");
-                      }}
-                    />
-                  )}
-                  <MenuRow
-                    icon={Smile}
-                    label="Send emote"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setEmoteOpen(true);
-                    }}
-                  />
-                  <MenuRow
-                    icon={BarChart3}
-                    label="Table scoreboard"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      openScore();
-                    }}
-                  />
-                  <MenuRow
-                    icon={BookOpen}
-                    label="Hand rankings"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setRanksOpen(true);
-                    }}
-                  />
-                </div>
-              </>
-            )}
-          </div>
         </div>
+      </div>
+
+      {/* Snapchat-style control rail: a chevron on the right edge that expands a labelled
+          icon column in place, then collapses back. Keeps the felt clear by default. */}
+      <div
+        className="absolute right-3 z-20 flex flex-col items-end gap-2"
+        style={{ top: "calc(env(safe-area-inset-top) + 52px)" }}
+      >
+        {railOpen && (
+          <>
+            {!isLeague && (
+              <RailRow
+                icon={UserPlus}
+                label="Invite"
+                onClick={() => {
+                  setRailOpen(false);
+                  if (user) shareInvite(user, "room", code, "Join my poker table on Poker CM!");
+                }}
+              />
+            )}
+            <RailRow
+              icon={Smile}
+              label="Emote"
+              onClick={() => {
+                setRailOpen(false);
+                setEmoteOpen(true);
+              }}
+            />
+            <RailRow
+              icon={BarChart3}
+              label="Scoreboard"
+              onClick={() => {
+                setRailOpen(false);
+                openScore();
+              }}
+            />
+            <RailRow
+              icon={BookOpen}
+              label="Hand rankings"
+              onClick={() => {
+                setRailOpen(false);
+                setRanksOpen(true);
+              }}
+            />
+          </>
+        )}
+        <button
+          onClick={() => setRailOpen((v) => !v)}
+          aria-label={railOpen ? "Hide controls" : "Show controls"}
+          className="grid size-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur active:scale-90"
+        >
+          {railOpen ? <ChevronUp className="size-5" /> : <ChevronDown className="size-5" />}
+        </button>
       </div>
 
       {/* emote picker */}
