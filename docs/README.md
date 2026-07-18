@@ -39,6 +39,10 @@ first, then the feature docs for whatever you're touching.
 - [features/daily-and-referrals.md](features/daily-and-referrals.md) — daily reward ladder, invites
 - [features/admin.md](features/admin.md) — the admin panel surface
 
+### Product / PRDs (where a feature is going)
+- [prd/clubs.md](prd/clubs.md) — Squads → **Clubs**: the zero-to-hero plan (club games,
+  club leaderboard, progression, Club Wars, club economy, anti-collusion)
+
 ### Backend
 - [backend/api-reference.md](backend/api-reference.md) — every REST route
 - [backend/models.md](backend/models.md) — ORM models, one line each
