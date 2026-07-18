@@ -132,6 +132,29 @@ class RoomRuntime:
         await self.broadcast_state()
         return refund
 
+    async def evict_one_bot(self) -> int | None:
+        """Kick one bot to free a seat for an arriving human. Prefers a bot that isn't
+        the one currently to act (and, among those, one already out of the hand), so an
+        in-progress hand is disturbed as little as possible. Returns the freed seat."""
+        async with self.glock:
+            cur_uid = (
+                self.game.seats[self.game.current].user_id
+                if self.game.current is not None
+                and 0 <= self.game.current < len(self.game.seats)
+                else None
+            )
+            cands = [s for s in self.game.seats if s.is_bot and s.user_id != cur_uid]
+            if not cands:
+                return None
+            cands.sort(key=lambda s: 0 if (s.folded or not s.in_hand) else 1)
+            seat = cands[0]
+            seat_no = seat.seat
+            self.game.remove_seat(seat.user_id)
+            self._bot_ids.discard(seat.user_id)
+            self._board.pop(seat.user_id, None)
+        await self.broadcast_state()
+        return seat_no
+
     def seated_user_ids(self) -> set[int]:
         return {s.user_id for s in self.game.seats}
 

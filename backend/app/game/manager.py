@@ -88,17 +88,31 @@ class GameManager:
         if len(seated_count) >= room.max_players:
             raise ValueError("Table is full")
 
+        rt = await self.get_runtime(session, room)
+
+        def _free_seat() -> int | None:
+            used = {s.seat for s in rt.game.seats} | {rp.seat for rp in seated_count}
+            return next((i for i in range(room.max_players) if i not in used), None)
+
+        seat_no = _free_seat()
+        # A self-play table exists to host humans. Bots aren't counted as occupants by
+        # the lobby (they have no RoomPlayer row), so it reports the table as open and
+        # sends players here — but the live game may be full of bots. Evict one so a
+        # human can always take a seat, instead of bouncing them with "No free seat".
+        # This also lets a bot table convert seat-by-seat into a human table as players
+        # arrive, which is the behaviour that actually scales.
+        if seat_no is None and getattr(room, "is_bot_table", False):
+            await rt.evict_one_bot()
+            seat_no = _free_seat()
+        if seat_no is None:
+            raise ValueError("Table is full")
+
+        # Debit only now that a seat is guaranteed — never charge a player we then
+        # fail to seat.
         try:
             await debit(session, user, buy_in, "buy_in", ref=room.code)
         except InsufficientFunds as e:
             raise ValueError(str(e)) from e
-
-        rt = await self.get_runtime(session, room)
-        # find a free seat number
-        used = {s.seat for s in rt.game.seats} | {rp.seat for rp in seated_count}
-        seat_no = next((i for i in range(room.max_players) if i not in used), None)
-        if seat_no is None:
-            raise ValueError("No free seat")
 
         rp = RoomPlayer(
             room_id=room.id, user_id=user.id, seat=seat_no, stack=buy_in,

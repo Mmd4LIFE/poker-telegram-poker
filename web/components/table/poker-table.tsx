@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   BarChart3,
   BookOpen,
+  MoreVertical,
   Coins,
   Loader2,
   LogIn,
@@ -185,6 +186,25 @@ function BetSlider({
   );
 }
 
+function MenuRow({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: React.ElementType;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold active:bg-secondary"
+    >
+      <Icon className="size-4 text-gold" /> {label}
+    </button>
+  );
+}
+
 export function PokerTable({ code }: { code: string }) {
   const { user, exitTable, openUser, refresh } = useApp();
   const meId = user!.id;
@@ -193,6 +213,7 @@ export function PokerTable({ code }: { code: string }) {
   const [ranksOpen, setRanksOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
   const [scoreRows, setScoreRows] = useState<any[] | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [raiseTo, setRaiseTo] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [minBuy, setMinBuy] = useState(2000);
@@ -478,28 +499,7 @@ export function PokerTable({ code }: { code: string }) {
             #{code}
           </div>
         )}
-        <div className="flex min-w-0 items-center gap-1.5">
-          {!isLeague && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() =>
-                user &&
-                shareInvite(user, "room", code, "Join my poker table on Poker CM!")
-              }
-            >
-              <UserPlus className="size-4" />
-            </Button>
-          )}
-          <Button variant="outline" size="icon" onClick={() => setEmoteOpen((v) => !v)}>
-            <Smile className="size-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={openScore} title="Table scoreboard">
-            <BarChart3 className="size-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={() => setRanksOpen(true)}>
-            <BookOpen className="size-4" />
-          </Button>
+        <div className="flex shrink-0 items-center gap-1.5">
           {isLeague && lg?.my_rank ? (
             <div className="flex shrink-0 items-center gap-1 rounded-full bg-card px-2 py-1 text-xs font-bold">
               <Trophy className="size-3 text-gold" />
@@ -508,6 +508,54 @@ export function PokerTable({ code }: { code: string }) {
           ) : null}
           <div className="flex shrink-0 items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-bold text-gold">
             <Coins className="size-3" /> {me ? fmt(me.stack) : 0}
+          </div>
+          {/* all the table actions live behind one button so the bar never overflows */}
+          <div className="relative shrink-0">
+            <Button variant="outline" size="icon" onClick={() => setMenuOpen((v) => !v)}>
+              <MoreVertical className="size-4" />
+            </Button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-full z-40 mt-1.5 w-48 overflow-hidden rounded-xl border border-white/10 bg-card py-1 shadow-2xl">
+                  {!isLeague && (
+                    <MenuRow
+                      icon={UserPlus}
+                      label="Invite a player"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        if (user)
+                          shareInvite(user, "room", code, "Join my poker table on Poker CM!");
+                      }}
+                    />
+                  )}
+                  <MenuRow
+                    icon={Smile}
+                    label="Send emote"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setEmoteOpen(true);
+                    }}
+                  />
+                  <MenuRow
+                    icon={BarChart3}
+                    label="Table scoreboard"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      openScore();
+                    }}
+                  />
+                  <MenuRow
+                    icon={BookOpen}
+                    label="Hand rankings"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setRanksOpen(true);
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

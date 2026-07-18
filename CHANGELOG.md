@@ -32,6 +32,13 @@ players.
   speed, freeing up the server. *(internal)*
 - Admin: full league history — browse every past day, each league's final standings, and
   the games played. *(internal, admin-only)*
+- Table controls (invite, emote, scoreboard, hand rankings) are tucked into a single
+  menu button, so the top bar stays clean and your chip count never runs off screen.
+
+### Fixed
+- **Quick Play could bounce you with "No free seat"** even when a table showed open
+  seats — bot tables now give up a bot's seat so a human can always sit, and you're
+  never charged a buy-in for a seat you didn't get.
 
 ### Security
 - A player's Telegram ID is never exposed to anyone, and a player's @username is now
