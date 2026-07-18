@@ -20,14 +20,16 @@ class FriendAction(BaseModel):
     user_id: int
 
 
-def user_card(u: User) -> dict:
+def user_card(u: User, reveal_handle: bool = False) -> dict:
+    # The @username is only shown to confirmed friends (and to yourself). To everyone
+    # else a player is just their display name — a stranger can't harvest handles.
     _, label = degree_for_level(u.level)
     win_rate = round(u.hands_won / u.hands_played * 100, 1) if u.hands_played else 0.0
     return {
         "id": u.id,
         "display_name": u.display_name,
-        "handle": u.handle,
-        "username": u.username,
+        "handle": u.handle if reveal_handle else None,
+        "username": u.username if reveal_handle else None,
         "avatar": u.avatar,
         "avatar_color": effective_avatar_color(u),
         "name_color": u.name_color or "",
@@ -63,7 +65,7 @@ async def my_friends(
     friends.sort(key=lambda u: (not F.is_online(u), u.display_name.lower()))
     incoming = await F.incoming_requests(session, user.id)
     return {
-        "friends": [user_card(u) for u in friends],
+        "friends": [user_card(u, reveal_handle=True) for u in friends],
         "incoming": [user_card(u) for u in incoming],
         "online_count": sum(1 for u in friends if F.is_online(u)),
     }
@@ -76,7 +78,10 @@ async def search(
     session: AsyncSession = Depends(get_session),
 ):
     results = await F.search_users(session, user, q)
-    return [{**user_card(u), "relation": rel} for u, rel in results]
+    return [
+        {**user_card(u, reveal_handle=(rel == "friends")), "relation": rel}
+        for u, rel in results
+    ]
 
 
 @router.post("/friends/request")
@@ -148,13 +153,15 @@ async def public_profile(
     target = await session.get(User, user_id)
     if target is None or target.is_bot:
         raise HTTPException(404, "User not found")
+    rel = await F.relation(session, user.id, user_id)
+    # @username shown to friends (and yourself) only; telegram_id never — both are
+    # private identifiers a stranger must not be able to read off another player.
+    reveal = rel == "friends" or target.id == user.id
     return {
-        **user_card(target),
-        # telegram_id is intentionally NOT exposed — it's a private identifier and
-        # another player must never be able to read it. Messaging uses the @username.
+        **user_card(target, reveal_handle=reveal),
         "biggest_pot": target.biggest_pot,
         "best_win_streak": target.best_win_streak,
         "games_played": target.games_played,
-        "relation": await F.relation(session, user.id, user_id),
+        "relation": rel,
         "history": await _history(session, user_id, 15),
     }
