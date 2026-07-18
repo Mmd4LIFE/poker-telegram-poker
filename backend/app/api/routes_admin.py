@@ -1023,7 +1023,12 @@ async def admin_league_history_day(
 ):
     """One league day in full: every cohort (league), its final standings, and the games
     played in it."""
-    season = await session.scalar(select(LeagueSeason).where(LeagueSeason.day == day))
+    from datetime import date as _date
+    try:
+        day_d = _date.fromisoformat(day)
+    except ValueError:
+        raise HTTPException(400, "Bad day (want YYYY-MM-DD)")
+    season = await session.scalar(select(LeagueSeason).where(LeagueSeason.day == day_d))
     if season is None:
         raise HTTPException(404, "No league on that day")
     cohorts = list((await session.scalars(
