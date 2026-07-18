@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     # is deliberately small — raise it only after watching RAM.
     BOT_TABLES: int = 2
     BOT_TABLE_SEATS: int = 5   # auto-close tables idle this long
+    # When NOBODY is watching a self-play table, it deals at most one hand per this many
+    # seconds instead of grinding continuously. A self-play table exists to keep the
+    # lobby looking alive, not to play out thousands of hands nobody sees — on a 1GB box
+    # that dealt ~9.7k hands/table in 5 days, which is pure wasted CPU and DB growth.
+    # When a human opens the table (becomes a viewer) it instantly resumes full speed.
+    BOT_TABLE_IDLE_SECONDS: float = 90.0
 
     # Loot boxes
     BOX_DAILY_LIMIT: int = 20   # max box opens per user per day (0 = unlimited)

@@ -1254,9 +1254,25 @@ function League() {
   const [d, setD] = useState<any>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"live" | "history">("live");
+  const [seasons, setSeasons] = useState<any[] | null>(null);
+  const [day, setDay] = useState<string | null>(null);     // selected past day
+  const [dayData, setDayData] = useState<any>(null);
 
   const load = useCallback(() => api.adminLeague().then(setD).catch(() => {}), []);
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (tab === "history" && seasons === null)
+      api.adminLeagueHistory().then((r: any) => setSeasons(r.seasons || [])).catch(() => setSeasons([]));
+  }, [tab, seasons]);
+
+  function openDay(dy: string) {
+    setDay(dy);
+    setDayData(null);
+    setOpen(null);
+    api.adminLeagueDay(dy).then(setDayData).catch(() => {});
+  }
 
   async function save(patch: any) {
     try {
@@ -1341,42 +1357,169 @@ function League() {
         </div>
       </Card>
 
-      {(d.cohorts || []).map((c: any) => (
-        <Card key={c.id} className="mb-2 p-0">
+      {/* Live today vs the full history of past days */}
+      <div className="no-scrollbar mb-3 flex gap-1.5">
+        {(["live", "history"] as const).map((t) => (
           <button
-            onClick={() => setOpen(open === c.id ? null : c.id)}
-            className="flex items-center gap-2 p-3"
+            key={t}
+            onClick={() => { setTab(t); setDay(null); }}
+            className={cn(
+              "flex-1 rounded-lg py-2 text-xs font-bold capitalize",
+              tab === t ? "bg-gold text-black" : "bg-secondary text-muted-foreground",
+            )}
           >
-            <span className="flex-1 text-left text-sm font-extrabold capitalize">
-              {c.tier} #{c.idx}
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              {c.humans} human · {c.bots} bots
-            </span>
+            {t === "live" ? "Today" : "History"}
           </button>
-          {open === c.id && (
-            <div className="border-t border-white/5 px-3 pb-2">
-              {c.members.map((m: any) => (
-                <div key={m.rank} className="flex items-center gap-2 border-b border-white/5 py-1.5 last:border-0">
-                  <span className="w-5 text-center text-[11px] font-bold text-muted-foreground">
-                    {m.rank}
-                  </span>
-                  <span className="flex-1 truncate text-xs">
-                    {m.name}
-                    {m.is_bot && (
-                      <span className="ml-1 text-[9px] uppercase text-muted-foreground/70">
-                        bot {m.personality} {m.skill}
-                      </span>
+        ))}
+      </div>
+
+      {tab === "live" &&
+        (d.cohorts || []).map((c: any) => (
+          <Card key={c.id} className="mb-2 p-0">
+            <button
+              onClick={() => setOpen(open === c.id ? null : c.id)}
+              className="flex items-center gap-2 p-3"
+            >
+              <span className="flex-1 text-left text-sm font-extrabold capitalize">
+                {c.tier} #{c.idx}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {c.humans} human · {c.bots} bots
+              </span>
+            </button>
+            {open === c.id && (
+              <div className="border-t border-white/5 px-3 pb-2">
+                {c.members.map((m: any) => (
+                  <div key={m.rank} className="flex items-center gap-2 border-b border-white/5 py-1.5 last:border-0">
+                    <span className="w-5 text-center text-[11px] font-bold text-muted-foreground">
+                      {m.rank}
+                    </span>
+                    <span className="flex-1 truncate text-xs">
+                      {m.name}
+                      {m.is_bot && (
+                        <span className="ml-1 text-[9px] uppercase text-muted-foreground/70">
+                          bot {m.personality} {m.skill}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">{m.games}g</span>
+                    <span className="w-8 text-right text-xs font-bold tabular-nums">{m.lp}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        ))}
+
+      {tab === "history" && !day && (
+        seasons === null ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : seasons.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No past league days yet.</p>
+        ) : (
+          seasons.map((s: any) => (
+            <button key={s.day} onClick={() => openDay(s.day)} className="mb-2 block w-full text-left">
+              <Card className="gap-1 p-3 active:scale-[0.99]">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-extrabold">{s.day}</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                      s.status === "closed" ? "bg-white/10 text-muted-foreground" : "bg-win/20 text-win",
                     )}
+                  >
+                    {s.status}
                   </span>
-                  <span className="text-[10px] text-muted-foreground">{m.games}g</span>
-                  <span className="w-8 text-right text-xs font-bold tabular-nums">{m.lp}</span>
+                  <span className="ml-auto text-[11px] text-muted-foreground">
+                    {s.cohorts} leagues · {s.games} games
+                  </span>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <span>{s.humans} human · {s.bots} bots</span>
+                  <span className="ml-auto">
+                    <span className="text-win">{s.outcomes.promoted}↑</span>{" "}
+                    <span>{s.outcomes.held}=</span>{" "}
+                    <span className="text-lose">{s.outcomes.demoted}↓</span>
+                  </span>
+                </div>
+              </Card>
+            </button>
+          ))
+        )
+      )}
+
+      {tab === "history" && day && (
+        <>
+          <button
+            onClick={() => { setDay(null); setDayData(null); }}
+            className="mb-2 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+          >
+            ← All days
+          </button>
+          <div className="mb-2 text-sm font-extrabold">{day}</div>
+          {!dayData ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            (dayData.cohorts || []).map((c: any) => (
+              <Card key={c.id} className="mb-2 p-0">
+                <button
+                  onClick={() => setOpen(open === c.id ? null : c.id)}
+                  className="flex items-center gap-2 p-3"
+                >
+                  <span className="flex-1 text-left text-sm font-extrabold capitalize">
+                    {c.tier} #{c.idx}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {c.humans} human · {c.bots} bots · {c.games.length} games
+                  </span>
+                </button>
+                {open === c.id && (
+                  <div className="border-t border-white/5 px-3 pb-2">
+                    {c.members.map((m: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 border-b border-white/5 py-1.5 last:border-0">
+                        <span className="w-5 text-center text-[11px] font-bold text-muted-foreground">{m.rank}</span>
+                        <span className="flex-1 truncate text-xs">
+                          {m.name}
+                          {m.is_bot && <span className="ml-1 text-[9px] uppercase text-muted-foreground/70">bot</span>}
+                        </span>
+                        {m.outcome && (
+                          <span
+                            className={cn(
+                              "text-[9px] font-bold uppercase",
+                              m.outcome === "promoted" ? "text-win" : m.outcome === "demoted" ? "text-lose" : "text-muted-foreground",
+                            )}
+                          >
+                            {m.outcome === "promoted" ? "↑" : m.outcome === "demoted" ? "↓" : "="}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">{m.games}g</span>
+                        <span className="w-8 text-right text-xs font-bold tabular-nums">{m.lp}</span>
+                      </div>
+                    ))}
+                    {c.games.length > 0 && (
+                      <div className="mt-2 border-t border-white/10 pt-2">
+                        <div className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+                          Games ({c.games.length})
+                        </div>
+                        {c.games.slice(0, 20).map((g: any) => (
+                          <div key={g.id} className="mb-1 flex items-center gap-1.5 text-[10px]">
+                            <span className={cn("rounded px-1 font-bold uppercase", g.simulated ? "bg-white/10 text-muted-foreground" : "bg-gold/20 text-gold")}>
+                              {g.simulated ? "sim" : "live"}
+                            </span>
+                            <span className="truncate text-muted-foreground">
+                              {g.results.slice(0, 3).map((r: any) => `${r.place}. ${r.name}`).join(" · ")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+            ))
           )}
-        </Card>
-      ))}
+        </>
+      )}
     </>
   );
 }

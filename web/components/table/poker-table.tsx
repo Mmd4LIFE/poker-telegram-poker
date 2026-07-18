@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   ArrowLeft,
+  BarChart3,
   BookOpen,
   Coins,
   Loader2,
@@ -190,6 +191,8 @@ export function PokerTable({ code }: { code: string }) {
   const [state, setState] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [ranksOpen, setRanksOpen] = useState(false);
+  const [scoreOpen, setScoreOpen] = useState(false);
+  const [scoreRows, setScoreRows] = useState<any[] | null>(null);
   const [raiseTo, setRaiseTo] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [minBuy, setMinBuy] = useState(2000);
@@ -283,6 +286,12 @@ export function PokerTable({ code }: { code: string }) {
   // Leaving is a two-step for a LIVE league seat: forfeiting locks in a finish and
   // its LP, so we make you confirm the exact stakes first. A busted/spectating player
   // (no live seat) just closes the view.
+  const openScore = useCallback(() => {
+    setScoreOpen(true);
+    setScoreRows(null);
+    api.roomScoreboard(code).then((r: any) => setScoreRows(r.rows || [])).catch(() => setScoreRows([]));
+  }, [code]);
+
   function leave() {
     if (isLeague && me && !me.folded && (me.stack ?? 0) > 0) {
       setConfirmLeave(true);
@@ -484,6 +493,9 @@ export function PokerTable({ code }: { code: string }) {
           )}
           <Button variant="outline" size="icon" onClick={() => setEmoteOpen((v) => !v)}>
             <Smile className="size-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={openScore} title="Table scoreboard">
+            <BarChart3 className="size-4" />
           </Button>
           <Button variant="outline" size="icon" onClick={() => setRanksOpen(true)}>
             <BookOpen className="size-4" />
@@ -998,6 +1010,86 @@ export function PokerTable({ code }: { code: string }) {
               </div>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* live table scoreboard — who's actually playing well, ordered by table DQ */}
+      <Dialog open={scoreOpen} onOpenChange={setScoreOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Table scoreboard</DialogTitle>
+          </DialogHeader>
+          {!scoreRows ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : scoreRows.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              No hands played at this table yet.
+            </div>
+          ) : (
+            <div className="max-h-[70vh] overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/10 text-[10px] uppercase text-muted-foreground">
+                    <th className="py-1.5 pr-1 font-semibold">#</th>
+                    <th className="py-1.5 pr-2 font-semibold">Player</th>
+                    <th className="px-1 py-1.5 text-right font-semibold" title="Decision Quality at this table">DQ</th>
+                    <th className="px-1 py-1.5 text-right font-semibold">H</th>
+                    <th className="px-1 py-1.5 text-right font-semibold">F</th>
+                    <th className="px-1 py-1.5 text-right font-semibold">C</th>
+                    <th className="px-1 py-1.5 text-right font-semibold">R</th>
+                    <th className="py-1.5 pl-1 text-right font-semibold">Net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scoreRows.map((r) => (
+                    <tr
+                      key={r.user_id}
+                      className={cn(
+                        "border-b border-white/5",
+                        r.user_id === meId && "bg-gold/10",
+                      )}
+                    >
+                      <td className="py-1.5 pr-1 tabular-nums text-muted-foreground">{r.rank}</td>
+                      <td className="py-1.5 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary"
+                          >
+                            <AvatarIcon code={r.avatar} color={r.avatar_color} className="size-3" />
+                          </span>
+                          <span
+                            className="max-w-[92px] truncate font-semibold"
+                            style={r.name_color ? { color: r.name_color } : undefined}
+                          >
+                            {r.name}
+                          </span>
+                          {r.is_bot && (
+                            <span className="rounded bg-white/10 px-1 text-[8px] font-bold uppercase text-muted-foreground">
+                              bot
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-1 py-1.5 text-right font-extrabold tabular-nums text-gold">
+                        {r.dq ?? "–"}
+                      </td>
+                      <td className="px-1 py-1.5 text-right tabular-nums">{r.hands}</td>
+                      <td className="px-1 py-1.5 text-right tabular-nums text-muted-foreground">{r.fold}</td>
+                      <td className="px-1 py-1.5 text-right tabular-nums text-muted-foreground">{r.call}</td>
+                      <td className="px-1 py-1.5 text-right tabular-nums text-muted-foreground">{r.raise}</td>
+                      <td className={cn("py-1.5 pl-1 text-right tabular-nums", r.net >= 0 ? "text-win" : "text-lose")}>
+                        {r.net >= 0 ? "+" : ""}{fmt(r.net)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-[10px] leading-snug text-muted-foreground">
+                H hands · F folds · C calls · R raises. DQ grades every decision by expected
+                value — high DQ means smart play, win or lose. Ranked by DQ.
+              </p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

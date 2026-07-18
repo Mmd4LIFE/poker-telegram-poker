@@ -43,6 +43,7 @@ async def my_skill(
         "blunder_rate": d["blunder_rate"],
         "grade": grade,                       # relative percentile skill
         "skill_level": DQ.level_of(d["skill_sp"]),  # cumulative, XP-style
+        "roadmap": DQ.roadmap(d["skill_sp"]),       # full 15-level SP ladder
         "experimental": True,
     }
 

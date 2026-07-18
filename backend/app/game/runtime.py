@@ -56,6 +56,10 @@ class RoomRuntime:
         self._awaiting_user: int | None = None
         self._turn_deadline: float | None = None
         self._bot_ids: set[int] = set()
+        # last time an unwatched self-play table dealt a hand — used to throttle it
+        self._idle_hand_at: float = 0.0
+        # per-seat live table stats (CS:GO-style scoreboard), reset with the runtime
+        self._board: dict[int, dict] = {}
 
     # ---- lifecycle -------------------------------------------------------
     def start(self) -> None:
@@ -156,10 +160,21 @@ class RoomRuntime:
         logger.info("Room %s runtime stopped", self.code)
 
     async def _tick(self) -> None:
+        watched = hub.has_viewers(self.code)
+
+        # A self-play table with nobody watching deals on a slow heartbeat, not at full
+        # speed — it only needs to look alive in the lobby. The moment a human opens it
+        # (becomes a viewer) it drops back to full speed. This is the single biggest CPU
+        # /DB saving on the shared box; without it two tables ground ~9.7k hands in 5 days.
+        if self.bots_only and not watched:
+            if time.time() - self._idle_hand_at < settings.BOT_TABLE_IDLE_SECONDS:
+                await asyncio.sleep(2)
+                return
+            self._idle_hand_at = time.time()
+
         # Pause when nobody is watching — except a self-play table, which exists
-        # precisely to run unwatched. (The bots' own think-delay throttles the CPU:
-        # a table only burns a slice of a core, not a whole one.)
-        if not hub.has_viewers(self.code) and not self.bots_only and not self.is_sng:
+        # precisely to run unwatched (throttled above).
+        if not watched and not self.bots_only and not self.is_sng:
             await asyncio.sleep(2)
             return
 
@@ -275,11 +290,13 @@ class RoomRuntime:
             ):
                 return
             self._score_decision(user_id, action, amount, legal)
+            applied = action
             try:
                 events = self.game.apply_action(user_id, action, amount)
             except ValueError:
-                fallback = "check" if legal.get("check") else "fold"
-                events = self.game.apply_action(user_id, fallback, 0)
+                applied = "check" if legal.get("check") else "fold"
+                events = self.game.apply_action(user_id, applied, 0)
+            self._board_action(user_id, applied)
         await self.broadcast_events(events)
         await self.broadcast_state()
 
@@ -352,6 +369,68 @@ class RoomRuntime:
         except Exception:
             return
         self._dq_buffer.append((user_id, res, self.game.street.value))
+        # feed the live table scoreboard too (same score, EV-weighted)
+        b = self._board_of(user_id)
+        b["dq_wt"] += res["weight"]
+        b["dq_sum"] += res["dq"] * res["weight"]
+
+    # ---- live table scoreboard ------------------------------------------
+    def _board_of(self, uid: int) -> dict:
+        b = self._board.get(uid)
+        if b is None:
+            b = {"hands": 0, "fold": 0, "check": 0, "call": 0, "raise": 0,
+                 "net": 0, "dq_wt": 0.0, "dq_sum": 0.0}
+            self._board[uid] = b
+        return b
+
+    def _board_action(self, uid: int, action: str) -> None:
+        a = (action or "").lower()
+        bucket = (
+            "fold" if a == "fold" else
+            "check" if a == "check" else
+            "call" if a == "call" else
+            "raise" if a in ("bet", "raise", "all-in", "allin") else None
+        )
+        if bucket:
+            self._board_of(uid)[bucket] += 1
+
+    async def scoreboard(self, session) -> list[dict]:
+        """Live per-player stats for everyone currently seated, ordered by table DQ.
+        Includes bots — they're players at the table, and seeing who's actually playing
+        well (not just winning) is the whole point."""
+        seats = list(self.game.seats)
+        ids = [s.user_id for s in seats]
+        users = {}
+        if ids:
+            us = await session.scalars(select(User).where(User.id.in_(ids)))
+            users = {u.id: u for u in us.all()}
+        rows = []
+        for s in seats:
+            b = self._board.get(s.user_id, {})
+            dq_wt = b.get("dq_wt", 0.0)
+            dq = round(b["dq_sum"] / dq_wt, 1) if dq_wt else None
+            u = users.get(s.user_id)
+            rows.append({
+                "user_id": s.user_id,
+                "name": (u.display_name if u else None) or ("Bot" if s.is_bot else "Player"),
+                "avatar": u.avatar if u else "user",
+                "avatar_color": effective_avatar_color(u) if u else "",
+                "name_color": (u.name_color or "") if u else "",
+                "is_bot": s.is_bot,
+                "stack": s.stack,
+                "hands": b.get("hands", 0),
+                "fold": b.get("fold", 0),
+                "check": b.get("check", 0),
+                "call": b.get("call", 0),
+                "raise": b.get("raise", 0),
+                "net": b.get("net", 0),
+                "dq": dq,
+            })
+        # highest DQ first; unrated (no scored decisions yet) sink to the bottom
+        rows.sort(key=lambda r: (r["dq"] is not None, r["dq"] or 0), reverse=True)
+        for i, r in enumerate(rows):
+            r["rank"] = i + 1
+        return rows
 
     # ---- Sit & Go --------------------------------------------------------
     #
@@ -540,6 +619,11 @@ class RoomRuntime:
                 won_amt = won_map.get(seat.user_id, 0)
                 net = won_amt - seat.committed
 
+                # live table scoreboard: this player was dealt into a hand here
+                bd = self._board_of(seat.user_id)
+                bd["hands"] += 1
+                bd["net"] += net
+
                 # --- Poker DNA telemetry (bots included: their radar is the whole
                 #     point of the admin monitor)
                 stats = await session.get(PlayerStats, seat.user_id)
@@ -600,6 +684,7 @@ class RoomRuntime:
                 if seat.is_bot and seat.stack <= 0:
                     self.game.remove_seat(seat.user_id)
                     self._bot_ids.discard(seat.user_id)
+                    self._board.pop(seat.user_id, None)  # bound scoreboard memory
                 elif seat.stack <= 0:
                     seat.sitting_out = True  # busted human waits for rebuy
 

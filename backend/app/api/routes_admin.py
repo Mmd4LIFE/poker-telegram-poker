@@ -962,6 +962,126 @@ async def admin_league_simulate(
     return {"games": n}
 
 
+# --- league history (admin) -------------------------------------------------
+
+from app.models import LeagueGame  # noqa: E402
+
+
+@router.get("/league/history")
+async def admin_league_history(
+    limit: int = 60,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Every past (and current) league day, newest first — with participation and
+    outcome counts so you can see the whole league's story, not just today."""
+    seasons = list((await session.scalars(
+        select(LeagueSeason).order_by(LeagueSeason.day.desc()).limit(max(1, min(180, limit)))
+    )).all())
+    out = []
+    for s in seasons:
+        cohort_ids = list((await session.scalars(
+            select(Cohort.id).where(Cohort.season_id == s.id)
+        )).all())
+        humans = bots = games = 0
+        outcomes = {"promoted": 0, "held": 0, "demoted": 0}
+        if cohort_ids:
+            mem = (await session.execute(
+                select(CohortMember.is_bot, CohortMember.outcome, func.count())
+                .where(CohortMember.cohort_id.in_(cohort_ids))
+                .group_by(CohortMember.is_bot, CohortMember.outcome)
+            )).all()
+            for is_bot, outcome, c in mem:
+                c = int(c or 0)
+                if is_bot:
+                    bots += c
+                else:
+                    humans += c
+                    if outcome in outcomes:
+                        outcomes[outcome] += c
+            games = int(await session.scalar(
+                select(func.count()).select_from(LeagueGame)
+                .where(LeagueGame.cohort_id.in_(cohort_ids))
+            ) or 0)
+        out.append({
+            "day": str(s.day),
+            "status": s.status,
+            "cohorts": len(cohort_ids),
+            "humans": humans,
+            "bots": bots,
+            "games": games,
+            "outcomes": outcomes,
+        })
+    return {"seasons": out}
+
+
+@router.get("/league/history/{day}")
+async def admin_league_history_day(
+    day: str,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """One league day in full: every cohort (league), its final standings, and the games
+    played in it."""
+    season = await session.scalar(select(LeagueSeason).where(LeagueSeason.day == day))
+    if season is None:
+        raise HTTPException(404, "No league on that day")
+    cohorts = list((await session.scalars(
+        select(Cohort).where(Cohort.season_id == season.id).order_by(Cohort.tier, Cohort.idx)
+    )).all())
+    result = []
+    for c in cohorts:
+        members = list((await session.scalars(
+            select(CohortMember).where(CohortMember.cohort_id == c.id)
+        )).all())
+        members.sort(key=lambda m: (m.rank or 999, -(m.lp or 0)))
+        ids = [m.user_id for m in members]
+        users = {}
+        if ids:
+            us = await session.scalars(select(User).where(User.id.in_(ids)))
+            users = {u.id: u for u in us.all()}
+        games = list((await session.scalars(
+            select(LeagueGame).where(LeagueGame.cohort_id == c.id)
+            .order_by(LeagueGame.id.desc())
+        )).all())
+        result.append({
+            "id": c.id,
+            "tier": c.tier,
+            "idx": c.idx + 1,
+            "capacity": c.capacity,
+            "humans": sum(1 for m in members if not m.is_bot),
+            "bots": sum(1 for m in members if m.is_bot),
+            "members": [{
+                "rank": m.rank or (i + 1),
+                "name": users[m.user_id].display_name if m.user_id in users else "?",
+                "is_bot": m.is_bot,
+                "lp": m.lp or 0,
+                "games": m.ranked_games or 0,
+                "wins": m.wins or 0,
+                "outcome": m.outcome or "",
+            } for i, m in enumerate(members)],
+            "games": [{
+                "id": g.id,
+                "simulated": g.simulated,
+                "room_code": g.room_code,
+                "at": g.created_at.isoformat() if g.created_at else None,
+                "results": [{
+                    "place": r.get("place"),
+                    "lp": r.get("lp"),
+                    "is_bot": r.get("is_bot"),
+                    "name": users[r["user_id"]].display_name
+                    if r.get("user_id") in users else "?",
+                } for r in (g.results or [])],
+            } for g in games],
+        })
+    return {
+        "day": str(season.day),
+        "status": season.status,
+        "closed_at": season.closed_at.isoformat() if season.closed_at else None,
+        "cohorts": result,
+    }
+
+
 # --- analytics dashboards ---------------------------------------------------
 
 from app.services import analytics as ANALYTICS  # noqa: E402

@@ -75,6 +75,8 @@ export const api = {
   adminLeagueCfg: (b: unknown) => req("PATCH", "/admin/league", b),
   adminLeagueClose: () => req("POST", "/admin/league/close"),
   adminLeagueSimulate: (n: number) => req("POST", `/admin/league/simulate?rounds=${n}`),
+  adminLeagueHistory: () => req("GET", "/admin/league/history"),
+  adminLeagueDay: (day: string) => req("GET", `/admin/league/history/${day}`),
   adminBots: () => req("GET", "/admin/bots"),
   adminBot: (id: number) => req("GET", `/admin/bots/${id}`),
   adminDq: () => req("GET", "/admin/dq"),
@@ -102,6 +104,7 @@ export const api = {
     req<RoomSummary>("POST", `/rooms/${code}/join`, { buy_in: buy }),
   joinRandom: (buy: number | null) =>
     req<RoomSummary>("POST", "/rooms/join/random", { buy_in: buy }),
+  roomScoreboard: (code: string) => req("GET", `/rooms/${code}/scoreboard`),
   leaveRoom: (code: string) => req("POST", `/rooms/${code}/leave`),
   closeRoom: (code: string) => req("DELETE", `/rooms/${code}`),
   rebuy: (code: string, amt: number) => req("POST", `/rooms/${code}/rebuy`, { amount: amt }),

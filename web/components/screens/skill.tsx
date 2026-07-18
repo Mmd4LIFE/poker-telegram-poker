@@ -83,6 +83,62 @@ export function SkillScreen() {
         )}
       </Card>
 
+      {me.roadmap?.length > 0 && (
+        <>
+          <h2 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Level roadmap
+          </h2>
+          <Card className="mb-4 gap-0 p-2">
+            {me.roadmap.map((r: any) => {
+              const need = lvl && !r.reached ? r.sp_required - lvl.sp : 0;
+              return (
+                <div
+                  key={r.level}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-lg px-2 py-1.5",
+                    r.current && "bg-gold/15",
+                  )}
+                >
+                  <div
+                    className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-extrabold"
+                    style={{
+                      backgroundColor: r.color + (r.reached ? "" : "22"),
+                      color: r.reached ? "#000" : r.color,
+                      border: `1px solid ${r.color}`,
+                    }}
+                  >
+                    {r.level}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold" style={{ color: r.color }}>
+                        {r.tier}
+                      </span>
+                      {r.current && (
+                        <span className="rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-black">
+                          You are here
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {r.step > 0 ? `+${r.step.toLocaleString()} SP from Lv ${r.level - 1}` : "Starting level"}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-extrabold tabular-nums">
+                      {r.sp_required.toLocaleString()}
+                    </div>
+                    <div className="text-[9px] uppercase text-muted-foreground">
+                      {r.reached ? "reached" : `${need.toLocaleString()} to go`}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        </>
+      )}
+
       <h2 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
         Skill leaderboard
       </h2>

@@ -296,3 +296,21 @@ async def room_state(
     if rt is None:
         rt = await manager.get_runtime(session, room)
     return rt._render(user.id)
+
+
+@router.get("/{code}/scoreboard")
+async def room_scoreboard(
+    code: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Live table scoreboard — every seated player's hands / fold / call / raise counts
+    and their table Decision-Quality, ordered by DQ. The in-game 'who's actually playing
+    well' board (like a match scoreboard)."""
+    room = await get_room_by_code(session, code)
+    if not room:
+        raise HTTPException(404, "Room not found")
+    rt = manager.get_live(room.id)
+    if rt is None:
+        return {"rows": [], "code": code}
+    return {"rows": await rt.scoreboard(session), "code": code}

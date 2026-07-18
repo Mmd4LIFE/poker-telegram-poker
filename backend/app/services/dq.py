@@ -71,10 +71,32 @@ def level_of(sp: int) -> dict:
         "max_level": MAX_LEVEL,
         "floor": floor,
         "next_at": nxt,
+        "to_next": (nxt - sp) if nxt is not None else 0,  # SP still needed for next level
         "progress": round(prog, 3),
         "color": color,
         "tier": tier,
     }
+
+
+def roadmap(sp: int = 0) -> list[dict]:
+    """The full ladder: every level, the cumulative SP to reach it, the SP step from
+    the previous level, and where `sp` currently sits. Powers the player-facing roadmap."""
+    sp = max(0, int(sp or 0))
+    cur = level_of(sp)["level"]
+    out = []
+    for i, th in enumerate(LEVEL_THRESHOLDS):
+        lvl = i + 1
+        color, tier = _level_color(lvl)
+        out.append({
+            "level": lvl,
+            "sp_required": th,                                   # cumulative
+            "step": th - LEVEL_THRESHOLDS[i - 1] if i > 0 else 0,  # from previous level
+            "tier": tier,
+            "color": color,
+            "reached": sp >= th,
+            "current": lvl == cur,
+        })
+    return out
 
 # Grades are RELATIVE, not absolute. The DQ metric is compressed at the top (most
 # poker decisions are easy, so competent play scores 85-92) — so a fixed "Master = 85"

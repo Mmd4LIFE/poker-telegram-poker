@@ -21,6 +21,18 @@ players.
 - Admin panel: horizontal tab bars scroll cleanly without a visible scrollbar.
   *(internal, admin-only)*
 
+### Added
+- **Skill level roadmap** — the Skill screen now shows the full 15-level ladder with the
+  exact skill points needed for every level and how far you are from the next.
+- **Table scoreboard** — a scoreboard at every table (hands, folds, calls, raises and a
+  Decision-Quality score per player, ranked by who's playing best).
+
+### Changed
+- Self-play tables now idle quietly when nobody is watching instead of running at full
+  speed, freeing up the server. *(internal)*
+- Admin: full league history — browse every past day, each league's final standings, and
+  the games played. *(internal, admin-only)*
+
 ### Security
 - A player's Telegram ID is never exposed to anyone, and a player's @username is now
   visible only to their friends — to everyone else you're just your display name.
