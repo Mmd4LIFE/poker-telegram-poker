@@ -29,6 +29,11 @@ function fmtCell(v: any): string {
   if (v === null || v === undefined) return "∅";
   if (typeof v === "boolean") return v ? "true" : "false";
   if (typeof v === "object") return Array.isArray(v) ? `[${v.length}]` : "{…}";
+  if (typeof v === "string") {
+    // trim ISO timestamps to "YYYY-MM-DD HH:MM" (full value stays in the tap popup)
+    const m = v.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+    if (m) return `${m[1]} ${m[2]}`;
+  }
   return String(v);
 }
 const isComplex = (v: any) => v !== null && typeof v === "object";
