@@ -1,7 +1,7 @@
 """Audience segments and bot broadcasts.
 
 Segment membership is materialised into `segment_users` rather than recomputed on
-every read: the rules can involve joins over skins, listings and squads, which is
+every read: the rules can involve joins over skins, listings and clubs, which is
 far too expensive to run on a page load. Membership is refreshed on demand (admin
 presses Calculate) and always immediately before a broadcast goes out.
 """

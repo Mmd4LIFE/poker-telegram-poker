@@ -62,7 +62,7 @@ export type View =
   | "profile"
   | "invite"
   | "admin"
-  | "squad"
+  | "club"
   | "create"
   | "join"
   | "friends"

@@ -466,7 +466,7 @@ function Cards() {
 /* Audience segments + broadcasts + the nightly reminder.
 
    Segment membership is materialised, not live: the rules join over skins,
-   listings and squads, so we only compute on demand (Calculate) and again
+   listings and clubs, so we only compute on demand (Calculate) and again
    automatically right before a broadcast goes out. */
 function Reach() {
   const [d, setD] = useState<any>(null);

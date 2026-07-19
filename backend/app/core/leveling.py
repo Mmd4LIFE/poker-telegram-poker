@@ -52,8 +52,8 @@ def level_progress(xp: int) -> dict:
     }
 
 
-def squad_level_progress(xp: int) -> dict:
-    """Squad level curve: level n reached at xp = 2500 * (n-1)^2."""
+def club_level_progress(xp: int) -> dict:
+    """Club level curve: level n reached at xp = 2500 * (n-1)^2."""
     xp = max(0, int(xp))
     level = int(math.floor(math.sqrt(xp / 2500))) + 1
     cur = 2500 * (level - 1) ** 2

@@ -153,7 +153,7 @@ export function LobbyScreen() {
       <div className="grid grid-cols-2 gap-3">
         <Tile icon={Zap} title="Quick Play" onClick={quickPlay} wide hot />
         <Tile icon={Plus} title="Create Room" onClick={() => go("create")} />
-        <Tile icon={Shield} title="Squad" onClick={() => go("squad")} />
+        <Tile icon={Shield} title="Club" onClick={() => go("club")} />
       </div>
 
       {/* Open tables */}

@@ -8,7 +8,13 @@ from app.models.progression import (  # noqa: F401
     Challenge,
     UserChallenge,
 )
-from app.models.squad import Squad, SquadMember, SquadMessage  # noqa: F401
+from app.models.club import (  # noqa: F401
+    ClubPointEvent,
+    Club,
+    ClubJoinRequest,
+    ClubMember,
+    ClubMessage,
+)
 from app.models.social import Friendship, PlayerHand  # noqa: F401
 from app.models.cards import (  # noqa: F401
     AppSetting,
@@ -46,9 +52,11 @@ __all__ = [
     "UserAchievement",
     "Challenge",
     "UserChallenge",
-    "Squad",
-    "SquadMember",
-    "SquadMessage",
+    "Club",
+    "ClubMember",
+    "ClubMessage",
+    "ClubPointEvent",
+    "ClubJoinRequest",
     "Friendship",
     "PlayerHand",
     "CardDesign",

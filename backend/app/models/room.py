@@ -31,8 +31,8 @@ class Room(Base, TimestampMixin):
     host_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    squad_id: Mapped[int | None] = mapped_column(
-        ForeignKey("squads.id", ondelete="SET NULL"), nullable=True
+    club_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True
     )
 
     # waiting | playing | finished

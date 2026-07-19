@@ -97,7 +97,7 @@ class CreateRoomRequest(BaseModel):
     big_blind: int = Field(100, ge=2)
     min_buy_in: int = Field(2000, ge=1)
     max_buy_in: int = Field(20000, ge=1)
-    squad_code: str | None = None
+    club_code: str | None = None
 
 
 class JoinRoomRequest(BaseModel):
@@ -145,8 +145,8 @@ class OpenBoxRequest(BaseModel):
     pay_with: str = "coins"  # coins | gems
 
 
-# ---- squads ----------------------------------------------------------------
-class CreateSquadRequest(BaseModel):
+# ---- clubs ----------------------------------------------------------------
+class CreateClubRequest(BaseModel):
     name: str = Field(..., max_length=48)
     tag: str = Field("", max_length=8)
     emblem: str = "spade"
@@ -154,7 +154,7 @@ class CreateSquadRequest(BaseModel):
     is_public: bool = True
 
 
-class JoinSquadRequest(BaseModel):
+class JoinClubRequest(BaseModel):
     code: str
 
 

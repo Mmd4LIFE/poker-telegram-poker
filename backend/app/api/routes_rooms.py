@@ -11,7 +11,7 @@ from app.api.deps import get_current_user
 from app.config import settings
 from app.database import get_session
 from app.game.manager import manager
-from app.models import Room, RoomPlayer, Squad, User
+from app.models import Room, RoomPlayer, Club, User
 from app.schemas import (
     CreateRoomRequest,
     JoinRoomRequest,
@@ -110,17 +110,17 @@ async def create_room(
                 f"(max {settings.MAX_ACTIVE_ROOMS_PER_USER}). Close one first.",
             )
 
-    squad_id = None
-    if body.squad_code:
-        squad = (await session.execute(
-            select(Squad).where(Squad.code == body.squad_code.upper())
+    club_id = None
+    if body.club_code:
+        club = (await session.execute(
+            select(Club).where(Club.code == body.club_code.upper())
         )).scalar_one_or_none()
-        if squad:
-            squad_id = squad.id
+        if club:
+            club_id = club.id
 
     code = await generate_room_code(session)
     room = Room(
-        code=code, name=body.name, host_id=user.id, squad_id=squad_id,
+        code=code, name=body.name, host_id=user.id, club_id=club_id,
         is_private=body.is_private, allow_bots=body.allow_bots,
         max_players=body.max_players, small_blind=body.small_blind,
         big_blind=body.big_blind, min_buy_in=body.min_buy_in,

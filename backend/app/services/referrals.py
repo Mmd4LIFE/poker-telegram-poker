@@ -28,7 +28,7 @@ def extract_ref(param: str | None) -> tuple[str, str | int] | None:
 
     Supports:
       ref-<code>              -> referral only
-      sq-<squad>-<code>       -> squad invite + referral
+      sq-<club>-<code>       -> club invite + referral
       rm-<room>-<code>        -> room invite + referral
       ref_<id> / <id>         -> legacy numeric referral
     Returns ("code", <code>) | ("id", <int>) | None.

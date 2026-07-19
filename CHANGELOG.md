@@ -12,6 +12,11 @@ players.
 ## [Unreleased]
 
 ### Added
+- **Squads are now Clubs** — a competitive home with a real loop: play **club games**
+  (cash tables run by your club), earn **Club Points** for playing *well* (skill-based, so
+  you can't farm them by folding), and climb a **weekly club leaderboard** that resets each
+  week. Clubs **level up**, members earn **ranks** (Rookie → Ace), private clubs are
+  **request-to-join**, and join/activity posts to club chat. Clubs unlock at **level 10**.
 - Project documentation under [`/docs`](docs/README.md) — architecture, every feature,
   API reference, and operations runbook. *(internal)*
 - Admin analytics dashboards — Revenue, Players, Poker, Bots, League and Behaviour

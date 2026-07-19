@@ -10,7 +10,7 @@ import { ShopScreen } from "@/components/screens/shop";
 import { QuestsScreen } from "@/components/screens/quests";
 import { InviteScreen } from "@/components/screens/invite";
 import { AdminScreen } from "@/components/screens/admin";
-import { SquadScreen } from "@/components/screens/squad";
+import { ClubScreen } from "@/components/screens/club";
 import { CreateRoomScreen } from "@/components/screens/create-room";
 import { CustomizeScreen } from "@/components/screens/customize";
 import { CardsScreen } from "@/components/screens/cards";
@@ -32,7 +32,7 @@ export function AppShell({ startParam }: { startParam: string | null }) {
     else if (p === "leaderboard") go("leaderboard");
     else if (p.startsWith("sq-")) {
       const code = p.split("-")[1];
-      api.joinSquad(code).catch(() => {}).finally(() => go("squad"));
+      api.joinClub(code).catch(() => {}).finally(() => go("club"));
     } else if (p.startsWith("rm-")) {
       const code = p.split("-")[1];
       // One retry: a concurrent invite tap can momentarily lose the seat race, and a
@@ -64,7 +64,7 @@ export function AppShell({ startParam }: { startParam: string | null }) {
             {view === "profile" && <ProfileScreen />}
             {view === "invite" && <InviteScreen />}
             {view === "admin" && <AdminScreen />}
-            {view === "squad" && <SquadScreen />}
+            {view === "club" && <ClubScreen />}
             {view === "create" && <CreateRoomScreen />}
             {view === "customize" && <CustomizeScreen />}
             {view === "cards" && <CardsScreen />}

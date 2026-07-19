@@ -39,6 +39,7 @@ class RoomRuntime:
         # --- Sit & Go (league) ---
         self.mode = getattr(room, "mode", "cash") or "cash"
         self.cohort_id = getattr(room, "cohort_id", None)
+        self.club_id = getattr(room, "club_id", None)  # club game → earns Club Points
         self.is_sng = self.mode == "sng"
         # finishing order, filled from the bottom up as players bust out
         self._knockouts: list[int] = []
@@ -373,6 +374,34 @@ class RoomRuntime:
             # keep only the 8 worst, so the column stays small
             worst.sort(key=lambda w: w["dq"])
             st.dq_worst = worst[:8]
+
+            # Club Points: in a club game, a member earns CP = the skill points earned
+            # this hand. Skill-point based, so it can't be farmed by folding, and a
+            # chip-dumper (making -EV plays for a clubmate) earns ~0 CP by construction.
+            if self.club_id:
+                await self._award_club_points(session, uid, items)
+
+    async def _award_club_points(self, session, uid: int, items) -> None:
+        from app.models import ClubPointEvent, Club, ClubMember
+        cp = sum(max(0, int(round(r.get("sp", 0) or 0))) for r, _ in items)
+        if cp <= 0:
+            return
+        member = await session.scalar(
+            select(ClubMember).where(
+                ClubMember.club_id == self.club_id, ClubMember.user_id == uid
+            )
+        )
+        if member is None:  # only club members earn CP at a club table
+            return
+        from datetime import datetime, timezone
+        y, w, _ = datetime.now(timezone.utc).isocalendar()
+        session.add(ClubPointEvent(
+            club_id=self.club_id, user_id=uid, cp=cp, iso_year=y, iso_week=w
+        ))
+        member.contributed = (member.contributed or 0) + cp
+        club = await session.get(Club, self.club_id)
+        if club:
+            club.xp = (club.xp or 0) + cp
 
 
     def _score_decision(self, user_id: int, action: str, amount: int, legal: dict) -> None:

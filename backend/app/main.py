@@ -22,7 +22,7 @@ from app.api import (
     routes_rooms,
     routes_shop,
     routes_skill,
-    routes_squads,
+    routes_clubs,
     routes_ws,
 )
 from app.config import settings
@@ -73,7 +73,7 @@ app.add_middleware(
 
 for module in (
     routes_auth, routes_profile, routes_rooms, routes_shop,
-    routes_progression, routes_squads, routes_referral, routes_admin,
+    routes_progression, routes_clubs, routes_referral, routes_admin,
     routes_friends, routes_cosmetics, routes_cards, routes_market, routes_league,
     routes_skill, routes_explorer, routes_ws,
 ):

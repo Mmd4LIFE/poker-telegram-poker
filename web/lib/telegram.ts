@@ -74,12 +74,12 @@ interface ShareUser {
 
 export function inviteLink(
   user: ShareUser,
-  kind: "ref" | "squad" | "room",
+  kind: "ref" | "club" | "room",
   code?: string,
 ): string {
   const ref = user.referral_code || "";
   const param =
-    kind === "squad"
+    kind === "club"
       ? `sq-${code}-${ref}`
       : kind === "room"
         ? `rm-${code}-${ref}`
@@ -93,7 +93,7 @@ export function inviteLink(
 
 export function shareInvite(
   user: ShareUser,
-  kind: "ref" | "squad" | "room",
+  kind: "ref" | "club" | "room",
   code: string | undefined,
   text: string,
 ) {

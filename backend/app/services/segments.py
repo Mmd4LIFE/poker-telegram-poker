@@ -6,7 +6,7 @@ Rules are ANDed together. Every key is optional; an empty rules object means
   level_min / level_max          int
   coins_min / coins_max          int
   gems_min  / gems_max           int
-  in_squad                       bool  (true = in one, false = not in one)
+  in_club                       bool  (true = in one, false = not in one)
   has_listings                   bool  (true = has something on the market)
   owns_card                      str   ("As" — owns any skin of that card)
   owns_design                    str   ("royal" — owns any skin of that design)
@@ -27,7 +27,7 @@ from app.models import (
     MarketListing,
     Segment,
     SegmentUser,
-    SquadMember,
+    ClubMember,
     User,
 )
 
@@ -43,7 +43,7 @@ FIELDS: list[dict] = [
     {"key": "referred_min", "label": "Referrals ≥", "type": "int"},
     {"key": "inactive_days", "label": "Not seen for N days", "type": "int"},
     {"key": "active_days", "label": "Seen within N days", "type": "int"},
-    {"key": "in_squad", "label": "In a squad", "type": "bool"},
+    {"key": "in_club", "label": "In a club", "type": "bool"},
     {"key": "has_listings", "label": "Selling on market", "type": "bool"},
     {"key": "owns_card", "label": "Owns card (e.g. As)", "type": "card"},
     {"key": "owns_design", "label": "Owns design", "type": "design"},
@@ -94,8 +94,8 @@ def build_query(rules: dict | None):
         cutoff = datetime.now(timezone.utc) - timedelta(days=v)
         q = q.where(User.last_seen_at >= cutoff)
 
-    if (v := r.get("in_squad")) is not None:
-        member = select(SquadMember.user_id).where(SquadMember.user_id == User.id)
+    if (v := r.get("in_club")) is not None:
+        member = select(ClubMember.user_id).where(ClubMember.user_id == User.id)
         q = q.where(member.exists() if v else ~member.exists())
 
     if (v := r.get("has_listings")) is not None:

@@ -55,7 +55,7 @@ WELCOME = (
     "<b>♠️ Poker CM — Texas Hold'em ♥️</b>\n\n"
     "Welcome to the ultimate Telegram poker experience!\n\n"
     "• 🎲 Play live No-Limit Hold'em with friends or AI\n"
-    "• 🧑‍🤝‍🧑 Create private rooms & squads\n"
+    "• 🧑‍🤝‍🧑 Create private rooms & clubs\n"
     "• 🏅 Level up, earn achievements & climb the leaderboard\n"
     "• 💎 Collect coins, gems & open loot boxes\n\n"
     "Tap <b>Play Poker</b> to sit at a table 👇"
