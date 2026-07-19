@@ -62,6 +62,12 @@ players.
 - Admin: a live bot-pool monitor (total / busy / free / auto-generated, per-table
   occupancy, and a double-seating health check). *(internal, admin-only)*
 
+### Added
+- **Admin data explorer is now a full in-app Metabase** — build questions (filter +
+  summarise with group-by and aggregates), write read-only native SQL, save either as
+  re-runnable cards, browse them from a saved-questions list, and tap any cell to view its
+  value (JSON pretty-printed) in a popup. *(internal, admin-only)*
+
 ### Changed
 - **League DQ & Skill Score are now per-league**, computed from the games you play *that
   day* and reset every league — a fresh league starts blank instead of showing your

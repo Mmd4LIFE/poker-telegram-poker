@@ -1,12 +1,18 @@
-"""Admin data explorer — a Metabase-style browse-and-filter over the live DB.
+"""Admin data explorer — an in-app Metabase over the live DB.
 
-SAFETY: there is no raw SQL. Tables are whitelisted from the ORM metadata, every
-filter column is validated against the real columns of the chosen table, and queries
-are built with SQLAlchemy Core (bound parameters). The worst an admin can do is read
-their own data — which is the point.
+Two ways to ask a question:
+  • the visual builder — pick a table, filter, and summarise (group by + aggregate).
+    Tables are whitelisted from the ORM metadata, every column is validated, and the
+    query is built with SQLAlchemy Core (bound parameters). No raw SQL reaches the DB.
+  • native SQL — a read-only SELECT for power users. Guarded hard: SELECT/WITH only, a
+    single statement, a keyword denylist that blocks every write/DDL and file access,
+    a statement timeout, and the result wrapped in a row-capped subquery.
+
+Either can be saved as a "card" and re-run later. Admin-only throughout.
 """
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -17,30 +23,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
 from app.database import Base, get_session
-from app.models import User  # noqa: F401 — ensures models are imported/registered
+from app.models import ExplorerCard, User  # noqa: F401 — registers models
 
 router = APIRouter(prefix="/api/admin/explorer", tags=["admin"])
 
 TABLES = Base.metadata.tables  # name -> sa.Table
 
-# Derived analytics VIEWS aren't ORM-mapped, so reflect them once and add them to the
-# browsable set. They query exactly like tables (SQLAlchemy Core over a reflected Table).
 ANALYTICS_VIEWS = ["dim_user", "fact_transaction", "fact_hand", "fact_trade"]
 _reflected: dict[str, sa.Table] = {}
 
-MAX_LIMIT = 200
+MAX_LIMIT = 500
 
 
 async def _all_tables(session: AsyncSession) -> dict:
-    """ORM tables + reflected analytics views."""
     if not _reflected:
         md = sa.MetaData()
+
         def _reflect(conn):
             for v in ANALYTICS_VIEWS:
                 try:
                     _reflected[v] = sa.Table(v, md, autoload_with=conn, views=True)
-                except Exception:  # noqa: BLE001 — view may not exist yet
+                except Exception:  # noqa: BLE001
                     pass
+
         await session.run_sync(lambda s: _reflect(s.connection()))
     return {**TABLES, **_reflected}
 
@@ -61,10 +66,9 @@ def _coltype(col: sa.Column) -> str:
 def _serialize(v: Any) -> Any:
     if isinstance(v, (datetime, date)):
         return v.isoformat()
-    return v  # ints, strings, bools, dicts/lists (JSONB) pass straight to JSON
+    return v
 
 
-# op -> (needs_value, builder). Builders take (column, coerced_value).
 _OPS = {
     "=": (True, lambda c, v: c == v),
     "!=": (True, lambda c, v: c != v),
@@ -77,6 +81,16 @@ _OPS = {
     "in": (True, lambda c, v: c.in_(v if isinstance(v, list) else [v])),
     "null": (False, lambda c, v: c.is_(None)),
     "notnull": (False, lambda c, v: c.is_not(None)),
+}
+
+# aggregate fn -> builds a labelled column expression from (table, column_name_or_None)
+_AGG_FNS = {
+    "count": lambda t, c: sa.func.count() if not c else sa.func.count(t.columns[c]),
+    "distinct": lambda t, c: sa.func.count(sa.distinct(t.columns[c])),
+    "sum": lambda t, c: sa.func.sum(t.columns[c]),
+    "avg": lambda t, c: sa.func.avg(t.columns[c]),
+    "min": lambda t, c: sa.func.min(t.columns[c]),
+    "max": lambda t, c: sa.func.max(t.columns[c]),
 }
 
 
@@ -94,12 +108,35 @@ def _coerce(coltype: str, raw: Any) -> Any:
     return raw
 
 
+def _conds(tbl: sa.Table, filters: list[dict]) -> list:
+    coltypes = {c.name: _coltype(c) for c in tbl.columns}
+    out = []
+    for f in filters:
+        col_name, op = f.get("col"), f.get("op")
+        if col_name not in tbl.columns:
+            raise HTTPException(400, f"Unknown column {col_name}")
+        spec = _OPS.get(op)
+        if not spec:
+            raise HTTPException(400, f"Unknown operator {op}")
+        needs_val, build = spec
+        col = tbl.columns[col_name]
+        if needs_val:
+            val = f.get("val")
+            if val is None or val == "":
+                continue
+            out.append(build(col, _coerce(coltypes[col_name], val)))
+        else:
+            out.append(build(col, None))
+    return out
+
+
+# --------------------------------------------------------------------- browse
+
 @router.get("/tables")
 async def tables(
     _: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    """Every table with its columns and a live row count — the 'Browse Data' list."""
     all_tables = await _all_tables(session)
     out = []
     for name, tbl in sorted(all_tables.items()):
@@ -112,18 +149,20 @@ async def tables(
                 "name": name,
                 "rows": n,
                 "columns": [
-                    {
-                        "name": c.name,
-                        "type": _coltype(c),
-                        "pk": c.primary_key,
-                        "nullable": c.nullable,
-                    }
+                    {"name": c.name, "type": _coltype(c), "pk": c.primary_key,
+                     "nullable": c.nullable}
                     for c in tbl.columns
                 ],
             }
         )
-    return {"tables": out, "operators": list(_OPS.keys())}
+    return {
+        "tables": out,
+        "operators": list(_OPS.keys()),
+        "aggregations": list(_AGG_FNS.keys()),
+    }
 
+
+# --------------------------------------------------------------- builder query
 
 class Filter(BaseModel):
     col: str
@@ -131,13 +170,109 @@ class Filter(BaseModel):
     val: Any = None
 
 
+class Aggregation(BaseModel):
+    fn: str
+    col: str | None = None
+
+
 class QueryIn(BaseModel):
     table: str
     filters: list[Filter] = []
+    aggregations: list[Aggregation] = []
+    group_by: list[str] = []
     sort: str | None = None
     dir: str = "desc"
     limit: int = 50
     offset: int = 0
+
+
+async def _run_builder(session: AsyncSession, spec: dict) -> dict:
+    tbl = (await _all_tables(session)).get(spec.get("table"))
+    if tbl is None:
+        raise HTTPException(404, "Unknown table")
+
+    conds = _conds(tbl, spec.get("filters", []))
+    aggs = spec.get("aggregations", []) or []
+    groups = [g for g in (spec.get("group_by", []) or []) if g in tbl.columns]
+    limit = min(MAX_LIMIT, max(1, int(spec.get("limit", 50) or 50)))
+    offset = max(0, int(spec.get("offset", 0) or 0))
+    sort, dir_ = spec.get("sort"), spec.get("dir", "desc")
+
+    if aggs:
+        # --- summarised query: group_by dims + aggregate measures ---
+        select_cols, out_cols, expr_by_name = [], [], {}
+        for g in groups:
+            c = tbl.columns[g]
+            select_cols.append(c)
+            out_cols.append(g)
+            expr_by_name[g] = c
+        for a in aggs:
+            fn = a.get("fn")
+            col = a.get("col")
+            if fn not in _AGG_FNS:
+                raise HTTPException(400, f"Unknown aggregation {fn}")
+            if col and col not in tbl.columns:
+                raise HTTPException(400, f"Unknown column {col}")
+            alias = fn if (fn == "count" and not col) else f"{fn}_{col}"
+            expr = _AGG_FNS[fn](tbl, col).label(alias)
+            select_cols.append(expr)
+            out_cols.append(alias)
+            expr_by_name[alias] = expr
+
+        q = sa.select(*select_cols)
+        if conds:
+            q = q.where(sa.and_(*conds))
+        if groups:
+            q = q.group_by(*[tbl.columns[g] for g in groups])
+
+        total = int(
+            await session.scalar(sa.select(sa.func.count()).select_from(q.subquery())) or 0
+        )
+
+        scol = expr_by_name.get(sort) or (select_cols[-1] if select_cols else None)
+        if scol is not None:
+            q = q.order_by(scol.desc() if dir_ == "desc" else scol.asc())
+        q = q.limit(limit).offset(offset)
+
+        rows = (await session.execute(q)).mappings().all()
+        data = [{k: _serialize(v) for k, v in r.items()} for r in rows]
+        return {
+            "columns": out_cols,
+            "coltypes": {},
+            "rows": data,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "aggregated": True,
+            "group_by": groups,
+        }
+
+    # --- raw rows ---
+    coltypes = {c.name: _coltype(c) for c in tbl.columns}
+    base = sa.select(tbl)
+    if conds:
+        base = base.where(sa.and_(*conds))
+    total = int(
+        await session.scalar(sa.select(sa.func.count()).select_from(base.subquery())) or 0
+    )
+    if sort and sort in tbl.columns:
+        scol = tbl.columns[sort]
+    else:
+        pk = list(tbl.primary_key.columns)
+        scol = pk[0] if pk else list(tbl.columns)[0]
+    base = base.order_by(scol.desc() if dir_ == "desc" else scol.asc())
+    base = base.limit(limit).offset(offset)
+    rows = (await session.execute(base)).mappings().all()
+    data = [{k: _serialize(v) for k, v in r.items()} for r in rows]
+    return {
+        "columns": [c.name for c in tbl.columns],
+        "coltypes": coltypes,
+        "rows": data,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "aggregated": False,
+    }
 
 
 @router.post("/query")
@@ -146,56 +281,146 @@ async def query(
     _: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    tbl = (await _all_tables(session)).get(body.table)
-    if tbl is None:
-        raise HTTPException(404, "Unknown table")
+    return await _run_builder(session, body.model_dump())
 
-    coltypes = {c.name: _coltype(c) for c in tbl.columns}
 
-    conds = []
-    for f in body.filters:
-        if f.col not in tbl.columns:
-            raise HTTPException(400, f"Unknown column {f.col}")
-        spec = _OPS.get(f.op)
-        if not spec:
-            raise HTTPException(400, f"Unknown operator {f.op}")
-        needs_val, build = spec
-        col = tbl.columns[f.col]
-        if needs_val:
-            if f.val is None or f.val == "":
-                continue  # skip an empty filter rather than erroring
-            conds.append(build(col, _coerce(coltypes[f.col], f.val)))
-        else:
-            conds.append(build(col, None))
+# ------------------------------------------------------------------ native SQL
 
-    base = sa.select(tbl)
-    if conds:
-        base = base.where(sa.and_(*conds))
+# Blocks every write/DDL and file/network access. Data-modifying CTEs are caught too,
+# because the write keyword still appears in the text.
+_BANNED = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|copy|vacuum|"
+    r"reindex|cluster|comment|into|call|do|merge|lock|attach|listen|notify|"
+    r"pg_read_file|pg_ls_dir|pg_read_binary_file|lo_import|lo_export|dblink|"
+    r"pg_sleep|pg_terminate_backend|pg_cancel_backend)\b",
+    re.I,
+)
 
-    total = int(
-        await session.scalar(sa.select(sa.func.count()).select_from(base.subquery())) or 0
-    )
 
-    # sort: chosen column, else primary key desc, else first column
-    if body.sort and body.sort in tbl.columns:
-        scol = tbl.columns[body.sort]
-    else:
-        pk = list(tbl.primary_key.columns)
-        scol = pk[0] if pk else list(tbl.columns)[0]
-    base = base.order_by(scol.desc() if body.dir == "desc" else scol.asc())
-
-    limit = min(MAX_LIMIT, max(1, body.limit))
-    base = base.limit(limit).offset(max(0, body.offset))
-
-    rows = (await session.execute(base)).mappings().all()
+async def _run_native(session: AsyncSession, sql: str) -> dict:
+    q = (sql or "").strip().rstrip(";").strip()
+    if not q:
+        raise HTTPException(400, "Empty query")
+    low = q.lower()
+    if not (low.startswith("select") or low.startswith("with")):
+        raise HTTPException(400, "Only SELECT / WITH queries are allowed")
+    if ";" in q:
+        raise HTTPException(400, "One statement at a time")
+    if _BANNED.search(q):
+        raise HTTPException(400, "Read-only queries only — no writes, DDL, or file access")
+    try:
+        await session.execute(sa.text("SET LOCAL statement_timeout = '10000'"))
+        wrapped = sa.text(f"SELECT * FROM (\n{q}\n) AS _explorer_q LIMIT {MAX_LIMIT}")
+        res = await session.execute(wrapped)
+        cols = list(res.keys())
+        rows = res.mappings().all()
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001 — surface the DB error to the admin
+        raise HTTPException(400, f"SQL error: {str(e).splitlines()[0][:300]}") from e
     data = [{k: _serialize(v) for k, v in r.items()} for r in rows]
+    return {"columns": cols, "coltypes": {}, "rows": data, "total": len(data),
+            "native": True, "capped": len(data) >= MAX_LIMIT}
 
+
+class NativeIn(BaseModel):
+    sql: str
+
+
+@router.post("/sql")
+async def native_sql(
+    body: NativeIn,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _run_native(session, body.sql)
+
+
+# --------------------------------------------------------------------- cards
+
+class CardIn(BaseModel):
+    name: str
+    description: str = ""
+    kind: str = "builder"  # builder | native
+    spec: dict = {}
+    sql: str | None = None
+    viz: dict = {}
+
+
+def _card_out(c: ExplorerCard) -> dict:
     return {
-        "table": body.table,
-        "columns": [c.name for c in tbl.columns],
-        "coltypes": coltypes,
-        "rows": data,
-        "total": total,
-        "limit": limit,
-        "offset": body.offset,
+        "id": c.id,
+        "name": c.name,
+        "description": c.description or "",
+        "kind": c.kind,
+        "spec": c.spec or {},
+        "sql": c.sql,
+        "viz": c.viz or {},
+        "created_at": c.created_at.isoformat() if c.created_at else None,
     }
+
+
+@router.get("/cards")
+async def list_cards(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    rows = (await session.scalars(
+        sa.select(ExplorerCard).order_by(ExplorerCard.updated_at.desc())
+    )).all()
+    return {"cards": [_card_out(c) for c in rows]}
+
+
+@router.post("/cards")
+async def create_card(
+    body: CardIn,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    if not body.name.strip():
+        raise HTTPException(400, "Give the question a name")
+    if body.kind not in ("builder", "native"):
+        raise HTTPException(400, "kind must be builder or native")
+    if body.kind == "native" and not (body.sql or "").strip():
+        raise HTTPException(400, "Native card needs SQL")
+    card = ExplorerCard(
+        name=body.name.strip()[:120],
+        description=(body.description or "")[:400],
+        kind=body.kind,
+        spec=body.spec or {},
+        sql=body.sql,
+        viz=body.viz or {},
+    )
+    session.add(card)
+    await session.commit()
+    return _card_out(card)
+
+
+@router.delete("/cards/{card_id}")
+async def delete_card(
+    card_id: int,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    card = await session.get(ExplorerCard, card_id)
+    if card:
+        await session.delete(card)
+        await session.commit()
+    return {"ok": True}
+
+
+@router.post("/cards/{card_id}/run")
+async def run_card(
+    card_id: int,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    card = await session.get(ExplorerCard, card_id)
+    if card is None:
+        raise HTTPException(404, "Card not found")
+    if card.kind == "native":
+        result = await _run_native(session, card.sql or "")
+    else:
+        result = await _run_builder(session, card.spec or {})
+    result["card"] = _card_out(card)
+    return result
