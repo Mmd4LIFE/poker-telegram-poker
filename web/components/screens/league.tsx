@@ -34,7 +34,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { PlayingCard } from "@/components/table/playing-card";
+import { ChampionRedeemDialog } from "@/components/champion-redeem";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
 import { cn } from "@/lib/utils";
@@ -62,23 +62,6 @@ export function LeagueScreen() {
   const [hist, setHist] = useState<any>(null);
   const [histOpen, setHistOpen] = useState(false);
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const [redeeming, setRedeeming] = useState(false);
-
-  async function redeem(card: string) {
-    setRedeeming(true);
-    try {
-      await api.redeemShards(card);
-      toast.success("Champion skin minted!");
-      notify("success");
-      setRedeemOpen(false);
-      load();
-      refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setRedeeming(false);
-    }
-  }
 
   async function openHistory() {
     setHistOpen(true);
@@ -264,20 +247,19 @@ export function LeagueScreen() {
                       <Crown className="size-3" />
                       {r.wins}
                     </span>
-                    {r.dq != null && (
-                      <span className="flex items-center gap-0.5" title="Decision Quality">
-                        <Brain className="size-3" />
-                        {r.dq}
-                      </span>
-                    )}
-                    {r.skill_score != null && (
-                      <span
-                        className="font-bold text-gold"
-                        title="Skill score (experimental — not used for ranking yet)"
-                      >
-                        S{r.skill_score}
-                      </span>
-                    )}
+                    <span
+                      className="flex items-center gap-0.5"
+                      title="Decision Quality this league — play a game to earn it"
+                    >
+                      <Brain className="size-3" />
+                      {r.dq ?? "—"}
+                    </span>
+                    <span
+                      className={cn("font-bold", r.skill_score != null ? "text-gold" : "text-muted-foreground")}
+                      title="Skill score this league — play a game to earn it"
+                    >
+                      S{r.skill_score ?? "—"}
+                    </span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end leading-none">
@@ -445,43 +427,19 @@ export function LeagueScreen() {
         </DialogContent>
       </Dialog>
 
-      {/* redeem: pick which of the 52 cards wears the exclusive Champion skin */}
-      <Dialog open={redeemOpen} onOpenChange={setRedeemOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Redeem a Champion skin</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground">
-            Costs <b className="text-gold">{d.shards_per_skin}</b> shards — you have{" "}
-            <b className="text-foreground">{d.shards}</b>. Pick the card to wear it.
-          </p>
-          <div className="mt-2 max-h-[60vh] space-y-1.5 overflow-y-auto">
-            {CARD_SUITS.map((s) => (
-              <div key={s} className="flex flex-wrap gap-1">
-                {CARD_RANKS.map((r) => {
-                  const card = r + s;
-                  return (
-                    <button
-                      key={card}
-                      disabled={redeeming}
-                      onClick={() => redeem(card)}
-                      className="transition active:scale-90 disabled:opacity-40"
-                    >
-                      <PlayingCard card={card} size="sm" />
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ChampionRedeemDialog
+        open={redeemOpen}
+        onOpenChange={setRedeemOpen}
+        shards={d.shards ?? 0}
+        per={d.shards_per_skin ?? 25}
+        onDone={() => {
+          load();
+          refresh();
+        }}
+      />
     </>
   );
 }
-
-const CARD_RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
-const CARD_SUITS = ["s", "h", "d", "c"];
 
 function ShardPanel({
   shards,

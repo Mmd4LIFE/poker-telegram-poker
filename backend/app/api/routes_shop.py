@@ -57,10 +57,13 @@ async def catalog(
     rows = (await session.execute(
         select(Product).where(Product.is_active.is_(True)).order_by(Product.sort_order)
     )).scalars().all()
+    from app.services import league as L
+    cfg = await L.get_config(session)
     return {
         "stars": [_product_dict(p) for p in rows if p.kind == "stars"],
         "ton": [_product_dict(p) for p in rows if p.kind == "ton"],
         "ton_wallet": settings.TON_WALLET_ADDRESS,
+        "shards_per_skin": int(cfg.get("shards_per_skin", 25)),
     }
 
 

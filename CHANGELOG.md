@@ -68,7 +68,10 @@ players.
   lifetime numbers. Past days keep their scores. Still shown for info, not used to rank.
 - **League Shards** got a real home: a shards panel in the league with your balance,
   progress to the next Champion skin, and a **Redeem** flow to mint one onto any card —
-  plus a per-day shard log in your league history.
+  plus a per-day shard log in your league history. The **Champion skin is now also in the
+  Shop**, priced in shards, with your shard balance shown.
+- League standings always show the **DQ** and **S** columns now (a dash until you've
+  played a league game that day), so you can always see where they'll appear.
 
 ### Security
 - A player's Telegram ID is never exposed to anyone, and a player's @username is now

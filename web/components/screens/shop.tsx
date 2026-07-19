@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { BoxOpenDialog } from "@/components/shop/box-open-dialog";
 import { DailyReward } from "@/components/shop/daily-reward";
+import { ChampionRedeemDialog } from "@/components/champion-redeem";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -35,13 +36,17 @@ const TIER_ICON: Record<string, LucideIcon> = {
 };
 
 export function ShopScreen() {
-  const { refresh } = useApp();
+  const { refresh, user } = useApp();
   const [cat, setCat] = useState<any>(null);
   const [boxInfo, setBoxInfo] = useState<any>(null);
   const [openingBox, setOpeningBox] = useState<any>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<any[] | null>(null);
   const [ton, setTon] = useState<any>(null);
+  const [redeemOpen, setRedeemOpen] = useState(false);
+
+  const shards = user?.league_shards ?? 0;
+  const perSkin = cat?.shards_per_skin ?? 25;
 
   const boxes: any[] = boxInfo?.boxes ?? [];
 
@@ -234,6 +239,59 @@ export function ShopScreen() {
           );
         })}
       </div>
+
+      {/* League Skins — bought with League Shards, not coins/gems */}
+      <div className="mb-2 mt-5">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          League Skins
+        </h2>
+      </div>
+      <Card className="gap-3 border-gold/30 bg-gradient-to-br from-gold/10 to-card p-4">
+        <div className="flex items-center gap-3">
+          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gold/15 text-gold">
+            <Crown className="size-7" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-extrabold">Champion skin</div>
+            <div className="text-[11px] text-muted-foreground">
+              Exclusive — the only way to get one is with League Shards.
+            </div>
+          </div>
+          <div className="shrink-0 text-right">
+            <div className="flex items-center justify-end gap-1 text-sm font-extrabold text-gold">
+              <Sparkles className="size-3.5" /> {perSkin}
+            </div>
+            <div className="text-[10px] text-muted-foreground">you have {shards}</div>
+          </div>
+        </div>
+        {/* progress to next skin */}
+        <div className="h-2 overflow-hidden rounded-full bg-black/30">
+          <div
+            className="h-full rounded-full bg-gold transition-all"
+            style={{ width: `${Math.min(100, ((shards % perSkin) / perSkin) * 100)}%` }}
+          />
+        </div>
+        <Button
+          className="w-full font-bold"
+          disabled={shards < perSkin}
+          onClick={() => setRedeemOpen(true)}
+        >
+          {shards >= perSkin
+            ? "Redeem with shards"
+            : `Need ${perSkin - (shards % perSkin)} more shards`}
+        </Button>
+        <p className="text-[10px] text-muted-foreground">
+          Earn shards by finishing near the top of your daily league.
+        </p>
+      </Card>
+
+      <ChampionRedeemDialog
+        open={redeemOpen}
+        onOpenChange={setRedeemOpen}
+        shards={shards}
+        per={perSkin}
+        onDone={refresh}
+      />
 
       <BoxOpenDialog
         box={openingBox}

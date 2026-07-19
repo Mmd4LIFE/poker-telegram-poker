@@ -55,6 +55,7 @@ class UserProfile(BaseModel):
     referral_count: int
     referral_earned: int
     friend_count: int = 0
+    league_shards: int = 0
     is_bot: bool
     is_admin: bool = False
 
@@ -80,6 +81,7 @@ class UserProfile(BaseModel):
             total_won=u.total_won, win_rate=win_rate,
             best_win_streak=u.best_win_streak, daily_streak=u.daily_streak,
             referral_count=u.referral_count, referral_earned=u.referral_earned,
+            league_shards=u.league_shards or 0,
             is_bot=u.is_bot,
             is_admin=(u.telegram_id in settings.admin_ids),
         )

@@ -28,6 +28,7 @@ export interface UserProfile {
   referral_count: number;
   referral_earned: number;
   friend_count: number;
+  league_shards: number;
   is_bot: boolean;
   is_admin: boolean;
 }
