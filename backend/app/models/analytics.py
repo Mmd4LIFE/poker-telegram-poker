@@ -16,9 +16,13 @@ from app.database import Base
 
 
 class FactDaily(Base):
-    """One row per calendar day (UTC). Idempotent: recomputing a day overwrites it."""
+    """One row per calendar day (UTC). Idempotent: recomputing a day overwrites it.
+
+    Lives in the dedicated `analytics` schema alongside the derived views, keeping the
+    reporting layer separate from the operational tables."""
 
     __tablename__ = "fact_daily"
+    __table_args__ = {"schema": "analytics"}
 
     day: Mapped[date] = mapped_column(Date, primary_key=True)
 

@@ -342,16 +342,39 @@ function Browse({ meta, onBack }: { meta: any; onBack: () => void }) {
         <BackBar onBack={onBack} title="Browse data" note={`${meta.tables.length} tables`} />
         <div className="relative mb-3"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={tableSearch} onChange={(e) => setTableSearch(e.target.value)} placeholder="Find a table" className="pl-9" /></div>
-        <div className="grid grid-cols-2 gap-2">
-          {list.map((t: any) => (
-            <button key={t.name} onClick={() => openTable(t.name)} className="text-left">
-              <Card className="gap-1 p-3 active:scale-[0.98]">
-                <div className="flex items-center gap-1.5"><Table2 className="size-3.5 shrink-0 text-muted-foreground" /><span className="truncate font-mono text-xs font-bold">{t.name}</span></div>
-                <div className="text-[11px] text-muted-foreground">{t.rows < 0 ? "—" : t.rows.toLocaleString()} rows · {t.columns.length} cols</div>
-              </Card>
-            </button>
-          ))}
-        </div>
+        {[
+          { key: "analytics", label: "Analytics", icon: Sigma, tint: "text-[#7cc4ff]", ring: "border-[#7cc4ff]/30" },
+          { key: "public", label: "App data", icon: Database, tint: "text-muted-foreground", ring: "" },
+        ].map((grp) => {
+          const group = list.filter((t: any) => (t.schema || "public") === grp.key);
+          if (!group.length) return null;
+          const Icon = grp.icon;
+          return (
+            <div key={grp.key} className="mb-3">
+              <div className="mb-1.5 flex items-center gap-1.5 px-1">
+                <Icon className={cn("size-3.5", grp.tint)} />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{grp.label}</span>
+                <span className="text-[10px] text-muted-foreground">{group.length}</span>
+                {grp.key === "analytics" && (
+                  <span className="ml-1 rounded bg-[#7cc4ff]/15 px-1 text-[9px] font-semibold text-[#7cc4ff]">schema: analytics</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {group.map((t: any) => (
+                  <button key={t.name} onClick={() => openTable(t.name)} className="text-left">
+                    <Card className={cn("gap-1 border p-3 active:scale-[0.98]", grp.ring)}>
+                      <div className="flex items-center gap-1.5">
+                        <Table2 className={cn("size-3.5 shrink-0", grp.tint)} />
+                        <span className="truncate font-mono text-xs font-bold">{t.name}</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">{t.rows < 0 ? "—" : t.rows.toLocaleString()} rows · {t.columns.length} cols</div>
+                    </Card>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </>
     );
   }
@@ -374,6 +397,24 @@ function Browse({ meta, onBack }: { meta: any; onBack: () => void }) {
           </div>
         </Card>
       )}
+    </>
+  );
+}
+
+/* schema-grouped <option>s for a table <select> */
+function TableOptions({ tables }: { tables: any[] }) {
+  const groups: [string, string][] = [["analytics", "Analytics"], ["public", "App data"]];
+  return (
+    <>
+      {groups.map(([k, label]) => {
+        const g = tables.filter((t) => (t.schema || "public") === k);
+        if (!g.length) return null;
+        return (
+          <optgroup key={k} label={label}>
+            {g.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+          </optgroup>
+        );
+      })}
     </>
   );
 }
@@ -452,7 +493,7 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
         <select value={table} onChange={(e) => { setTable(e.target.value); setJoins([]); setFilters([]); setGroups([]); setData(null); }}
           className="rounded-lg border border-white/10 bg-secondary px-2 py-2 text-xs">
           <option value="">choose a table…</option>
-          {meta.tables.map((t: any) => <option key={t.name} value={t.name}>{t.name}</option>)}
+          <TableOptions tables={meta.tables} />
         </select>
 
         {table && (
@@ -557,7 +598,7 @@ function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string;
               <select value={j.table} onChange={(e) => setJoins((xs: any[]) => xs.map((x, k) => k === i ? { ...x, table: e.target.value, right: "" } : x))}
                 className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[11px]">
                 <option value="">table…</option>
-                {meta.tables.map((t: any) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                <TableOptions tables={meta.tables} />
               </select>
               {alias && alias !== j.table && (
                 <span className="shrink-0 rounded bg-gold/20 px-1 py-0.5 text-[9px] font-bold text-gold" title="join alias">as {alias}</span>
@@ -622,7 +663,7 @@ function Native({ meta, editing, onBack, onSaved }: { meta: any; editing: any; o
         {schema && (
           <div className="no-scrollbar max-h-40 space-y-1 overflow-y-auto rounded-lg bg-black/20 p-2 text-[10px]">
             {meta.tables.map((t: any) => (
-              <div key={t.name}><span className="font-mono font-bold text-gold">{t.name}</span><span className="ml-1 text-muted-foreground">{t.columns.map((c: any) => c.name).join(", ")}</span></div>
+              <div key={t.name}><span className="font-mono font-bold text-gold">{t.schema === "analytics" ? "analytics." + t.name : t.name}</span><span className="ml-1 text-muted-foreground">{t.columns.map((c: any) => c.name).join(", ")}</span></div>
             ))}
           </div>
         )}

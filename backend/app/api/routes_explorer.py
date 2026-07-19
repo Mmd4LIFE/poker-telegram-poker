@@ -36,18 +36,28 @@ MAX_LIMIT = 500
 
 
 async def _all_tables(session: AsyncSession) -> dict:
+    """Every browsable relation keyed by its plain name (unique across schemas here).
+    The derived views + fact_daily live in the `analytics` schema; SQLAlchemy qualifies
+    the schema in generated SQL automatically."""
     if not _reflected:
         md = sa.MetaData()
 
         def _reflect(conn):
             for v in ANALYTICS_VIEWS:
                 try:
-                    _reflected[v] = sa.Table(v, md, autoload_with=conn, views=True)
+                    _reflected[v] = sa.Table(
+                        v, md, schema="analytics", autoload_with=conn, views=True
+                    )
                 except Exception:  # noqa: BLE001
                     pass
 
         await session.run_sync(lambda s: _reflect(s.connection()))
-    return {**TABLES, **_reflected}
+    out: dict[str, sa.Table] = {}
+    for tbl in TABLES.values():   # Base.metadata.tables (some carry schema="analytics")
+        out[tbl.name] = tbl
+    for tbl in _reflected.values():
+        out[tbl.name] = tbl
+    return out
 
 
 def _coltype(col: sa.Column) -> str:
@@ -170,6 +180,7 @@ async def tables(
         out.append(
             {
                 "name": name,
+                "schema": tbl.schema or "public",
                 "rows": n,
                 "columns": [
                     {"name": c.name, "type": _coltype(c), "pk": c.primary_key,
@@ -392,6 +403,8 @@ async def _run_native(session: AsyncSession, sql: str) -> dict:
         raise HTTPException(400, "Read-only queries only — no writes, DDL, or file access")
     try:
         await session.execute(sa.text("SET LOCAL statement_timeout = '10000'"))
+        # both schemas visible, so analytics views resolve unqualified (dim_user, …)
+        await session.execute(sa.text("SET LOCAL search_path = public, analytics"))
         wrapped = sa.text(f"SELECT * FROM (\n{q}\n) AS _explorer_q LIMIT {MAX_LIMIT}")
         res = await session.execute(wrapped)
         cols = list(res.keys())
