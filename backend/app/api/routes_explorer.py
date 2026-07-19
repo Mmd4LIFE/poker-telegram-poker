@@ -418,6 +418,58 @@ async def native_sql(
     return await _run_native(session, body.sql)
 
 
+# -------------------------------------------------------- send to Telegram
+
+def _safe_name(name: str, ext: str) -> str:
+    base = re.sub(r"[^a-z0-9_-]+", "_", (name or "").lower()).strip("_")[:40] or "export"
+    return f"{base}.{ext}"
+
+
+class SendCsvIn(BaseModel):
+    name: str = "export"
+    csv: str
+
+
+@router.post("/send-csv")
+async def send_csv(
+    body: SendCsvIn,
+    user: User = Depends(require_admin),
+):
+    """Deliver a result as a CSV document to the admin's bot chat."""
+    if not user.telegram_id:
+        raise HTTPException(400, "Open the bot chat first")
+    from aiogram.types import BufferedInputFile
+    from app.bot.instance import get_bot
+    doc = BufferedInputFile(body.csv.encode("utf-8"), _safe_name(body.name, "csv"))
+    await get_bot().send_document(user.telegram_id, doc, caption=f"📄 {body.name}")
+    return {"ok": True}
+
+
+class SendImageIn(BaseModel):
+    name: str = "chart"
+    png: str  # base64, no data: prefix
+
+
+@router.post("/send-image")
+async def send_image(
+    body: SendImageIn,
+    user: User = Depends(require_admin),
+):
+    """Deliver a chart as a PNG photo to the admin's bot chat."""
+    if not user.telegram_id:
+        raise HTTPException(400, "Open the bot chat first")
+    import base64
+    try:
+        raw = base64.b64decode(body.png)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, "Bad image data") from e
+    from aiogram.types import BufferedInputFile
+    from app.bot.instance import get_bot
+    photo = BufferedInputFile(raw, _safe_name(body.name, "png"))
+    await get_bot().send_photo(user.telegram_id, photo, caption=f"📊 {body.name}")
+    return {"ok": True}
+
+
 # --------------------------------------------------------------------- cards
 
 class CardIn(BaseModel):

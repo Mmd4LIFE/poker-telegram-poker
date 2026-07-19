@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Database, Table2, Plus, X, ChevronLeft, ChevronRight, ArrowDown, ArrowUp,
-  Loader2, Search, Sigma, Code, Save, Play, Trash2, Braces, Pencil, Link2, Download,
+  Loader2, Search, Sigma, Code, Save, Play, Trash2, Braces, Pencil, Link2, Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -94,34 +94,81 @@ function ResultsGrid({ data, sort, onSort }: { data: any; sort?: { col: string |
   );
 }
 
-function downloadCsv(data: any) {
+function buildCsv(data: any): string {
   const cols: string[] = data.columns;
   const esc = (v: any) => {
     if (v == null) return "";
     const s = typeof v === "object" ? JSON.stringify(v) : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const lines = [cols.join(","), ...data.rows.map((r: any) => cols.map((c) => esc(r[c])).join(","))];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = "explorer.csv"; a.click();
-  URL.revokeObjectURL(url);
+  return [cols.join(","), ...data.rows.map((r: any) => cols.map((c) => esc(r[c])).join(","))].join("\n");
 }
 
-/* result = viz picker + chart or grid */
-function ResultView({ data, viz, setViz }: { data: any; viz: Viz; setViz: (v: Viz) => void }) {
+/* rasterise an <svg> to a base64 PNG (dark ground so it reads in Telegram) */
+function svgToPng(svg: SVGSVGElement): Promise<string> {
+  const vb = svg.viewBox.baseVal;
+  const w = vb && vb.width ? vb.width : svg.clientWidth || 340;
+  const h = vb && vb.height ? vb.height : svg.clientHeight || 210;
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  clone.setAttribute("width", String(w));
+  clone.setAttribute("height", String(h));
+  const xml = new XMLSerializer().serializeToString(clone);
+  const src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(xml)));
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = 3;
+      const canvas = document.createElement("canvas");
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#171a21";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/png").split(",")[1]);
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+/* result = viz picker + chart or grid; export goes to the admin's Telegram chat */
+function ResultView({ data, viz, setViz, title = "export" }: { data: any; viz: Viz; setViz: (v: Viz) => void; title?: string }) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [sending, setSending] = useState(false);
   if (!data) return null;
+
+  async function send() {
+    setSending(true);
+    try {
+      if (viz.type === "table") {
+        await api.explorerSendCsv(title, buildCsv(data));
+        toast.success("CSV sent to your Telegram");
+      } else {
+        const svg = chartRef.current?.querySelector("svg");
+        if (!svg) { toast.error("No chart to send"); return; }
+        const png = await svgToPng(svg as SVGSVGElement);
+        await api.explorerSendImage(title, png);
+        toast.success("Chart sent to your Telegram");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <Card className="gap-2 overflow-hidden p-0">
       <div className="border-b border-white/10 p-2.5">
         <VizPicker data={data} viz={viz} onChange={setViz} />
       </div>
-      {viz.type === "table" ? <ResultsGrid data={data} /> : <div className="p-2"><Chart data={data} viz={viz} /></div>}
+      {viz.type === "table" ? <ResultsGrid data={data} /> : <div ref={chartRef} className="p-2"><Chart data={data} viz={viz} /></div>}
       <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-muted-foreground">
         <span>{data.rows.length} rows{data.total > data.rows.length ? ` of ${data.total}` : ""}{data.capped ? " (capped)" : ""}</span>
-        <button onClick={() => downloadCsv(data)} className="ml-auto flex items-center gap-1 font-semibold text-gold active:opacity-70">
-          <Download className="size-3" /> CSV
+        <button onClick={send} disabled={sending} className="ml-auto flex items-center gap-1 font-semibold text-gold active:opacity-70 disabled:opacity-50">
+          {sending ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
+          {viz.type === "table" ? "Send CSV" : "Send chart"}
         </button>
       </div>
     </Card>
@@ -261,7 +308,7 @@ function CardDetail({ card, onBack, onDeleted, onEdit }: { card: any; onBack: ()
       ) : !data ? (
         <Loader2 className="mx-auto mt-6 size-6 animate-spin text-gold" />
       ) : (
-        <ResultView data={data} viz={viz} setViz={saveViz} />
+        <ResultView data={data} viz={viz} setViz={saveViz} title={card.name} />
       )}
     </>
   );
