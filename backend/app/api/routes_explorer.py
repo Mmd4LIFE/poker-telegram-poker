@@ -108,23 +108,21 @@ def _coerce(coltype: str, raw: Any) -> Any:
     return raw
 
 
-def _conds(tbl: sa.Table, filters: list[dict]) -> list:
-    coltypes = {c.name: _coltype(c) for c in tbl.columns}
+def _conds(resolve, filters: list[dict]) -> list:
     out = []
     for f in filters:
-        col_name, op = f.get("col"), f.get("op")
-        if col_name not in tbl.columns:
-            raise HTTPException(400, f"Unknown column {col_name}")
-        spec = _OPS.get(op)
+        col = resolve(f.get("col"))
+        if col is None:
+            raise HTTPException(400, f"Unknown column {f.get('col')}")
+        spec = _OPS.get(f.get("op"))
         if not spec:
-            raise HTTPException(400, f"Unknown operator {op}")
+            raise HTTPException(400, f"Unknown operator {f.get('op')}")
         needs_val, build = spec
-        col = tbl.columns[col_name]
         if needs_val:
             val = f.get("val")
             if val is None or val == "":
                 continue
-            out.append(build(col, _coerce(coltypes[col_name], val)))
+            out.append(build(col, _coerce(_coltype(col), val)))
         else:
             out.append(build(col, None))
     return out
@@ -175,8 +173,16 @@ class Aggregation(BaseModel):
     col: str | None = None
 
 
+class Join(BaseModel):
+    table: str
+    type: str = "left"  # left | inner
+    left: str            # column on an already-joined table (qualified or base)
+    right: str           # column on the joined table
+
+
 class QueryIn(BaseModel):
     table: str
+    joins: list[Join] = []
     filters: list[Filter] = []
     aggregations: list[Aggregation] = []
     group_by: list[str] = []
@@ -187,94 +193,123 @@ class QueryIn(BaseModel):
 
 
 async def _run_builder(session: AsyncSession, spec: dict) -> dict:
-    tbl = (await _all_tables(session)).get(spec.get("table"))
+    all_tbls = await _all_tables(session)
+    base_name = spec.get("table")
+    tbl = all_tbls.get(base_name)
     if tbl is None:
         raise HTTPException(404, "Unknown table")
 
-    conds = _conds(tbl, spec.get("filters", []))
+    # --- assemble the FROM (base + joins) and a column resolver ---
+    joins = spec.get("joins", []) or []
+    used: dict[str, sa.Table] = {base_name: tbl}
+    frm: Any = tbl
+
+    def resolve(name: str | None):
+        if not name:
+            return None
+        if "." in name:
+            t, _, c = name.partition(".")
+            table = used.get(t)
+            return table.columns.get(c) if table is not None else None
+        if name in tbl.columns:
+            return tbl.columns[name]
+        for t in used.values():
+            if name in t.columns:
+                return t.columns[name]
+        return None
+
+    for j in joins:
+        jt = all_tbls.get(j.get("table"))
+        if jt is None or j.get("table") in used:
+            raise HTTPException(400, f"Bad join table {j.get('table')}")
+        used[j["table"]] = jt
+        left = resolve(j.get("left"))
+        right = jt.columns.get(j.get("right"))
+        if left is None or right is None:
+            raise HTTPException(400, "Bad join column")
+        frm = frm.join(jt, left == right, isouter=(j.get("type") != "inner"))
+
+    def label_of(t_name: str, c) -> str:
+        return f"{t_name}.{c.name}" if joins else c.name
+
+    conds = _conds(resolve, spec.get("filters", []))
     aggs = spec.get("aggregations", []) or []
-    groups = [g for g in (spec.get("group_by", []) or []) if g in tbl.columns]
+    groups = [g for g in (spec.get("group_by", []) or []) if resolve(g) is not None]
     limit = min(MAX_LIMIT, max(1, int(spec.get("limit", 50) or 50)))
     offset = max(0, int(spec.get("offset", 0) or 0))
     sort, dir_ = spec.get("sort"), spec.get("dir", "desc")
 
     if aggs:
-        # --- summarised query: group_by dims + aggregate measures ---
+        # --- summarised: group_by dims + aggregate measures ---
         select_cols, out_cols, expr_by_name = [], [], {}
         for g in groups:
-            c = tbl.columns[g]
+            c = resolve(g).label(g)
             select_cols.append(c)
             out_cols.append(g)
             expr_by_name[g] = c
         for a in aggs:
             fn = a.get("fn")
-            col = a.get("col")
             if fn not in _AGG_FNS:
                 raise HTTPException(400, f"Unknown aggregation {fn}")
-            if col and col not in tbl.columns:
+            col = a.get("col")
+            colobj = resolve(col) if col else None
+            if col and colobj is None:
                 raise HTTPException(400, f"Unknown column {col}")
-            alias = fn if (fn == "count" and not col) else f"{fn}_{col}"
-            expr = _AGG_FNS[fn](tbl, col).label(alias)
+            alias = fn if (fn == "count" and not col) else f"{fn}_{(col or '').replace('.', '_')}"
+            if fn == "count" and not col:
+                expr = sa.func.count().label(alias)
+            elif fn == "distinct":
+                expr = sa.func.count(sa.distinct(colobj)).label(alias)
+            else:
+                expr = getattr(sa.func, fn)(colobj).label(alias)
             select_cols.append(expr)
             out_cols.append(alias)
             expr_by_name[alias] = expr
 
-        q = sa.select(*select_cols)
+        q = sa.select(*select_cols).select_from(frm)
         if conds:
             q = q.where(sa.and_(*conds))
         if groups:
-            q = q.group_by(*[tbl.columns[g] for g in groups])
+            q = q.group_by(*[resolve(g) for g in groups])
 
         total = int(
             await session.scalar(sa.select(sa.func.count()).select_from(q.subquery())) or 0
         )
-
         scol = expr_by_name.get(sort)
         if scol is None:
             scol = select_cols[-1] if select_cols else None
         if scol is not None:
             q = q.order_by(scol.desc() if dir_ == "desc" else scol.asc())
         q = q.limit(limit).offset(offset)
-
         rows = (await session.execute(q)).mappings().all()
         data = [{k: _serialize(v) for k, v in r.items()} for r in rows]
-        return {
-            "columns": out_cols,
-            "coltypes": {},
-            "rows": data,
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "aggregated": True,
-            "group_by": groups,
-        }
+        return {"columns": out_cols, "coltypes": {}, "rows": data, "total": total,
+                "limit": limit, "offset": offset, "aggregated": True, "group_by": groups}
 
     # --- raw rows ---
-    coltypes = {c.name: _coltype(c) for c in tbl.columns}
-    base = sa.select(tbl)
+    select_cols, out_cols, coltypes = [], [], {}
+    for t_name, t in used.items():
+        for c in t.columns:
+            lbl = label_of(t_name, c)
+            select_cols.append(c.label(lbl))
+            out_cols.append(lbl)
+            coltypes[lbl] = _coltype(c)
+    base = sa.select(*select_cols).select_from(frm)
     if conds:
         base = base.where(sa.and_(*conds))
     total = int(
         await session.scalar(sa.select(sa.func.count()).select_from(base.subquery())) or 0
     )
-    if sort and sort in tbl.columns:
-        scol = tbl.columns[sort]
-    else:
+    scol = resolve(sort)
+    if scol is None:
         pk = list(tbl.primary_key.columns)
         scol = pk[0] if pk else list(tbl.columns)[0]
     base = base.order_by(scol.desc() if dir_ == "desc" else scol.asc())
     base = base.limit(limit).offset(offset)
     rows = (await session.execute(base)).mappings().all()
     data = [{k: _serialize(v) for k, v in r.items()} for r in rows]
-    return {
-        "columns": [c.name for c in tbl.columns],
-        "coltypes": coltypes,
-        "rows": data,
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "aggregated": False,
-    }
+    return {"columns": out_cols, "coltypes": coltypes, "rows": data, "total": total,
+            "limit": limit, "offset": offset, "aggregated": False}
 
 
 @router.post("/query")
@@ -394,6 +429,38 @@ async def create_card(
         viz=body.viz or {},
     )
     session.add(card)
+    await session.commit()
+    return _card_out(card)
+
+
+class CardPatch(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    spec: dict | None = None
+    sql: str | None = None
+    viz: dict | None = None
+
+
+@router.patch("/cards/{card_id}")
+async def update_card(
+    card_id: int,
+    body: CardPatch,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    card = await session.get(ExplorerCard, card_id)
+    if card is None:
+        raise HTTPException(404, "Card not found")
+    if body.name is not None:
+        card.name = body.name.strip()[:120] or card.name
+    if body.description is not None:
+        card.description = body.description[:400]
+    if body.spec is not None:
+        card.spec = body.spec
+    if body.sql is not None:
+        card.sql = body.sql
+    if body.viz is not None:
+        card.viz = body.viz
     await session.commit()
     return _card_out(card)
 

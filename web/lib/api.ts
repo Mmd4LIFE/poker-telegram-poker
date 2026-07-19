@@ -87,6 +87,7 @@ export const api = {
   explorerSql: (sql: string) => req("POST", "/admin/explorer/sql", { sql }),
   explorerCards: () => req("GET", "/admin/explorer/cards"),
   explorerCardCreate: (b: unknown) => req("POST", "/admin/explorer/cards", b),
+  explorerCardUpdate: (id: number, b: unknown) => req("PATCH", `/admin/explorer/cards/${id}`, b),
   explorerCardDelete: (id: number) => req("DELETE", `/admin/explorer/cards/${id}`),
   explorerCardRun: (id: number) => req("POST", `/admin/explorer/cards/${id}/run`),
   dashEconomy: (days = 30) => req("GET", `/admin/dash/economy?days=${days}`),
