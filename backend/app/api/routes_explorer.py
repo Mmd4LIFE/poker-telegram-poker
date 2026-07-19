@@ -229,7 +229,9 @@ async def _run_builder(session: AsyncSession, spec: dict) -> dict:
             await session.scalar(sa.select(sa.func.count()).select_from(q.subquery())) or 0
         )
 
-        scol = expr_by_name.get(sort) or (select_cols[-1] if select_cols else None)
+        scol = expr_by_name.get(sort)
+        if scol is None:
+            scol = select_cols[-1] if select_cols else None
         if scol is not None:
             q = q.order_by(scol.desc() if dir_ == "desc" else scol.asc())
         q = q.limit(limit).offset(offset)
