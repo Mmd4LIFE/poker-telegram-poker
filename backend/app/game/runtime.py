@@ -12,7 +12,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.game.bots import pick_bots
 from app.game.connection import hub
-from app.models import Hand, PlayerHand, Room, RoomPlayer, User
+from app.models import CohortMember, Hand, PlayerHand, Room, RoomPlayer, User
 from app.poker import ai, ranges, scoring
 from app.poker.holdem import HoldemGame, Seat, Street
 from app.models import PlayerStats
@@ -62,6 +62,9 @@ class RoomRuntime:
         self._idle_hand_at: float = 0.0
         # per-seat live table stats (CS:GO-style scoreboard), reset with the runtime
         self._board: dict[int, dict] = {}
+        # per-HAND in-league skill deltas, flushed to the day's CohortMember at hand end
+        # (league Sit & Go only). Accumulates the current hand, then clears.
+        self._il_hand: dict[int, dict] = {}
 
     # ---- lifecycle -------------------------------------------------------
     def start(self) -> None:
@@ -333,6 +336,8 @@ class RoomRuntime:
                 applied = "check" if legal.get("check") else "fold"
                 events = self.game.apply_action(user_id, applied, 0)
             self._board_action(user_id, applied)
+            if self.cohort_id:
+                self._il_action(user_id, applied)
         await self.broadcast_events(events)
         await self.broadcast_state()
 
@@ -409,6 +414,52 @@ class RoomRuntime:
         b = self._board_of(user_id)
         b["dq_wt"] += res["weight"]
         b["dq_sum"] += res["dq"] * res["weight"]
+        # and the per-day in-league telemetry (league Sit & Go only)
+        if self.cohort_id:
+            il = self._il_of(user_id)
+            il["dq_n"] += 1
+            il["dq_w"] += res["weight"]
+            il["dq_wt"] += res["dq"] * res["weight"]
+
+    # ---- in-league (per-day) skill telemetry ----------------------------
+    def _il_of(self, uid: int) -> dict:
+        b = self._il_hand.get(uid)
+        if b is None:
+            b = {"dq_n": 0, "dq_w": 0.0, "dq_wt": 0.0, "hands": 0,
+                 "fold": 0, "call": 0, "raise": 0, "check": 0, "net": 0}
+            self._il_hand[uid] = b
+        return b
+
+    def _il_action(self, uid: int, action: str) -> None:
+        a = (action or "").lower()
+        bucket = (
+            "fold" if a == "fold" else
+            "check" if a == "check" else
+            "call" if a == "call" else
+            "raise" if a in ("bet", "raise", "all-in", "allin") else None
+        )
+        if bucket:
+            self._il_of(uid)[bucket] += 1
+
+    async def _flush_inleague(self, session) -> None:
+        """Write this hand's in-league deltas onto each player's CohortMember for the
+        current day, then clear. Per-hand deltas keep it restart-safe."""
+        if not self.cohort_id or not self._il_hand:
+            return
+        buf, self._il_hand = self._il_hand, {}
+        for uid, d in buf.items():
+            m = await session.get(CohortMember, (self.cohort_id, uid))
+            if m is None:
+                continue
+            m.il_dq_n = (m.il_dq_n or 0) + d["dq_n"]
+            m.il_dq_w = (m.il_dq_w or 0.0) + d["dq_w"]
+            m.il_dq_wt = (m.il_dq_wt or 0.0) + d["dq_wt"]
+            m.il_hands = (m.il_hands or 0) + d["hands"]
+            m.il_fold = (m.il_fold or 0) + d["fold"]
+            m.il_call = (m.il_call or 0) + d["call"]
+            m.il_raise = (m.il_raise or 0) + d["raise"]
+            m.il_check = (m.il_check or 0) + d["check"]
+            m.il_net = (m.il_net or 0) + d["net"]
 
     # ---- live table scoreboard ------------------------------------------
     def _board_of(self, uid: int) -> dict:
@@ -668,6 +719,10 @@ class RoomRuntime:
                 bd = self._board_of(seat.user_id)
                 bd["hands"] += 1
                 bd["net"] += net
+                if self.cohort_id:
+                    il = self._il_of(seat.user_id)
+                    il["hands"] += 1
+                    il["net"] += net
 
                 # --- Poker DNA telemetry (bots included: their radar is the whole
                 #     point of the admin monitor)
@@ -721,6 +776,7 @@ class RoomRuntime:
             # --- flush decision-quality scores (folded players included: they made
             #     decisions too) ---
             await self._flush_dq(session)
+            await self._flush_inleague(session)
             await session.commit()
 
         # drop busted bots so fresh ones can join

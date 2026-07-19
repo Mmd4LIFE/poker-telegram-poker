@@ -14,9 +14,11 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -83,6 +85,20 @@ class CohortMember(Base):
     rank: Mapped[int] = mapped_column(Integer, default=0)
     outcome: Mapped[str] = mapped_column(String(12), default="")  # promoted|demoted|held
     is_bot: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    shards_awarded: Mapped[int] = mapped_column(Integer, default=0)  # this day's shard prize
+
+    # --- in-league skill telemetry (reset every day because a new day = a new
+    #     CohortMember row; old rows keep their numbers, so history is preserved).
+    #     Display-only for now; a future league may rank on these. ---
+    il_dq_n: Mapped[int] = mapped_column(Integer, default=0)          # scored decisions
+    il_dq_w: Mapped[float] = mapped_column(Float, default=0.0)        # Σ weight
+    il_dq_wt: Mapped[float] = mapped_column(Float, default=0.0)       # Σ score×weight
+    il_hands: Mapped[int] = mapped_column(Integer, default=0)
+    il_fold: Mapped[int] = mapped_column(Integer, default=0)
+    il_call: Mapped[int] = mapped_column(Integer, default=0)
+    il_raise: Mapped[int] = mapped_column(Integer, default=0)
+    il_check: Mapped[int] = mapped_column(Integer, default=0)
+    il_net: Mapped[int] = mapped_column(BigInteger, default=0)        # chips won in-league
 
 
 class LeagueGame(Base):

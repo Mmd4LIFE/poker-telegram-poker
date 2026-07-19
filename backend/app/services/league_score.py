@@ -40,6 +40,43 @@ def _engagement(vpip: float) -> float:
     return max(40.0, 100.0 - (vpip - 0.30) * 100.0)
 
 
+# In-league needs far fewer decisions than the lifetime metric to be meaningful — a
+# league day is a handful of Sit & Gos, not a career.
+IL_MIN_DECISIONS = 12
+
+
+def inleague_score(m) -> dict:
+    """DQ + skill score computed from a single CohortMember's IN-LEAGUE telemetry (this
+    day only). Resets every day because each day is a new CohortMember row. Returns
+    {dq, score} — both None until enough in-league decisions exist, so a fresh league in
+    which you've played nothing shows nothing (not your lifetime number)."""
+    dq_w = float(getattr(m, "il_dq_w", 0.0) or 0.0)
+    dq_wt = float(getattr(m, "il_dq_wt", 0.0) or 0.0)
+    dq_n = int(getattr(m, "il_dq_n", 0) or 0)
+    fold = int(getattr(m, "il_fold", 0) or 0)
+    call = int(getattr(m, "il_call", 0) or 0)
+    rai = int(getattr(m, "il_raise", 0) or 0)
+    chk = int(getattr(m, "il_check", 0) or 0)
+    hands = int(getattr(m, "il_hands", 0) or 0)
+    net = int(getattr(m, "il_net", 0) or 0)
+
+    ready = dq_n >= IL_MIN_DECISIONS
+    if not ready:
+        return {"dq": None, "score": None, "ready": False}
+
+    dq = round(dq_wt / dq_w, 1) if dq_w else None
+    total = fold + call + rai + chk
+    vpip = (call + rai) / total if total else 0.0        # voluntary participation
+    af = rai / call if call else (2.0 if rai else 0.0)    # aggression factor
+    dq_c = dq if dq is not None else 50.0
+    eng_c = _engagement(vpip)
+    agg_c = min(100.0, af / 2.0 * 100.0)
+    npr = net / hands if hands else 0.0
+    chip_c = 100.0 / (1.0 + exp(-npr / CHIP_SCALE))
+    score = W_DQ * dq_c + W_ENG * eng_c + W_AGG * agg_c + W_CHIP * chip_c
+    return {"dq": dq, "score": round(score, 1), "ready": True}
+
+
 def league_skill_score(st) -> dict:
     """Return the experimental score (0–100) and its components for one player's
     PlayerStats. Safe on None / empty stats (returns a neutral-ish low score)."""

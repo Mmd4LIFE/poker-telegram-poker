@@ -513,6 +513,7 @@ async def close_season(session: AsyncSession, season: LeagueSeason, cfg: dict) -
                         user.league_shards = (user.league_shards or 0) + int(
                             band["shards"]
                         )
+                        m.shards_awarded = int(band["shards"])  # per-day shard log
                     summary["rewarded"] += 1
 
                     verb = {

@@ -34,6 +34,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { PlayingCard } from "@/components/table/playing-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarIcon } from "@/lib/avatars";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,24 @@ export function LeagueScreen() {
   const [help, setHelp] = useState(false);
   const [hist, setHist] = useState<any>(null);
   const [histOpen, setHistOpen] = useState(false);
+  const [redeemOpen, setRedeemOpen] = useState(false);
+  const [redeeming, setRedeeming] = useState(false);
+
+  async function redeem(card: string) {
+    setRedeeming(true);
+    try {
+      await api.redeemShards(card);
+      toast.success("Champion skin minted!");
+      notify("success");
+      setRedeemOpen(false);
+      load();
+      refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRedeeming(false);
+    }
+  }
 
   async function openHistory() {
     setHistOpen(true);
@@ -185,32 +204,14 @@ export function LeagueScreen() {
           )}
         </Button>
 
-        {d.shards > 0 && (
-          <div className="flex items-center gap-2 rounded-lg bg-secondary/60 p-2.5">
-            <Sparkles className="size-4 text-gold" />
-            <span className="flex-1 text-xs font-semibold">
-              {d.shards} League Shards
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              {d.shards_per_skin} = 1 Champion skin
-            </span>
-          </div>
-        )}
+        <ShardPanel
+          shards={d.shards ?? 0}
+          per={d.shards_per_skin ?? 25}
+          onRedeem={() => setRedeemOpen(true)}
+        />
       </Card>
 
       <Card className="p-2">
-        {/* DQ and Skill are shown for information only — the ladder still ranks on LP.
-            A future version will use them, once the scoring proves itself. */}
-        {rows.some((r) => r.dq != null || r.skill_score != null) && (
-          <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] text-muted-foreground">
-            <Info className="size-3" />
-            <span>
-              <b className="text-foreground">DQ</b> decision quality ·{" "}
-              <b className="text-gold">S</b> skill score — shown for info, not used to rank
-              yet
-            </span>
-          </div>
-        )}
         {rows.map((r, i) => {
           const line =
             d.promote && i === d.promote - 1
@@ -318,26 +319,24 @@ export function LeagueScreen() {
               <Loader2 className="mx-auto my-8 size-6 animate-spin text-gold" />
             ) : hist.days?.length ? (
               <>
-                <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+                <div className="mb-3 grid grid-cols-4 gap-2 text-center">
                   <div className="rounded-lg bg-secondary/60 p-2">
                     <div className={cn("text-sm font-bold", TIER_COLOR[hist.best_tier])}>
                       {hist.best_tier_name ?? "—"}
                     </div>
-                    <div className="text-[10px] uppercase text-muted-foreground">
-                      best tier
-                    </div>
+                    <div className="text-[10px] uppercase text-muted-foreground">best</div>
                   </div>
                   <div className="rounded-lg bg-secondary/60 p-2">
                     <div className="text-sm font-bold text-win">{hist.promotions}</div>
-                    <div className="text-[10px] uppercase text-muted-foreground">
-                      promotions
-                    </div>
+                    <div className="text-[10px] uppercase text-muted-foreground">promos</div>
                   </div>
                   <div className="rounded-lg bg-secondary/60 p-2">
                     <div className="text-sm font-bold">{hist.played}</div>
-                    <div className="text-[10px] uppercase text-muted-foreground">
-                      seasons
-                    </div>
+                    <div className="text-[10px] uppercase text-muted-foreground">days</div>
+                  </div>
+                  <div className="rounded-lg bg-secondary/60 p-2">
+                    <div className="text-sm font-bold text-gold">{hist.shards_total ?? 0}</div>
+                    <div className="text-[10px] uppercase text-muted-foreground">shards</div>
                   </div>
                 </div>
 
@@ -365,6 +364,12 @@ export function LeagueScreen() {
                             <Crown className="size-3" />
                             {h.wins}
                           </span>
+                          {h.shards > 0 && (
+                            <span className="flex items-center gap-0.5 text-gold">
+                              <Sparkles className="size-3" />
+                              {h.shards}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <span className="text-sm font-extrabold tabular-nums">{h.lp}</span>
@@ -440,6 +445,86 @@ export function LeagueScreen() {
         </DialogContent>
       </Dialog>
 
+      {/* redeem: pick which of the 52 cards wears the exclusive Champion skin */}
+      <Dialog open={redeemOpen} onOpenChange={setRedeemOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Redeem a Champion skin</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Costs <b className="text-gold">{d.shards_per_skin}</b> shards — you have{" "}
+            <b className="text-foreground">{d.shards}</b>. Pick the card to wear it.
+          </p>
+          <div className="mt-2 max-h-[60vh] space-y-1.5 overflow-y-auto">
+            {CARD_SUITS.map((s) => (
+              <div key={s} className="flex flex-wrap gap-1">
+                {CARD_RANKS.map((r) => {
+                  const card = r + s;
+                  return (
+                    <button
+                      key={card}
+                      disabled={redeeming}
+                      onClick={() => redeem(card)}
+                      className="transition active:scale-90 disabled:opacity-40"
+                    >
+                      <PlayingCard card={card} size="sm" />
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
+  );
+}
+
+const CARD_RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
+const CARD_SUITS = ["s", "h", "d", "c"];
+
+function ShardPanel({
+  shards,
+  per,
+  onRedeem,
+}: {
+  shards: number;
+  per: number;
+  onRedeem: () => void;
+}) {
+  const ready = Math.floor(shards / per);
+  const into = shards % per;
+  const canRedeem = shards >= per;
+  return (
+    <div className="rounded-lg bg-gradient-to-br from-gold/15 to-secondary/60 p-3">
+      <div className="flex items-center gap-2">
+        <Sparkles className="size-4 text-gold" />
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          League Shards
+        </span>
+        <span className="ml-auto text-lg font-extrabold text-gold tabular-nums">{shards}</span>
+      </div>
+      {/* progress toward the next Champion skin */}
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/30">
+        <div
+          className="h-full rounded-full bg-gold transition-all"
+          style={{ width: `${Math.min(100, (into / per) * 100)}%` }}
+        />
+      </div>
+      <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>
+          {into}/{per} to next skin
+        </span>
+        <span>{ready > 0 ? `${ready} skin${ready === 1 ? "" : "s"} ready` : "Top-finish to earn"}</span>
+      </div>
+      <Button
+        size="sm"
+        className="mt-2 w-full font-bold"
+        disabled={!canRedeem}
+        onClick={onRedeem}
+      >
+        {canRedeem ? "Redeem a Champion skin" : `Need ${per - into} more shards`}
+      </Button>
+    </div>
   );
 }

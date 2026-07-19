@@ -62,6 +62,14 @@ players.
 - Admin: a live bot-pool monitor (total / busy / free / auto-generated, per-table
   occupancy, and a double-seating health check). *(internal, admin-only)*
 
+### Changed
+- **League DQ & Skill Score are now per-league**, computed from the games you play *that
+  day* and reset every league — a fresh league starts blank instead of showing your
+  lifetime numbers. Past days keep their scores. Still shown for info, not used to rank.
+- **League Shards** got a real home: a shards panel in the league with your balance,
+  progress to the next Champion skin, and a **Redeem** flow to mint one onto any card —
+  plus a per-day shard log in your league history.
+
 ### Security
 - A player's Telegram ID is never exposed to anyone, and a player's @username is now
   visible only to their friends — to everyone else you're just your display name.
