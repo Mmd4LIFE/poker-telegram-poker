@@ -313,14 +313,29 @@ function Browse({ meta, onBack }: { meta: any; onBack: () => void }) {
   );
 }
 
-/* qualified column list for filter/group/agg (handles joins) */
+/* assign each join a unique alias so the same table can be joined twice */
+function withAliases(base: string, joins: any[]): any[] {
+  const used = new Set([base]);
+  return joins.map((j) => {
+    let a = j.table || "";
+    if (a) {
+      if (used.has(a)) { let k = 2; while (used.has(`${j.table}_${k}`)) k++; a = `${j.table}_${k}`; }
+      used.add(a);
+    }
+    return { ...j, alias: a };
+  });
+}
+
+/* qualified column list for filter/group/agg (handles aliased joins) */
 function colsFor(meta: any, table: string, joins: any[]): any[] {
   const find = (n: string) => meta.tables.find((t: any) => t.name === n);
   if (!joins.length) return find(table)?.columns ?? [];
+  const aj = withAliases(table, joins);
   const out: any[] = [];
-  const add = (tn: string) => find(tn)?.columns.forEach((c: any) => out.push({ ...c, name: `${tn}.${c.name}` }));
-  add(table);
-  joins.forEach((j) => j.table && add(j.table));
+  const add = (alias: string, tn: string) =>
+    find(tn)?.columns.forEach((c: any) => out.push({ ...c, name: `${alias}.${c.name}` }));
+  add(table, table);
+  aj.forEach((j) => j.table && add(j.alias, j.table));
   return out;
 }
 
@@ -341,7 +356,8 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
   const cols = colsFor(meta, table, joins);
 
   function spec() {
-    return { table, joins: joins.filter((j) => j.table && j.left && j.right),
+    return { table,
+      joins: withAliases(table, joins).filter((j) => j.table && j.left && j.right),
       filters: filters.filter((x) => x.col), aggregations: summarize ? aggs.filter((a) => a.fn) : [],
       group_by: summarize ? groups : [], limit: 500 };
   }
@@ -422,10 +438,12 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
 
 function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string; joins: any[]; setJoins: (j: any) => void }) {
   const baseCols = meta.tables.find((t: any) => t.name === base)?.columns ?? [];
+  const aliased = withAliases(base, joins);
   return (
     <div className="space-y-1.5">
       {joins.map((j, i) => {
         const jcols = meta.tables.find((t: any) => t.name === j.table)?.columns ?? [];
+        const alias = aliased[i].alias;
         return (
           <div key={i} className="rounded-lg bg-black/20 p-2">
             <div className="mb-1 flex items-center gap-1.5">
@@ -439,6 +457,9 @@ function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string;
                 <option value="">table…</option>
                 {meta.tables.map((t: any) => <option key={t.name} value={t.name}>{t.name}</option>)}
               </select>
+              {alias && alias !== j.table && (
+                <span className="shrink-0 rounded bg-gold/20 px-1 py-0.5 text-[9px] font-bold text-gold" title="join alias">as {alias}</span>
+              )}
               <button onClick={() => setJoins((xs: any[]) => xs.filter((_: any, k: number) => k !== i))} className="grid size-6 place-items-center rounded bg-secondary text-muted-foreground"><X className="size-3" /></button>
             </div>
             <div className="flex items-center gap-1 text-[10px]">
@@ -450,8 +471,8 @@ function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string;
               <span className="text-muted-foreground">=</span>
               <select value={j.right} onChange={(e) => setJoins((xs: any[]) => xs.map((x, k) => k === i ? { ...x, right: e.target.value } : x))}
                 className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1">
-                <option value="">{j.table || "table"}.column…</option>
-                {jcols.map((c: any) => <option key={c.name} value={c.name}>{j.table}.{c.name}</option>)}
+                <option value="">{alias || "table"}.column…</option>
+                {jcols.map((c: any) => <option key={c.name} value={c.name}>{alias}.{c.name}</option>)}
               </select>
             </div>
           </div>

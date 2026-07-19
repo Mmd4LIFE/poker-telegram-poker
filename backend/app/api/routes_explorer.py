@@ -178,6 +178,7 @@ class Join(BaseModel):
     type: str = "left"  # left | inner
     left: str            # column on an already-joined table (qualified or base)
     right: str           # column on the joined table
+    alias: str | None = None  # so the SAME table can be joined more than once
 
 
 class QueryIn(BaseModel):
@@ -219,10 +220,20 @@ async def _run_builder(session: AsyncSession, spec: dict) -> dict:
         return None
 
     for j in joins:
-        jt = all_tbls.get(j.get("table"))
-        if jt is None or j.get("table") in used:
-            raise HTTPException(400, f"Bad join table {j.get('table')}")
-        used[j["table"]] = jt
+        tname = j.get("table")
+        jt_base = all_tbls.get(tname)
+        if jt_base is None:
+            raise HTTPException(400, f"Unknown join table {tname}")
+        # a table can be joined more than once (e.g. friendships → users twice), so
+        # each join gets a unique alias; columns then qualify as alias.column.
+        alias = j.get("alias") or tname
+        if alias in used:
+            k = 2
+            while f"{tname}_{k}" in used:
+                k += 1
+            alias = f"{tname}_{k}"
+        jt = jt_base if alias == tname else jt_base.alias(alias)
+        used[alias] = jt
         left = resolve(j.get("left"))
         right = jt.columns.get(j.get("right"))
         if left is None or right is None:
