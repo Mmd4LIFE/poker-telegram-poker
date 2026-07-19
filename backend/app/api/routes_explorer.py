@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/admin/explorer", tags=["admin"])
 
 TABLES = Base.metadata.tables  # name -> sa.Table
 
-ANALYTICS_VIEWS = ["dim_user", "fact_transaction", "fact_hand", "fact_trade"]
+ANALYTICS_VIEWS = ["dim_user", "fact_transaction", "fact_hand", "fact_trade", "fact_league"]
 _reflected: dict[str, sa.Table] = {}
 
 MAX_LIMIT = 500
