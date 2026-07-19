@@ -296,7 +296,9 @@ function ShopTab({ onBought }: { onBought: () => void }) {
             </p>
           ) : null}
           <div className="max-h-[62vh] overflow-y-auto">
-            {!cards ? (
+            {/* `open` goes null the instant you close; Radix keeps the content mounted
+                through the exit animation, so guard on it or `open.code` below throws. */}
+            {!cards || !open ? (
               <Loader2 className="mx-auto my-6 size-5 animate-spin text-gold" />
             ) : (
               cards.map((c: any) => (
