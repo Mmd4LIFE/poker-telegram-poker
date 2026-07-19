@@ -45,9 +45,10 @@ async def _all_tables(session: AsyncSession) -> dict:
         def _reflect(conn):
             for v in ANALYTICS_VIEWS:
                 try:
-                    _reflected[v] = sa.Table(
-                        v, md, schema="analytics", autoload_with=conn, views=True
-                    )
+                    # autoload reflects a VIEW's columns fine; `views=True` is a
+                    # MetaData.reflect() flag, NOT a Table() arg (it used to error here
+                    # silently, so the analytics views never showed up).
+                    _reflected[v] = sa.Table(v, md, schema="analytics", autoload_with=conn)
                 except Exception:  # noqa: BLE001
                     pass
 
