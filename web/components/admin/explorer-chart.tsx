@@ -105,13 +105,14 @@ export function Chart({ data, viz }: { data: any; viz: Viz }) {
         {/* zero baseline */}
         <line x1={ml} x2={W - mr} y1={y(0)} y2={y(0)} stroke={AXIS} strokeWidth={1} opacity={0.4} />
 
-        {/* horizontal bars variant */}
+        {/* horizontal bars variant — categories run DOWN, so slot by plot height */}
         {viz.type === "bar"
           ? cats.map((c: string, i: number) => {
-              const bh = (catW * 0.7) / series.length;
+              const rowH = ph / Math.max(1, cats.length);
+              const bh = (rowH * 0.7) / series.length;
               return series.map((s, si) => {
                 const v = s[i];
-                const yTop = mt + i * catW + catW * 0.15 + si * bh;
+                const yTop = mt + i * rowH + rowH * 0.15 + si * bh;
                 const x0 = ml;
                 const len = ((v - Math.max(0, sc.min)) / (sc.max - sc.min)) * pw;
                 return (
@@ -178,11 +179,14 @@ export function Chart({ data, viz }: { data: any; viz: Viz }) {
             );
           })}
         {viz.type === "bar" &&
-          cats.map((c: string, i: number) => (
-            <text key={i} x={ml - 4} y={mt + i * catW + catW / 2 + 3} textAnchor="end" fontSize={7} fill={AXIS}>
-              {c.length > 7 ? c.slice(0, 6) + "…" : c}
-            </text>
-          ))}
+          cats.map((c: string, i: number) => {
+            const rowH = ph / Math.max(1, cats.length);
+            return (
+              <text key={i} x={ml - 4} y={mt + i * rowH + rowH / 2 + 3} textAnchor="end" fontSize={7} fill={AXIS}>
+                {c.length > 7 ? c.slice(0, 6) + "…" : c}
+              </text>
+            );
+          })}
       </svg>
 
       {/* legend (>=2 series) */}
