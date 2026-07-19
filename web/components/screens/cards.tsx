@@ -11,6 +11,7 @@ import {
   Hash,
   Loader2,
   Receipt,
+  Sparkles,
   Store,
   Tag,
 } from "lucide-react";
@@ -117,7 +118,7 @@ function Collection({
 
 function ShopTab({ onBought }: { onBought: () => void }) {
   const { designs: dmap, reload } = useSkins();
-  const { refresh } = useApp();
+  const { refresh, user } = useApp();
   const [designs, setDesigns] = useState<any[] | null>(null);
   const [open, setOpen] = useState<any>(null); // design detail
   const [cards, setCards] = useState<any[] | null>(null);
@@ -155,8 +156,14 @@ function ShopTab({ onBought }: { onBought: () => void }) {
     if (!open) return;
     setBusy(c.card);
     try {
-      const r: any = await api.buyCard(open.code, c.card, c.price_gems ? "gems" : "coins");
-      toast.success(`${open.name} ${c.card} — serial #${r.skin.serial} is yours`);
+      if (open.shard_price) {
+        // the Champion skin is bought with League Shards, not coins/gems
+        await api.redeemShards(c.card);
+        toast.success(`Champion ${c.card} minted!`);
+      } else {
+        const r: any = await api.buyCard(open.code, c.card, c.price_gems ? "gems" : "coins");
+        toast.success(`${open.name} ${c.card} — serial #${r.skin.serial} is yours`);
+      }
       notify("success");
       await Promise.all([reload(), refresh()]);
       await openDesign(open);
@@ -249,7 +256,15 @@ function ShopTab({ onBought }: { onBought: () => void }) {
                   {d.rarity}
                 </div>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  from <Price coins={d.from_coins} gems={d.from_gems} />
+                  {d.shard_price ? (
+                    <span className="flex items-center gap-1 font-bold text-gold">
+                      <Sparkles className="size-3.5" /> {d.shard_price} shards
+                    </span>
+                  ) : (
+                    <>
+                      from <Price coins={d.from_coins} gems={d.from_gems} />
+                    </>
+                  )}
                 </div>
                 <Progress value={pct} className="h-1" />
                 <div className="text-[10px] text-muted-foreground">
@@ -273,6 +288,13 @@ function ShopTab({ onBought }: { onBought: () => void }) {
               </span>
             </DialogTitle>
           </DialogHeader>
+          {open?.shard_price ? (
+            <p className="text-xs text-muted-foreground">
+              Bought with League Shards — you have{" "}
+              <b className="text-gold">{user?.league_shards ?? 0}</b>. Pick the card to
+              wear it.
+            </p>
+          ) : null}
           <div className="max-h-[62vh] overflow-y-auto">
             {!cards ? (
               <Loader2 className="mx-auto my-6 size-5 animate-spin text-gold" />
@@ -288,19 +310,31 @@ function ShopTab({ onBought }: { onBought: () => void }) {
                       {c.remaining > 0 ? `${fmt(c.remaining)} left` : "sold out"}
                       {c.owned && <span className="ml-1 text-gold">· owned</span>}
                     </div>
-                    <Price coins={c.price_coins} gems={c.price_gems} />
+                    {open.shard_price ? (
+                      <span className="flex items-center gap-1 text-sm font-bold text-gold">
+                        <Sparkles className="size-3.5" /> {open.shard_price}
+                      </span>
+                    ) : (
+                      <Price coins={c.price_coins} gems={c.price_gems} />
+                    )}
                   </div>
                   <Button
                     size="sm"
-                    disabled={c.remaining <= 0 || busy === c.card}
+                    disabled={
+                      c.remaining <= 0 ||
+                      busy === c.card ||
+                      (!!open.shard_price && (user?.league_shards ?? 0) < open.shard_price)
+                    }
                     onClick={() => buy(c)}
                   >
                     {busy === c.card ? (
                       <Loader2 className="size-3.5 animate-spin" />
-                    ) : c.remaining > 0 ? (
-                      "Mint"
-                    ) : (
+                    ) : c.remaining <= 0 ? (
                       "Gone"
+                    ) : open.shard_price ? (
+                      "Redeem"
+                    ) : (
+                      "Mint"
                     )}
                   </Button>
                 </div>

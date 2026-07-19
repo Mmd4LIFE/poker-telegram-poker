@@ -163,10 +163,16 @@ async def shop(
         return {"card": card, "designs": out}
 
     # overview: one row per design with total supply left
+    from app.services import league as L
+    cfg = await L.get_config(session)
+    shard_price = int(cfg.get("shards_per_skin", 25))
     out = []
     for d in ds:
-        if not (d.base_price_coins or d.base_price_gems):
-            continue  # league-only designs are never on the shelf
+        is_champ = d.code == "champion"
+        # league-only designs aren't sold for coins/gems — but the Champion IS on the
+        # shelf, priced in League Shards, so players can find and buy it here too.
+        if not (d.base_price_coins or d.base_price_gems) and not is_champ:
+            continue
         minted = await C.minted_counts(session, d.code)
         total = d.mint_per_card * len(C.DECK) if d.mint_per_card else 0
         out.append(
@@ -177,6 +183,7 @@ async def shop(
                 # cheapest card in the design: the two of clubs
                 "from_coins": C.price_of(d, "2c")[0],
                 "from_gems": C.price_of(d, "2c")[1],
+                "shard_price": shard_price if is_champ else 0,
             }
         )
     return {"designs": out}
