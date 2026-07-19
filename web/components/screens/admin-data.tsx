@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Database, Table2, Plus, X, ChevronLeft, ChevronRight, ArrowDown, ArrowUp,
-  Loader2, Search, Sigma, Code, Save, Play, Trash2, Braces, Pencil, Link2,
+  Loader2, Search, Sigma, Code, Save, Play, Trash2, Braces, Pencil, Link2, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -94,6 +94,21 @@ function ResultsGrid({ data, sort, onSort }: { data: any; sort?: { col: string |
   );
 }
 
+function downloadCsv(data: any) {
+  const cols: string[] = data.columns;
+  const esc = (v: any) => {
+    if (v == null) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [cols.join(","), ...data.rows.map((r: any) => cols.map((c) => esc(r[c])).join(","))];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "explorer.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
 /* result = viz picker + chart or grid */
 function ResultView({ data, viz, setViz }: { data: any; viz: Viz; setViz: (v: Viz) => void }) {
   if (!data) return null;
@@ -103,8 +118,11 @@ function ResultView({ data, viz, setViz }: { data: any; viz: Viz; setViz: (v: Vi
         <VizPicker data={data} viz={viz} onChange={setViz} />
       </div>
       {viz.type === "table" ? <ResultsGrid data={data} /> : <div className="p-2"><Chart data={data} viz={viz} /></div>}
-      <div className="px-3 py-1.5 text-[10px] text-muted-foreground">
-        {data.rows.length} rows{data.total > data.rows.length ? ` of ${data.total}` : ""}{data.capped ? " (capped)" : ""}
+      <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-muted-foreground">
+        <span>{data.rows.length} rows{data.total > data.rows.length ? ` of ${data.total}` : ""}{data.capped ? " (capped)" : ""}</span>
+        <button onClick={() => downloadCsv(data)} className="ml-auto flex items-center gap-1 font-semibold text-gold active:opacity-70">
+          <Download className="size-3" /> CSV
+        </button>
       </div>
     </Card>
   );
@@ -347,19 +365,25 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
   const [filters, setFilters] = useState<any[]>(init.filters || []);
   const [summarize, setSummarize] = useState<boolean>(!!(init.aggregations?.length));
   const [aggs, setAggs] = useState<any[]>(init.aggregations?.length ? init.aggregations : [{ fn: "count", col: "" }]);
-  const [groups, setGroups] = useState<string[]>(init.group_by || []);
+  const [groups, setGroups] = useState<any[]>((init.group_by || []).map((g: any) => (typeof g === "string" ? { col: g } : g)));
+  const [sortBy, setSortBy] = useState<{ col: string; dir: "asc" | "desc" }>({ col: init.sort || "", dir: init.dir || "desc" });
+  const [limit, setLimit] = useState<number>(init.limit || 100);
   const [data, setData] = useState<any>(null);
   const [viz, setViz] = useState<Viz>(editing?.viz?.type ? editing.viz : { type: "table" });
   const [busy, setBusy] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
 
   const cols = colsFor(meta, table, joins);
+  const typeOf = (name: string) => cols.find((c: any) => c.name === name)?.type;
+  const aggAlias = (a: any) => (a.fn === "count" && !a.col ? "count" : `${a.fn}_${(a.col || "").replace(/\./g, "_")}`);
+  const outNames = summarize ? [...groups.map((g) => g.col), ...aggs.filter((a) => a.fn).map(aggAlias)] : [];
 
   function spec() {
     return { table,
       joins: withAliases(table, joins).filter((j) => j.table && j.left && j.right),
       filters: filters.filter((x) => x.col), aggregations: summarize ? aggs.filter((a) => a.fn) : [],
-      group_by: summarize ? groups : [], limit: 500 };
+      group_by: summarize ? groups : [],
+      sort: sortBy.col || undefined, dir: sortBy.dir, limit: Math.max(1, Math.min(500, limit || 100)) };
   }
   async function run() {
     if (!table) return;
@@ -416,10 +440,41 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
                 <div className="mt-1 text-[10px] font-bold uppercase text-muted-foreground">Group by</div>
                 <div className="flex flex-wrap gap-1">
                   {cols.map((c) => {
-                    const on = groups.includes(c.name);
-                    return <button key={c.name} onClick={() => setGroups((g) => on ? g.filter((x) => x !== c.name) : [...g, c.name])}
+                    const on = groups.some((g) => g.col === c.name);
+                    return <button key={c.name} onClick={() => setGroups((g) => on ? g.filter((x) => x.col !== c.name) : [...g, { col: c.name, bucket: c.type === "datetime" ? "day" : undefined }])}
                       className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", on ? "bg-gold text-black" : "bg-secondary text-muted-foreground")}>{c.name}</button>;
                   })}
+                </div>
+                {/* per-column bucketing: datetime → day/week/month…, number → bins */}
+                {groups.map((g, i) => {
+                  const t = typeOf(g.col);
+                  if (t !== "datetime" && t !== "number") return null;
+                  const opts = t === "datetime" ? ["", ...(meta.buckets || [])] : ["", "bin:10", "bin:100", "bin:1000", "bin:10000"];
+                  return (
+                    <div key={g.col} className="flex items-center gap-1.5 text-[11px]">
+                      <span className="truncate font-mono text-muted-foreground">{g.col}</span>
+                      <span className="text-muted-foreground">by</span>
+                      <select value={g.bucket || ""} onChange={(e) => setGroups((gs) => gs.map((x, j) => j === i ? { ...x, bucket: e.target.value || undefined } : x))}
+                        className="rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[11px]">
+                        {opts.map((o) => <option key={o} value={o}>{o === "" ? (t === "datetime" ? "exact" : "raw") : o.startsWith("bin:") ? `bins of ${o.slice(4)}` : o}</option>)}
+                      </select>
+                    </div>
+                  );
+                })}
+
+                {/* sort + limit */}
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <span className="text-muted-foreground">Sort</span>
+                  <select value={sortBy.col} onChange={(e) => setSortBy((s) => ({ ...s, col: e.target.value }))}
+                    className="rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[11px]">
+                    <option value="">default</option>
+                    {outNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <button onClick={() => setSortBy((s) => ({ ...s, dir: s.dir === "desc" ? "asc" : "desc" }))}
+                    className="rounded-lg bg-secondary px-2 py-1 text-[11px] font-semibold">{sortBy.dir === "desc" ? "↓ desc" : "↑ asc"}</button>
+                  <span className="ml-1 text-muted-foreground">Limit</span>
+                  <input type="number" value={limit} onChange={(e) => setLimit(Number(e.target.value))}
+                    className="w-16 rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[11px]" />
                 </div>
               </div>
             )}

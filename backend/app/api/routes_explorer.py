@@ -83,6 +83,31 @@ _OPS = {
     "notnull": (False, lambda c, v: c.is_not(None)),
 }
 
+_TEMPORAL = ("minute", "hour", "day", "week", "month", "quarter", "year")
+
+
+def _bucket_expr(col, bucket: str | None):
+    """Apply a Metabase-style temporal bucket or numeric bin to a group-by column."""
+    if not bucket:
+        return col
+    b = str(bucket).lower()
+    if b in ("minute", "hour"):
+        return sa.func.date_trunc(b, col)
+    if b in ("day", "week", "month", "quarter", "year"):
+        return sa.cast(sa.func.date_trunc(b, col), sa.Date)
+    if b == "date":
+        return sa.cast(col, sa.Date)
+    if b.startswith("bin:"):
+        try:
+            size = float(b.split(":", 1)[1])
+        except (ValueError, IndexError):
+            return col
+        if size <= 0:
+            return col
+        return sa.func.floor(col / size) * size
+    return col
+
+
 # aggregate fn -> builds a labelled column expression from (table, column_name_or_None)
 _AGG_FNS = {
     "count": lambda t, c: sa.func.count() if not c else sa.func.count(t.columns[c]),
@@ -157,6 +182,7 @@ async def tables(
         "tables": out,
         "operators": list(_OPS.keys()),
         "aggregations": list(_AGG_FNS.keys()),
+        "buckets": list(_TEMPORAL),
     }
 
 
@@ -186,7 +212,7 @@ class QueryIn(BaseModel):
     joins: list[Join] = []
     filters: list[Filter] = []
     aggregations: list[Aggregation] = []
-    group_by: list[str] = []
+    group_by: list[Any] = []  # "col" or {"col","bucket"}
     sort: str | None = None
     dir: str = "desc"
     limit: int = 50
@@ -245,19 +271,27 @@ async def _run_builder(session: AsyncSession, spec: dict) -> dict:
 
     conds = _conds(resolve, spec.get("filters", []))
     aggs = spec.get("aggregations", []) or []
-    groups = [g for g in (spec.get("group_by", []) or []) if resolve(g) is not None]
+    # group_by items are either "col" or {"col","bucket"} (bucket = day/week/month/… or bin:N)
+    norm_groups = []
+    for g in (spec.get("group_by", []) or []):
+        gc = g.get("col") if isinstance(g, dict) else g
+        gb = g.get("bucket") if isinstance(g, dict) else None
+        if resolve(gc) is not None:
+            norm_groups.append({"col": gc, "bucket": gb})
+    groups = [g["col"] for g in norm_groups]
     limit = min(MAX_LIMIT, max(1, int(spec.get("limit", 50) or 50)))
     offset = max(0, int(spec.get("offset", 0) or 0))
     sort, dir_ = spec.get("sort"), spec.get("dir", "desc")
 
     if aggs:
-        # --- summarised: group_by dims + aggregate measures ---
-        select_cols, out_cols, expr_by_name = [], [], {}
-        for g in groups:
-            c = resolve(g).label(g)
-            select_cols.append(c)
-            out_cols.append(g)
-            expr_by_name[g] = c
+        # --- summarised: group_by dims (optionally bucketed) + aggregate measures ---
+        select_cols, out_cols, expr_by_name, group_exprs = [], [], {}, []
+        for g in norm_groups:
+            bexpr = _bucket_expr(resolve(g["col"]), g["bucket"])
+            select_cols.append(bexpr.label(g["col"]))
+            out_cols.append(g["col"])
+            expr_by_name[g["col"]] = bexpr
+            group_exprs.append(bexpr)
         for a in aggs:
             fn = a.get("fn")
             if fn not in _AGG_FNS:
@@ -280,8 +314,8 @@ async def _run_builder(session: AsyncSession, spec: dict) -> dict:
         q = sa.select(*select_cols).select_from(frm)
         if conds:
             q = q.where(sa.and_(*conds))
-        if groups:
-            q = q.group_by(*[resolve(g) for g in groups])
+        if group_exprs:
+            q = q.group_by(*group_exprs)
 
         total = int(
             await session.scalar(sa.select(sa.func.count()).select_from(q.subquery())) or 0
