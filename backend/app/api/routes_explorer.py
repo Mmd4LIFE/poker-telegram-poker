@@ -463,10 +463,16 @@ async def send_image(
         raw = base64.b64decode(body.png)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, "Bad image data") from e
+    from aiogram.exceptions import TelegramBadRequest
     from aiogram.types import BufferedInputFile
     from app.bot.instance import get_bot
-    photo = BufferedInputFile(raw, _safe_name(body.name, "png"))
-    await get_bot().send_photo(user.telegram_id, photo, caption=f"📊 {body.name}")
+    fname = _safe_name(body.name, "png")
+    bot = get_bot()
+    try:
+        await bot.send_photo(user.telegram_id, BufferedInputFile(raw, fname), caption=f"📊 {body.name}")
+    except TelegramBadRequest:
+        # odd dimensions can trip Telegram's photo processing — send the PNG as a file
+        await bot.send_document(user.telegram_id, BufferedInputFile(raw, fname), caption=f"📊 {body.name}")
     return {"ok": True}
 
 
