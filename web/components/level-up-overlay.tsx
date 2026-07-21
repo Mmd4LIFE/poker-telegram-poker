@@ -1,28 +1,38 @@
 "use client";
 
-import { useEffect } from "react";
-import { Star, ChevronUp } from "lucide-react";
+import { useCallback, useEffect } from "react";
+import { Star, ChevronUp, Sparkles } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { notify } from "@/lib/telegram";
 import { fmt } from "@/lib/api";
 
 export function LevelUpOverlay() {
-  const { levelUp, clearLevelUp, user } = useApp();
+  const { levelUp, clearLevelUp, user, onboarding, markRevealsSeen } = useApp();
+
+  // features that just became reachable and haven't been spotlighted yet
+  const reveals = (onboarding?.pending_reveals ?? [])
+    .map((k) => onboarding?.features[k]?.title)
+    .filter(Boolean) as string[];
+
+  const dismiss = useCallback(() => {
+    if (onboarding?.pending_reveals?.length) markRevealsSeen(onboarding.pending_reveals);
+    clearLevelUp();
+  }, [onboarding, markRevealsSeen, clearLevelUp]);
 
   useEffect(() => {
     if (levelUp !== null) {
       notify("success");
-      const t = setTimeout(clearLevelUp, 4200);
+      const t = setTimeout(dismiss, reveals.length ? 6000 : 4200);
       return () => clearTimeout(t);
     }
-  }, [levelUp, clearLevelUp]);
+  }, [levelUp, dismiss, reveals.length]);
 
   if (levelUp === null) return null;
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
-      onClick={clearLevelUp}
+      onClick={dismiss}
       style={{ ["--pcm-glow" as string]: "#f5c518cc" }}
     >
       <div className="pcm-pop relative flex flex-col items-center px-8 text-center">
@@ -41,6 +51,15 @@ export function LevelUpOverlay() {
         {user && (
           <div className="mt-1 text-sm text-muted-foreground">
             +{fmt(500 * levelUp)} bonus coins
+          </div>
+        )}
+        {reveals.length > 0 && (
+          <div className="mt-4 flex flex-col items-center gap-1.5">
+            {reveals.map((title) => (
+              <div key={title} className="flex items-center gap-1.5 rounded-full bg-gold/15 px-3 py-1 text-sm font-bold text-gold">
+                <Sparkles className="size-3.5" /> Unlocked: {title}
+              </div>
+            ))}
           </div>
         )}
         <div className="mt-4 text-xs text-muted-foreground">Tap to continue</div>

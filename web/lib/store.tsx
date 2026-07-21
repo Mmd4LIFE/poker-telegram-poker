@@ -10,6 +10,7 @@ import {
 } from "react";
 import { api } from "./api";
 import type { UserProfile, View } from "./types";
+import { GATES, type GateKey, type OnboardingState } from "./gates";
 
 interface AppState {
   user: UserProfile | null;
@@ -28,6 +29,17 @@ interface AppState {
   /** an unclaimed daily reward is waiting — drives the dot on the Shop tab */
   dailyReady: boolean;
   refreshDaily: () => Promise<void>;
+  /** progressive onboarding: unlock state (null until first load) */
+  onboarding: OnboardingState | null;
+  refreshOnboarding: () => Promise<void>;
+  /** true if a gated feature is available to this player (falls back to level pre-load) */
+  isUnlocked: (key: GateKey) => boolean;
+  /** the locked feature whose explainer sheet is open, if any */
+  lockedInfo: GateKey | null;
+  showLocked: (key: GateKey) => void;
+  dismissLocked: () => void;
+  /** mark reveal spotlights as seen so they never fire again */
+  markRevealsSeen: (keys: string[]) => Promise<void>;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -45,6 +57,8 @@ export function AppProvider({
   const [profileId, setProfileId] = useState<number | null>(null);
   const [levelUp, setLevelUp] = useState<number | null>(null);
   const [dailyReady, setDailyReady] = useState(false);
+  const [onboarding, setOnboarding] = useState<OnboardingState | null>(null);
+  const [lockedInfo, setLockedInfo] = useState<GateKey | null>(null);
   const levelRef = useRef(initialUser.level);
 
   const setUser = useCallback((u: UserProfile) => {
@@ -82,6 +96,43 @@ export function AppProvider({
     refreshDaily();
   }, [refreshDaily]);
 
+  // ---- onboarding / feature gating ----
+  const refreshOnboarding = useCallback(async () => {
+    try {
+      setOnboarding(await api.onboarding());
+    } catch {
+      /* a gate fetch failing should never break the app; local level fallback applies */
+    }
+  }, []);
+  // load on mount, and re-fetch whenever the level changes (a level-up can unlock features)
+  useEffect(() => {
+    refreshOnboarding();
+  }, [refreshOnboarding, user.level]);
+
+  const isUnlocked = useCallback(
+    (key: GateKey): boolean => {
+      if (onboarding) {
+        if (onboarding.enabled === false) return true;
+        return onboarding.features[key]?.unlocked ?? true;
+      }
+      // pre-load / offline fallback: gate purely on the player's level
+      return (user?.level ?? 1) >= (GATES[key]?.level ?? 1);
+    },
+    [onboarding, user],
+  );
+
+  const markRevealsSeen = useCallback(async (keys: string[]) => {
+    let last: OnboardingState | null = null;
+    for (const k of keys) {
+      try {
+        last = await api.onboardingSeen(k);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (last) setOnboarding(last);
+  }, []);
+
   const value: AppState = {
     user,
     setUser,
@@ -98,6 +149,13 @@ export function AppProvider({
     dailyReady,
     refreshDaily,
     clearLevelUp: () => setLevelUp(null),
+    onboarding,
+    refreshOnboarding,
+    isUnlocked,
+    lockedInfo,
+    showLocked: (key: GateKey) => setLockedInfo(key),
+    dismissLocked: () => setLockedInfo(null),
+    markRevealsSeen,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

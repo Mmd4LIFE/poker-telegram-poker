@@ -106,6 +106,11 @@ class User(Base, TimestampMixin):
 
     is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Progressive onboarding state (see services/onboarding.py). Shape:
+    #   {"seen_reveals": [feature_key, ...], "intro_done": bool,
+    #    "sandbox": {"effective_level": int} | absent}   # sandbox is admin-only
+    onboarding: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
+
     @property
     def display_name(self) -> str:
         name = (self.first_name or "").strip()

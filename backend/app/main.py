@@ -16,6 +16,7 @@ from app.api import (
     routes_friends,
     routes_league,
     routes_market,
+    routes_onboarding,
     routes_profile,
     routes_progression,
     routes_referral,
@@ -75,7 +76,7 @@ for module in (
     routes_auth, routes_profile, routes_rooms, routes_shop,
     routes_progression, routes_clubs, routes_referral, routes_admin,
     routes_friends, routes_cosmetics, routes_cards, routes_market, routes_league,
-    routes_skill, routes_explorer, routes_ws,
+    routes_skill, routes_explorer, routes_onboarding, routes_ws,
 ):
     app.include_router(module.router)
 

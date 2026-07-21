@@ -157,7 +157,8 @@ async def create_club(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    if user.level < CLUB_MIN_LEVEL:
+    from app.services.onboarding import effective_level
+    if effective_level(user) < CLUB_MIN_LEVEL:
         raise HTTPException(403, f"Reach level {CLUB_MIN_LEVEL} to start a club")
     if await _membership(session, user.id):
         raise HTTPException(400, "Leave your current club first")
@@ -179,7 +180,8 @@ async def join_club(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    if user.level < CLUB_MIN_LEVEL:
+    from app.services.onboarding import effective_level
+    if effective_level(user) < CLUB_MIN_LEVEL:
         raise HTTPException(403, f"Reach level {CLUB_MIN_LEVEL} to join a club")
     if await _membership(session, user.id):
         raise HTTPException(400, "Leave your current club first")

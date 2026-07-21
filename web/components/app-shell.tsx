@@ -19,18 +19,21 @@ import { ChangelogScreen } from "@/components/screens/changelog";
 import { PokerTable } from "@/components/table/poker-table";
 import { UserProfileSheet } from "@/components/user-profile-sheet";
 import { LevelUpOverlay } from "@/components/level-up-overlay";
+import { LockedSheet } from "@/components/locked-sheet";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 export function AppShell({ startParam }: { startParam: string | null }) {
-  const { view, go, tableCode, enterTable } = useApp();
+  const { view, go, tableCode, enterTable, isUnlocked, showLocked } = useApp();
 
   useEffect(() => {
     const p = startParam;
     if (!p) return;
-    if (p === "shop") go("shop");
-    else if (p === "leaderboard") go("leaderboard");
+    if (p === "shop") isUnlocked("shop") ? go("shop") : showLocked("shop");
+    else if (p === "leaderboard") isUnlocked("friends") ? go("leaderboard") : showLocked("friends");
     else if (p.startsWith("sq-")) {
+      // a club invite: only follow it once clubs are unlocked, else explain the gate
+      if (!isUnlocked("clubs")) { showLocked("clubs"); return; }
       const code = p.split("-")[1];
       api.joinClub(code).catch(() => {}).finally(() => go("club"));
     } else if (p.startsWith("rm-")) {
@@ -76,6 +79,7 @@ export function AppShell({ startParam }: { startParam: string | null }) {
       )}
       <UserProfileSheet />
       <LevelUpOverlay />
+      <LockedSheet />
     </>
   );
 }

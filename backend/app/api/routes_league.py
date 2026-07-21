@@ -175,7 +175,8 @@ async def play(
     cfg = await L.get_config(session)
     if not cfg.get("enabled"):
         raise HTTPException(400, "The league is closed")
-    if user.level < int(cfg.get("unlock_level", 10)):
+    from app.services.onboarding import effective_level
+    if effective_level(user) < int(cfg.get("unlock_level", 10)):
         raise HTTPException(403, f"Unlocks at level {cfg['unlock_level']}")
 
     season, got = await _my_cohort(session, user, cfg)

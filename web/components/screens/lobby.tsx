@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ChevronDown, ChevronRight, Play, Plus, Shield, Spade, Trash2, Users, Zap } from "lucide-react";
+import { ChevronDown, ChevronRight, Lock, Play, Plus, Shield, Spade, Trash2, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
+import { GATES } from "@/lib/gates";
 import { haptic } from "@/lib/telegram";
 import type { RoomSummary } from "@/lib/types";
 import { WalletBar } from "@/components/wallet-bar";
@@ -19,22 +20,34 @@ import { cn } from "@/lib/utils";
 type Filter = "all" | "mine" | "friends" | "other";
 
 function Tile({
-  icon: Icon, title, onClick, wide, hot,
+  icon: Icon, title, onClick, wide, hot, locked, lockLevel,
 }: {
   icon: React.ElementType; title: string;
-  onClick: () => void; wide?: boolean; hot?: boolean;
+  onClick: () => void; wide?: boolean; hot?: boolean; locked?: boolean; lockLevel?: number;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center gap-1.5 rounded-2xl border border-white/5 p-5 text-center transition-transform active:scale-[0.97]",
+        "relative flex flex-col items-center gap-1.5 rounded-2xl border border-white/5 p-5 text-center transition-transform active:scale-[0.97]",
         wide && "col-span-2",
-        hot ? "bg-gradient-to-br from-[#b8860b] to-[#6b4e00]" : "bg-gradient-to-br from-secondary to-card",
+        locked
+          ? "bg-gradient-to-br from-secondary/50 to-card/50"
+          : hot
+            ? "bg-gradient-to-br from-[#b8860b] to-[#6b4e00]"
+            : "bg-gradient-to-br from-secondary to-card",
       )}
     >
-      <Icon className={cn("size-7", hot ? "text-white" : "text-gold")} />
-      <span className="font-extrabold">{title}</span>
+      {locked && (
+        <span className="absolute right-2 top-2 grid size-5 place-items-center rounded-full bg-black/40">
+          <Lock className="size-3 text-muted-foreground" />
+        </span>
+      )}
+      <Icon className={cn("size-7", locked ? "text-muted-foreground/60" : hot ? "text-white" : "text-gold")} />
+      <span className={cn("font-extrabold", locked && "text-muted-foreground/70")}>{title}</span>
+      {locked && lockLevel != null && (
+        <span className="text-[10px] font-bold uppercase tracking-wider text-gold/80">Unlocks · Lv {lockLevel}</span>
+      )}
     </button>
   );
 }
@@ -53,7 +66,7 @@ const LEAGUE_ICON: Record<string, string> = {
 };
 
 export function LobbyScreen() {
-  const { go, enterTable } = useApp();
+  const { go, enterTable, isUnlocked, showLocked } = useApp();
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
   const [current, setCurrent] = useState<RoomSummary | null>(null);
   const [league, setLeague] = useState<any>(null);
@@ -152,8 +165,12 @@ export function LobbyScreen() {
 
       <div className="grid grid-cols-2 gap-3">
         <Tile icon={Zap} title="Quick Play" onClick={quickPlay} wide hot />
-        <Tile icon={Plus} title="Create Room" onClick={() => go("create")} />
-        <Tile icon={Shield} title="Club" onClick={() => go("club")} />
+        <Tile icon={Plus} title="Create Room"
+          locked={!isUnlocked("create_room")} lockLevel={GATES.create_room.level}
+          onClick={() => (isUnlocked("create_room") ? go("create") : showLocked("create_room"))} />
+        <Tile icon={Shield} title="Club"
+          locked={!isUnlocked("clubs")} lockLevel={GATES.clubs.level}
+          onClick={() => (isUnlocked("clubs") ? go("club") : showLocked("clubs"))} />
       </div>
 
       {/* Open tables */}

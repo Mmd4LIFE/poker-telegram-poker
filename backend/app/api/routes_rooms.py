@@ -91,6 +91,8 @@ async def create_room(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    from app.services.onboarding import require_feature
+    require_feature(user, "create_room")   # hosting is gated; joining is not
     if body.big_blind <= body.small_blind:
         raise HTTPException(400, "Big blind must exceed small blind")
     if body.max_buy_in < body.min_buy_in:

@@ -86,6 +86,12 @@ export const api = {
   explorerQuery: (b: unknown) => req("POST", "/admin/explorer/query", b),
   explorerColumnProfile: (table: string, col: string) =>
     req("POST", "/admin/explorer/column-profile", { table, col }),
+
+  // onboarding / feature gating
+  onboarding: () => req("GET", "/onboarding"),
+  onboardingSeen: (feature: string) => req("POST", "/onboarding/seen", { feature }),
+  onboardingSandbox: (b: { effective_level?: number | null; reset_reveals?: boolean; exit?: boolean }) =>
+    req("POST", "/admin/onboarding/sandbox", b),
   explorerSql: (sql: string) => req("POST", "/admin/explorer/sql", { sql }),
   explorerSendCsv: (name: string, csv: string) => req("POST", "/admin/explorer/send-csv", { name, csv }),
   explorerSendImage: (name: string, png: string) => req("POST", "/admin/explorer/send-image", { name, png }),

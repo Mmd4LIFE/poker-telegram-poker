@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Check, Coins, Gem, Info, Medal, Package, Plus, ShoppingCart, Star, Trash2, TriangleAlert, Users } from "lucide-react";
+import { Check, Coins, Eye, Gem, Info, Lock, Medal, Package, Plus, RotateCcw, ShoppingCart, Star, Trash2, TriangleAlert, Unlock, Users } from "lucide-react";
+import { GATES } from "@/lib/gates";
 import { toast } from "sonner";
 import { api, fmt } from "@/lib/api";
 import { useApp } from "@/lib/store";
@@ -55,6 +56,7 @@ export function AdminScreen() {
           <TabsTrigger value="reach" className="shrink-0">Reach</TabsTrigger>
           <TabsTrigger value="bots" className="shrink-0">Bots</TabsTrigger>
           <TabsTrigger value="league" className="shrink-0">League</TabsTrigger>
+          <TabsTrigger value="onboard" className="shrink-0">Onboard</TabsTrigger>
           <TabsTrigger value="data" className="shrink-0">Data</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
@@ -64,6 +66,7 @@ export function AdminScreen() {
         <TabsContent value="reach"><Reach /></TabsContent>
         <TabsContent value="bots"><Bots /></TabsContent>
         <TabsContent value="league"><League /></TabsContent>
+        <TabsContent value="onboard"><Onboarding /></TabsContent>
         <TabsContent value="data"><Dashboards /></TabsContent>
       </Tabs>
     </>
@@ -1580,6 +1583,112 @@ function League() {
           )}
         </>
       )}
+    </>
+  );
+}
+
+
+/* Onboarding sandbox — walk the whole progressive-onboarding flow as a player would,
+   without a throwaway account. Affects THIS admin only, and enforces the real gates
+   (a sandboxed admin below a gate gets the same 403 a player would). */
+function Onboarding() {
+  const { onboarding, refreshOnboarding } = useApp();
+  const [busy, setBusy] = useState(false);
+  const [lvl, setLvl] = useState(1);
+
+  const act = async (body: any) => {
+    setBusy(true);
+    try {
+      await api.onboardingSandbox(body);
+      await refreshOnboarding();
+      toast.success("Updated");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sandbox = onboarding?.sandbox;
+  const feats = onboarding?.features || {};
+  const maxLevel = Math.max(12, ...Object.values(GATES).map((g) => g.level));
+
+  return (
+    <>
+      <Card className="mb-3 flex-row gap-2 bg-secondary/50 p-4">
+        <Info className="mt-0.5 size-4 shrink-0 text-gold" />
+        <p className="text-xs text-muted-foreground">
+          Walk the onboarding as a player would. The sandbox affects <b>only you</b> and
+          enforces the real gates — you&apos;ll get a 403 trying to create a room or club below
+          its level. With no sandbox you bypass everything.
+        </p>
+      </Card>
+
+      <Card className="mb-3 p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-bold">
+            {sandbox ? `Viewing as Level ${sandbox.effective_level}` : "Full admin — everything unlocked"}
+          </div>
+          {sandbox && (
+            <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-bold text-gold">
+              SANDBOX
+            </span>
+          )}
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          <Button size="sm" className="flex-1" disabled={busy}
+            onClick={() => { setLvl(1); act({ effective_level: 1, reset_reveals: true }); }}>
+            <Eye className="size-4" /> View as new user
+          </Button>
+          <Button size="sm" variant="outline" className="flex-1" disabled={busy || !sandbox}
+            onClick={() => act({ exit: true })}>
+            <Unlock className="size-4" /> Exit sandbox
+          </Button>
+        </div>
+
+        <div className="mt-4">
+          <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>Jump to level</span>
+            <span className="font-bold text-foreground">Level {lvl}</span>
+          </div>
+          <input type="range" min={1} max={maxLevel} step={1} value={lvl}
+            onChange={(e) => setLvl(Number(e.target.value))}
+            className="w-full accent-[var(--color-gold)]" />
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" className="flex-1" disabled={busy} onClick={() => act({ effective_level: lvl })}>
+              Set level {lvl}
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => act({ reset_reveals: true })}>
+              <RotateCcw className="size-4" /> Reset reveals
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        Feature gates — as you see them right now
+      </div>
+      <Card className="p-3">
+        {Object.entries(feats)
+          .sort((a, b) => (a[1] as any).min_level - (b[1] as any).min_level)
+          .map(([k, f]: [string, any]) => (
+            <div key={k} className="flex items-center gap-2 border-b border-white/5 py-1.5 text-xs last:border-0">
+              <span className={cn("grid size-5 shrink-0 place-items-center rounded-full",
+                f.unlocked ? "bg-win/20 text-win" : "bg-white/5 text-muted-foreground")}>
+                {f.unlocked ? <Check className="size-3" /> : <Lock className="size-3" />}
+              </span>
+              <span className="flex-1 font-semibold">{f.title}</span>
+              {f.unlocked && !f.reveal_seen && (
+                <span className="rounded-full bg-gold/15 px-1.5 text-[9px] font-bold text-gold">reveal due</span>
+              )}
+              <span className="text-[10px] text-muted-foreground">Lv {f.min_level}</span>
+            </div>
+          ))}
+        {Object.keys(feats).length === 0 && (
+          <p className="text-xs text-muted-foreground">Loading gate state…</p>
+        )}
+      </Card>
     </>
   );
 }

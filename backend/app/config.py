@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     IDLE_SEAT_GRACE_SECONDS: int = 90
     JANITOR_INTERVAL_SECONDS: int = 30
 
+    # Onboarding: progressive feature gating. Kill switch — off = everything unlocked.
+    ONBOARDING_ENABLED: bool = True
+
     # App
     ENV: str = "production"
     LOG_LEVEL: str = "INFO"
