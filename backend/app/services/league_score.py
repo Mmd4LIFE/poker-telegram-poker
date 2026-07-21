@@ -77,6 +77,62 @@ def inleague_score(m) -> dict:
     return {"dq": dq, "score": round(score, 1), "ready": True}
 
 
+# --- virtualised score for simulated bots ----------------------------------
+# Bots that fill a cohort are placed by SIMULATION (a finishing order sampled from their
+# strength) — no hand is dealt, so there is no in-league telemetry to score. Rather than
+# leave their DQ/Skill blank (or, worse, fake random per-hand rows), we VIRTUALISE the
+# score: derive it deterministically from what the bot actually is (its configured skill
+# and personality) and how it actually finished (its real LP standing). Same four
+# components and 0–100 scale as a real player, so it is directly comparable — and stable:
+# the same bot with the same standing always yields the same number.
+
+# Per-personality table play style → (characteristic VPIP, aggression factor).
+_BOT_PROFILE: dict[str, tuple[float, float]] = {
+    "rock":       (0.12, 1.1),
+    "tight":      (0.20, 1.8),
+    "balanced":   (0.28, 2.4),
+    "loose":      (0.42, 1.6),
+    "aggressive": (0.32, 3.6),
+    "maniac":     (0.55, 4.8),
+}
+# Small DQ tilt: chronic over-folding (rock) and over-playing (maniac) are −EV habits the
+# skill metric is designed to punish, so they shade decision quality down a touch.
+_DQ_TILT: dict[str, float] = {
+    "rock": -6, "tight": -1, "balanced": 2, "loose": -3, "aggressive": 1, "maniac": -7,
+}
+
+
+def _clamp(v: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, v))
+
+
+def virtual_inleague_score(bot_skill: float | None, bot_personality: str | None,
+                           lp: int, ranked_games: int, cfg: dict) -> dict:
+    """DQ + Skill for a simulated bot, derived (not sampled) from its identity + standing.
+
+    • DQ        ← the bot's configured skill (a strong bot decides better), tilted by the
+                  −EV habits of its personality.
+    • Engagement/Aggression ← that personality's characteristic VPIP and aggression factor.
+    • Chip performance ← its ACTUAL average LP per ranked game, so a bot climbing the
+                  ladder shows a better score than one sinking — the number tracks reality.
+    """
+    skill = _clamp(float(bot_skill if bot_skill is not None else 0.5), 0.0, 1.0)
+    pers = bot_personality if bot_personality in _BOT_PROFILE else "balanced"
+    vpip, af = _BOT_PROFILE[pers]
+
+    dq = _clamp(40.0 + 45.0 * skill + _DQ_TILT.get(pers, 0.0), 15.0, 95.0)
+    eng_c = _engagement(vpip)
+    agg_c = min(100.0, af / 2.0 * 100.0)
+
+    lp_tab = cfg.get("lp") or [0]
+    lp_top = max(1.0, float(max(lp_tab)))
+    avg_lp = (lp or 0) / max(1, ranked_games or 0)
+    chip_c = 100.0 / (1.0 + exp(-avg_lp / (lp_top * 0.5)))   # 50 at par, →100 dominating
+
+    score = W_DQ * dq + W_ENG * eng_c + W_AGG * agg_c + W_CHIP * chip_c
+    return {"dq": round(dq, 1), "score": round(score, 1), "ready": True, "virtual": True}
+
+
 def league_skill_score(st) -> dict:
     """Return the experimental score (0–100) and its components for one player's
     PlayerStats. Safe on None / empty stats (returns a neutral-ish low score)."""

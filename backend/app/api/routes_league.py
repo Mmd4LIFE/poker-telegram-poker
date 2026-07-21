@@ -106,6 +106,14 @@ async def standings(
         )
         # DQ + skill computed from THIS day's in-league play only (resets each day).
         il = LSCORE.inleague_score(m)
+        # Bots are placed by simulation (no hands dealt), so they have no telemetry to
+        # score. Once they have a real standing, virtualise DQ/Skill from their skill +
+        # personality + LP so the columns read consistently instead of blank — and bots
+        # stay indistinguishable from humans, as intended.
+        if il["dq"] is None and u.is_bot and (m.ranked_games or m.games):
+            il = LSCORE.virtual_inleague_score(
+                u.bot_skill, u.bot_personality, m.lp or 0, m.ranked_games or 0, cfg
+            )
         rows_out.append(
             {
                 "rank": i + 1,
