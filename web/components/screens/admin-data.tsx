@@ -208,19 +208,21 @@ export function AdminData() {
   const [cards, setCards] = useState<any[] | null>(null);
   const [openCard, setOpenCard] = useState<any>(null);
   const [editing, setEditing] = useState<any>(null); // a card being edited
+  const [seedSql, setSeedSql] = useState<string | null>(null); // builder → native handoff
 
   const loadCards = useCallback(() => api.explorerCards().then((r: any) => setCards(r.cards)).catch(() => setCards([])), []);
   useEffect(() => { api.explorerTables().then(setMeta).catch(() => {}); loadCards(); }, [loadCards]);
 
   if (!meta) return <Loader2 className="mx-auto mt-8 size-6 animate-spin text-gold" />;
 
-  const home = () => { setView("home"); setEditing(null); loadCards(); };
+  const home = () => { setView("home"); setEditing(null); setSeedSql(null); loadCards(); };
 
   if (view === "browse") return <Browse meta={meta} onBack={home} />;
   if (view === "build")
-    return <Builder meta={meta} editing={editing} onBack={home} onSaved={home} />;
+    return <Builder meta={meta} editing={editing} onBack={home} onSaved={home}
+      onToSql={(sql: string) => { setEditing(null); setSeedSql(sql); setView("native"); }} />;
   if (view === "native")
-    return <Native meta={meta} editing={editing} onBack={home} onSaved={home} />;
+    return <Native meta={meta} editing={editing} seedSql={seedSql} onBack={home} onSaved={home} />;
   if (view === "card" && openCard)
     return (
       <CardDetail
@@ -534,8 +536,155 @@ function datePresets(): { label: string; lo: string; hi: string }[] {
   ];
 }
 
+/* ---- per-table colour coding ------------------------------------------------
+   Each table in the query (base + each join alias) gets a stable colour so the
+   qualified column names read at a glance as belonging to a table. */
+const TABLE_COLORS = ["#f2b705", "#3e63dd", "#30a46c", "#e5709b", "#7b61ff", "#12a4c9", "#e5484d", "#f2711c"];
+
+function tableColorMap(base: string, joins: any[]): Record<string, string> {
+  const map: Record<string, string> = { [base]: TABLE_COLORS[0] };
+  withAliases(base, joins).forEach((j, i) => { if (j.alias) map[j.alias] = TABLE_COLORS[(i + 1) % TABLE_COLORS.length]; });
+  return map;
+}
+const aliasOfCol = (base: string, name: string) => { const d = name.indexOf("."); return d < 0 ? base : name.slice(0, d); };
+const colColor = (map: Record<string, string>, base: string, name: string) => map[aliasOfCol(base, name)];
+
+/* a column name with its table prefix tinted in that table's colour */
+function ColName({ name, color, dim }: { name: string; color?: string; dim?: boolean }) {
+  const d = name.indexOf(".");
+  if (d < 0) return <span>{name}</span>;
+  return (
+    <span>
+      <span style={dim ? undefined : { color }} className="font-semibold">{name.slice(0, d)}</span>
+      <span className="opacity-40">.</span>{name.slice(d + 1)}
+    </span>
+  );
+}
+
+/* a small colour dot for the table a (qualified) column belongs to */
+function ColDot({ map, base, name }: { map: Record<string, string>; base: string; name?: string }) {
+  const c = name ? colColor(map, base, name) : undefined;
+  return <span className="size-2 shrink-0 rounded-full" style={{ background: c || "transparent", boxShadow: c ? "none" : "inset 0 0 0 1px rgba(255,255,255,.15)" }} />;
+}
+
+/* =============== pretty SQL generation from a builder spec =============== */
+function sqlLit(type: string, v: any): string {
+  if (v === null || v === undefined || v === "") return "NULL";
+  if (type === "number") return String(v);
+  if (type === "bool") return ["true", "1", "yes", "t"].includes(String(v).toLowerCase()) ? "TRUE" : "FALSE";
+  return `'${String(v).replace(/'/g, "''")}'`;
+}
+function bucketSql(expr: string, bucket: string | undefined): string {
+  if (!bucket) return expr;
+  const b = String(bucket).toLowerCase();
+  if (b === "minute" || b === "hour") return `DATE_TRUNC('${b}', ${expr})`;
+  if (["day", "week", "month", "quarter", "year"].includes(b)) return `DATE_TRUNC('${b}', ${expr})::date`;
+  if (b === "date") return `${expr}::date`;
+  if (b.startsWith("bin:")) { const n = b.slice(4); return `FLOOR(${expr} / ${n}) * ${n}`; }
+  return expr;
+}
+function condSql(f: any, type: string): string {
+  const c = f.col;
+  switch (f.op) {
+    case "null": return `${c} IS NULL`;
+    case "notnull": return `${c} IS NOT NULL`;
+    case "between": return `${c} BETWEEN ${sqlLit(type, f.val?.[0])} AND ${sqlLit(type, f.val?.[1])}`;
+    case "in": {
+      const arr = Array.isArray(f.val) ? f.val : String(f.val ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+      return `${c} IN (${arr.map((v: any) => sqlLit(type, v)).join(", ")})`;
+    }
+    case "contains": return `CAST(${c} AS VARCHAR) ILIKE ${sqlLit("text", `%${f.val}%`)}`;
+    case "starts": return `CAST(${c} AS VARCHAR) ILIKE ${sqlLit("text", `${f.val}%`)}`;
+    default: return `${c} ${f.op} ${sqlLit(type, f.val)}`;
+  }
+}
+function qualifyTable(meta: any, table: string): string {
+  const s = meta.tables.find((t: any) => t.name === table)?.schema;
+  return s && s !== "public" ? `${s}.${table}` : table;
+}
+
+/* Build professional, ready-to-run Postgres from a builder spec: uppercase keywords,
+   aligned joins, one indented item per line, and an ORDER BY that references the same
+   aliases the SELECT introduces. Semantically mirrors the visual-builder query. */
+function generateSql(meta: any, spec: any): string {
+  const base = spec.table;
+  const joins = withAliases(base, spec.joins || []).filter((j: any) => j.table && j.left && j.right);
+  const cols = colsFor(meta, base, joins);
+  const typeOf = (n: string) => cols.find((c: any) => c.name === n)?.type || "text";
+  const aggs = spec.aggregations || [];
+  const groups = (spec.group_by || []).map((g: any) => (typeof g === "string" ? { col: g } : g));
+  const isAgg = aggs.length > 0;
+
+  const selectItems: string[] = [];
+  const groupExprs: string[] = [];
+  const sortName: Record<string, string> = {};
+
+  if (isAgg) {
+    for (const g of groups) {
+      const raw = bucketSql(g.col, g.bucket);
+      const alias = g.col.replace(/[.:]/g, "_");
+      const needAlias = raw !== g.col || alias !== g.col;
+      selectItems.push(needAlias ? `${raw} AS ${alias}` : g.col);
+      groupExprs.push(raw);
+      sortName[g.col] = alias;
+    }
+    for (const a of aggs) {
+      const alias = a.fn === "count" && !a.col ? "count" : `${a.fn}_${(a.col || "").replace(/[.:]/g, "_")}`;
+      const expr = a.fn === "count" && !a.col ? "COUNT(*)"
+        : a.fn === "distinct" ? `COUNT(DISTINCT ${a.col})`
+        : `${a.fn.toUpperCase()}(${a.col})`;
+      selectItems.push(`${expr} AS ${alias}`);
+      sortName[alias] = alias;
+    }
+  } else {
+    selectItems.push(`${base}.*`);
+    joins.forEach((j: any) => selectItems.push(`${j.alias}.*`));
+  }
+
+  const lines: string[] = ["SELECT", selectItems.map((s) => `  ${s}`).join(",\n"), `FROM ${qualifyTable(meta, base)}`];
+
+  const targets = joins.map((j: any) => {
+    const name = qualifyTable(meta, j.table);
+    return j.alias && j.alias !== j.table ? `${name} AS ${j.alias}` : name;
+  });
+  const pad = Math.max(0, ...targets.map((t: string) => t.length));
+  joins.forEach((j: any, i: number) => {
+    const kw = j.type === "inner" ? "INNER JOIN" : "LEFT JOIN";
+    lines.push(`${kw} ${targets[i].padEnd(pad)} ON ${j.left} = ${j.alias}.${j.right}`);
+  });
+
+  const conds = (spec.filters || []).filter((f: any) => f.col).map((f: any) => condSql(f, typeOf(f.col)));
+  if (conds.length) {
+    lines.push(`WHERE ${conds[0]}`);
+    conds.slice(1).forEach((c: string) => lines.push(`  AND ${c}`));
+  }
+  if (isAgg && groupExprs.length) lines.push("GROUP BY", groupExprs.map((e) => `  ${e}`).join(",\n"));
+  if (spec.sort) lines.push(`ORDER BY ${sortName[spec.sort] || spec.sort} ${(spec.dir || "desc").toUpperCase()}`);
+  lines.push(`LIMIT ${spec.limit || 100}`);
+  return lines.join("\n") + ";";
+}
+
+function SqlDialog({ sql, onClose, onOpenEditor }: { sql: string; onClose: () => void; onOpenEditor: () => void }) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-sm"><Code className="size-4 text-[#7cc4ff]" /> Generated SQL</DialogTitle>
+        </DialogHeader>
+        <pre className="max-h-[52vh] overflow-auto rounded-lg bg-black/50 p-3 text-[11px] leading-relaxed text-foreground">{sql}</pre>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => navigator.clipboard?.writeText(sql).then(() => toast.success("SQL copied"), () => {})}>
+            <Braces className="size-4" /> Copy
+          </Button>
+          <Button className="flex-1" onClick={onOpenEditor}><Code className="size-4" /> Open in SQL editor</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ============================ builder ============================ */
-function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; onBack: () => void; onSaved: () => void }) {
+function Builder({ meta, editing, onBack, onSaved, onToSql }: { meta: any; editing: any; onBack: () => void; onSaved: () => void; onToSql: (sql: string) => void }) {
   const init = editing?.kind === "builder" ? editing.spec || {} : {};
   const [table, setTable] = useState<string>(init.table || "");
   const [joins, setJoins] = useState<any[]>(init.joins || []);
@@ -549,7 +698,10 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
   const [viz, setViz] = useState<Viz>(editing?.viz?.type ? editing.viz : { type: "table" });
   const [busy, setBusy] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [sqlOpen, setSqlOpen] = useState(false);
 
+  const colorMap = tableColorMap(table, joins);
+  const hasJoins = joins.length > 0;
   const cols = colsFor(meta, table, joins);
   const typeOf = (name: string) => cols.find((c: any) => c.name === name)?.type;
   const aggAlias = (a: any) => (a.fn === "count" && !a.col ? "count" : `${a.fn}_${(a.col || "").replace(/\./g, "_")}`);
@@ -587,8 +739,17 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
 
         {table && (
           <>
-            <JoinBuilder meta={meta} base={table} joins={joins} setJoins={setJoins} />
-            <FilterBuilder meta={meta} base={table} joins={joins} cols={cols} filters={filters} setFilters={setFilters} inline />
+            <JoinBuilder meta={meta} base={table} joins={joins} setJoins={setJoins} colorMap={colorMap} />
+            {hasJoins && (
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(colorMap).map(([t, c]) => (
+                  <span key={t} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold" style={{ color: c }}>
+                    <span className="size-2 rounded-full" style={{ background: c }} /> {t}
+                  </span>
+                ))}
+              </div>
+            )}
+            <FilterBuilder meta={meta} base={table} joins={joins} cols={cols} filters={filters} setFilters={setFilters} colorMap={colorMap} inline />
             <div className="mt-1 flex items-center gap-2">
               <button onClick={() => setSummarize((v) => !v)}
                 className={cn("flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold", summarize ? "bg-gold text-black" : "bg-secondary text-muted-foreground")}>
@@ -605,6 +766,7 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
                       className="rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs">
                       {meta.aggregations.map((f: string) => <option key={f} value={f}>{f}</option>)}
                     </select>
+                    {hasJoins && a.col && <ColDot map={colorMap} base={table} name={a.col} />}
                     <select value={a.col || ""} onChange={(e) => setAggs((xs) => xs.map((x, j) => j === i ? { ...x, col: e.target.value } : x))}
                       className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs">
                       <option value="">{a.fn === "count" ? "all rows" : "column…"}</option>
@@ -619,7 +781,10 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
                   {cols.map((c) => {
                     const on = groups.some((g) => g.col === c.name);
                     return <button key={c.name} onClick={() => setGroups((g) => on ? g.filter((x) => x.col !== c.name) : [...g, { col: c.name, bucket: c.type === "datetime" ? "day" : undefined }])}
-                      className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", on ? "bg-gold text-black" : "bg-secondary text-muted-foreground")}>{c.name}</button>;
+                      className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", on ? "bg-gold text-black" : "bg-secondary text-muted-foreground")}>
+                      {hasJoins && !on && <span className="size-1.5 rounded-full" style={{ background: colColor(colorMap, table, c.name) }} />}
+                      <ColName name={c.name} color={colColor(colorMap, table, c.name)} dim={on} />
+                    </button>;
                   })}
                 </div>
                 {/* per-column bucketing: datetime → day/week/month…, number → bins */}
@@ -629,7 +794,7 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
                   const opts = t === "datetime" ? ["", ...(meta.buckets || [])] : ["", "bin:10", "bin:100", "bin:1000", "bin:10000"];
                   return (
                     <div key={g.col} className="flex items-center gap-1.5 text-[11px]">
-                      <span className="truncate font-mono text-muted-foreground">{g.col}</span>
+                      <span className="truncate font-mono text-muted-foreground"><ColName name={g.col} color={colColor(colorMap, table, g.col)} /></span>
                       <span className="text-muted-foreground">by</span>
                       <select value={g.bucket || ""} onChange={(e) => setGroups((gs) => gs.map((x, j) => j === i ? { ...x, bucket: e.target.value || undefined } : x))}
                         className="rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[11px]">
@@ -657,6 +822,7 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
             )}
             <div className="mt-1 flex gap-2">
               <Button className="flex-1" disabled={busy} onClick={run}>{busy ? <Loader2 className="size-4 animate-spin" /> : <><Play className="size-4" /> Run</>}</Button>
+              <Button variant="outline" onClick={() => setSqlOpen(true)} title="View SQL"><Code className="size-4" /> SQL</Button>
               {data && <Button variant="outline" onClick={() => setSaveOpen(true)}><Save className="size-4" /> {editing ? "Update" : "Save"}</Button>}
             </div>
           </>
@@ -664,11 +830,15 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
       </Card>
       <ResultView data={data} viz={viz} setViz={setViz} />
       <SaveDialog open={saveOpen} onClose={() => setSaveOpen(false)} onSave={persist} initialName={editing?.name} initialDesc={editing?.description} />
+      {sqlOpen && table && (
+        <SqlDialog sql={generateSql(meta, spec())} onClose={() => setSqlOpen(false)}
+          onOpenEditor={() => { const s = generateSql(meta, spec()); setSqlOpen(false); onToSql(s); }} />
+      )}
     </>
   );
 }
 
-function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string; joins: any[]; setJoins: (j: any) => void }) {
+function JoinBuilder({ meta, base, joins, setJoins, colorMap }: { meta: any; base: string; joins: any[]; setJoins: (j: any) => void; colorMap: Record<string, string> }) {
   const [adding, setAdding] = useState(false);
   const [custom, setCustom] = useState(false);
   const aliased = withAliases(base, joins);
@@ -683,7 +853,7 @@ function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string;
   return (
     <div className="space-y-1.5">
       {joins.map((j, i) => (
-        <JoinRow key={i} meta={meta} base={base} joins={joins} index={i} alias={aliased[i].alias} setJoins={setJoins} />
+        <JoinRow key={i} meta={meta} base={base} joins={joins} index={i} alias={aliased[i].alias} setJoins={setJoins} colorMap={colorMap} />
       ))}
 
       {!adding ? (
@@ -725,8 +895,8 @@ function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string;
 }
 
 /* an existing join, shown as a readable clause; the keys can be revealed + overridden */
-function JoinRow({ meta, base, joins, index, alias, setJoins }: {
-  meta: any; base: string; joins: any[]; index: number; alias: string; setJoins: (j: any) => void;
+function JoinRow({ meta, base, joins, index, alias, setJoins, colorMap }: {
+  meta: any; base: string; joins: any[]; index: number; alias: string; setJoins: (j: any) => void; colorMap: Record<string, string>;
 }) {
   const j = joins[index];
   const [edit, setEdit] = useState(!(j.left && j.right));
@@ -740,7 +910,8 @@ function JoinRow({ meta, base, joins, index, alias, setJoins }: {
           className="rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[10px]">
           <option value="left">left join</option><option value="inner">inner join</option>
         </select>
-        <span className="font-mono text-[11px] font-bold">{j.table || "—"}</span>
+        <span className="size-2 shrink-0 rounded-full" style={{ background: colorMap[alias] }} />
+        <span className="font-mono text-[11px] font-bold" style={{ color: colorMap[alias] }}>{j.table || "—"}</span>
         {alias && alias !== j.table && (
           <span className="shrink-0 rounded bg-gold/20 px-1 py-0.5 text-[9px] font-bold text-gold" title="join alias">as {alias}</span>
         )}
@@ -763,7 +934,7 @@ function JoinRow({ meta, base, joins, index, alias, setJoins }: {
         </div>
       ) : (
         <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
-          on {j.left} = {alias}.{j.right}
+          on <ColName name={j.left} color={colColor(colorMap, base, j.left)} /> = <ColName name={`${alias}.${j.right}`} color={colorMap[alias]} />
         </div>
       )}
     </div>
@@ -803,8 +974,8 @@ function CustomJoin({ meta, base, joins, onAdd }: { meta: any; base: string; joi
 }
 
 /* ============================ native SQL ============================ */
-function Native({ meta, editing, onBack, onSaved }: { meta: any; editing: any; onBack: () => void; onSaved: () => void }) {
-  const [sql, setSql] = useState(editing?.kind === "native" ? editing.sql : "select * from dim_user limit 20");
+function Native({ meta, editing, seedSql, onBack, onSaved }: { meta: any; editing: any; seedSql?: string | null; onBack: () => void; onSaved: () => void }) {
+  const [sql, setSql] = useState(editing?.kind === "native" ? editing.sql : (seedSql || "select * from dim_user limit 20"));
   const [data, setData] = useState<any>(null);
   const [viz, setViz] = useState<Viz>(editing?.viz?.type ? editing.viz : { type: "table" });
   const [busy, setBusy] = useState(false);
@@ -859,9 +1030,10 @@ function BackBar({ onBack, title, note, mono }: { onBack: () => void; title: str
   );
 }
 
-function FilterBuilder({ meta, base, joins, cols, filters, setFilters, busy, onRun, inline }: {
-  meta: any; base: string; joins: any[]; cols: any[]; filters: any[]; setFilters: (f: any) => void; busy?: boolean; onRun?: () => void; inline?: boolean;
+function FilterBuilder({ meta, base, joins, cols, filters, setFilters, busy, onRun, inline, colorMap }: {
+  meta: any; base: string; joins: any[]; cols: any[]; filters: any[]; setFilters: (f: any) => void; busy?: boolean; onRun?: () => void; inline?: boolean; colorMap?: Record<string, string>;
 }) {
+  const showDots = !!colorMap && joins.length > 0;
   // profile cache keyed by real source table.column (null = in-flight)
   const [profiles, setProfiles] = useState<Record<string, any>>({});
   const typeOf = (name: string) => cols.find((c: any) => c.name === name)?.type || "text";
@@ -901,6 +1073,7 @@ function FilterBuilder({ meta, base, joins, cols, filters, setFilters, busy, onR
         return (
           <div key={i} className="rounded-lg bg-black/10 p-1.5">
             <div className="flex items-center gap-1.5">
+              {showDots && <ColDot map={colorMap!} base={base} name={f.col || undefined} />}
               <select value={f.col} onChange={(e) => pickCol(i, e.target.value)}
                 className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs">
                 <option value="">column…</option>
