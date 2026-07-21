@@ -61,6 +61,102 @@ async def _all_tables(session: AsyncSession) -> dict:
     return out
 
 
+# Curated relations for relations that naming heuristics + FKs can't see — chiefly the
+# analytics VIEWS (views carry no FK constraints). from_table.from_col -> to_table.to_col.
+_CURATED_RELATIONS: list[tuple[str, str, str, str]] = [
+    ("dim_user", "user_id", "users", "id"),
+    ("fact_transaction", "user_id", "users", "id"),
+    ("fact_hand", "user_id", "users", "id"),
+    ("fact_trade", "user_id", "users", "id"),
+    ("fact_league", "user_id", "users", "id"),
+    ("fact_league", "cohort_id", "cohorts", "id"),
+]
+
+# Common column-name → table-name irregulars for the naming heuristic.
+_HEURISTIC_ALIASES = {
+    "user": "users",
+    "referrer": "users",
+    "referred": "users",
+    "opponent": "users",
+    "dealer": "users",
+    "winner": "users",
+    "host": "users",
+    "club": "clubs",
+    "squad": "clubs",
+    "room": "rooms",
+    "hand": "hands",
+    "cohort": "cohorts",
+    "season": "league_seasons",
+}
+
+
+def _pk_name(tbl: sa.Table) -> str | None:
+    pk = list(tbl.primary_key.columns)
+    return pk[0].name if len(pk) == 1 else None
+
+
+def _relations(all_tbls: dict[str, sa.Table]) -> list[dict]:
+    """Derive a join-relationship graph so the UI can auto-suggest join keys.
+
+    Three sources, most-trusted first (a stronger edge for the same from-column wins):
+      1. real FOREIGN KEY constraints in the ORM metadata (confidence = fk),
+      2. naming heuristics — a `<thing>_id` column pointing at `<things>.id`,
+      3. a small curated map for the analytics views, which have no FK constraints.
+
+    Each edge is directed from the FK-holder to the referenced PK; the UI treats a match
+    in either direction as a valid join between two tables already in the query.
+    """
+    edges: dict[tuple[str, str], dict] = {}   # (from_table, from_col) -> edge (best wins)
+    rank = {"fk": 3, "curated": 2, "heuristic": 1}
+
+    def add(ft: str, fc: str, tt: str, tc: str, kind: str) -> None:
+        if ft not in all_tbls or tt not in all_tbls:
+            return
+        if fc not in all_tbls[ft].columns or tc not in all_tbls[tt].columns:
+            return
+        if ft == tt:
+            return
+        key = (ft, fc)
+        prev = edges.get(key)
+        if prev is None or rank[kind] > rank[prev["kind"]]:
+            edges[key] = {"from_table": ft, "from_col": fc, "to_table": tt,
+                          "to_col": tc, "kind": kind}
+
+    # 1) real foreign keys
+    for tbl in all_tbls.values():
+        for col in tbl.columns:
+            for fk in col.foreign_keys:
+                tgt = fk.column
+                add(tbl.name, col.name, tgt.table.name, tgt.name, "fk")
+
+    # 2) naming heuristics: `<base>_id` -> a table named like <base>
+    pk_by_table = {n: _pk_name(t) for n, t in all_tbls.items()}
+    for tbl in all_tbls.values():
+        for col in tbl.columns:
+            name = col.name
+            if not name.endswith("_id") or name == "id":
+                continue
+            base = name[:-3]
+            candidates = [
+                _HEURISTIC_ALIASES.get(base),
+                base, base + "s", base + "es",
+                base[:-1] + "ies" if base.endswith("y") else None,
+            ]
+            for cand in candidates:
+                if not cand or cand not in all_tbls:
+                    continue
+                pk = pk_by_table.get(cand)
+                if pk:
+                    add(tbl.name, name, cand, pk, "heuristic")
+                    break
+
+    # 3) curated overrides (analytics views etc.)
+    for ft, fc, tt, tc in _CURATED_RELATIONS:
+        add(ft, fc, tt, tc, "curated")
+
+    return sorted(edges.values(), key=lambda e: (e["from_table"], e["from_col"]))
+
+
 def _coltype(col: sa.Column) -> str:
     t = str(col.type).lower()
     if "bool" in t:
@@ -87,11 +183,22 @@ _OPS = {
     ">=": (True, lambda c, v: c >= v),
     "<": (True, lambda c, v: c < v),
     "<=": (True, lambda c, v: c <= v),
+    "between": (True, lambda c, v: c.between(v[0], v[1])),
     "contains": (True, lambda c, v: c.cast(sa.String).ilike(f"%{v}%")),
     "starts": (True, lambda c, v: c.cast(sa.String).ilike(f"{v}%")),
     "in": (True, lambda c, v: c.in_(v if isinstance(v, list) else [v])),
     "null": (False, lambda c, v: c.is_(None)),
     "notnull": (False, lambda c, v: c.is_not(None)),
+}
+
+# Which operators make sense for each column type — the UI renders only these, and picks a
+# type-appropriate value editor (date range, number range, enum picker, true/false…).
+OPS_BY_TYPE: dict[str, list[str]] = {
+    "text":     ["=", "!=", "contains", "starts", "in", "null", "notnull"],
+    "number":   ["=", "!=", ">", ">=", "<", "<=", "between", "in", "null", "notnull"],
+    "datetime": ["=", "between", ">", ">=", "<", "<=", "null", "notnull"],
+    "bool":     ["=", "null", "notnull"],
+    "json":     ["null", "notnull"],
 }
 
 _TEMPORAL = ("minute", "hour", "day", "week", "month", "quarter", "year")
@@ -150,17 +257,36 @@ def _conds(resolve, filters: list[dict]) -> list:
         col = resolve(f.get("col"))
         if col is None:
             raise HTTPException(400, f"Unknown column {f.get('col')}")
-        spec = _OPS.get(f.get("op"))
+        op = f.get("op")
+        spec = _OPS.get(op)
         if not spec:
-            raise HTTPException(400, f"Unknown operator {f.get('op')}")
+            raise HTTPException(400, f"Unknown operator {op}")
         needs_val, build = spec
-        if needs_val:
-            val = f.get("val")
-            if val is None or val == "":
-                continue
-            out.append(build(col, _coerce(_coltype(col), val)))
-        else:
+        if not needs_val:
             out.append(build(col, None))
+            continue
+        ctype = _coltype(col)
+        val = f.get("val")
+        if op == "between":
+            # expects a two-element [lo, hi]; skip unless both bounds are given
+            if not isinstance(val, (list, tuple)) or len(val) != 2:
+                continue
+            lo, hi = val
+            if lo in (None, "") or hi in (None, ""):
+                continue
+            out.append(build(col, [_coerce(ctype, lo), _coerce(ctype, hi)]))
+            continue
+        if op == "in":
+            # accept an array, or a convenience "a, b, c" string
+            if isinstance(val, str):
+                val = [x.strip() for x in val.split(",") if x.strip()]
+            if not val:
+                continue
+            out.append(build(col, _coerce(ctype, val)))
+            continue
+        if val is None or val == "":
+            continue
+        out.append(build(col, _coerce(ctype, val)))
     return out
 
 
@@ -193,9 +319,65 @@ async def tables(
     return {
         "tables": out,
         "operators": list(_OPS.keys()),
+        "ops_by_type": OPS_BY_TYPE,
         "aggregations": list(_AGG_FNS.keys()),
         "buckets": list(_TEMPORAL),
+        "relations": _relations(all_tables),
     }
+
+
+class ProfileIn(BaseModel):
+    table: str
+    col: str
+
+
+# A column with at most this many distinct values is treated as an enum: the filter UI
+# offers its actual values as a pick-list instead of a free-text box.
+ENUM_MAX = 50
+
+
+@router.post("/column-profile")
+async def column_profile(
+    body: ProfileIn,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Profile one column so the filter UI can adapt: is it a small enum (return its
+    values as a pick-list), and what is its range (min/max for number/date pickers)."""
+    all_tbls = await _all_tables(session)
+    tbl = all_tbls.get(body.table)
+    if tbl is None:
+        raise HTTPException(404, "Unknown table")
+    col = tbl.columns.get(body.col)
+    if col is None:
+        raise HTTPException(400, f"Unknown column {body.col}")
+    ctype = _coltype(col)
+    out: dict[str, Any] = {"type": ctype, "enum": False}
+    if ctype == "json":
+        return out
+    try:
+        await session.execute(sa.text("SET LOCAL statement_timeout = '8000'"))
+        # one distinct row past the cap tells us "too many to enumerate"
+        distinct_q = (
+            sa.select(col).select_from(tbl).where(col.is_not(None))
+            .distinct().limit(ENUM_MAX + 1)
+        )
+        vals = [r[0] for r in (await session.execute(distinct_q)).all()]
+        if len(vals) <= ENUM_MAX:
+            out["enum"] = True
+            out["distinct_count"] = len(vals)
+            out["values"] = sorted(
+                (_serialize(v) for v in vals), key=lambda x: (x is None, str(x))
+            )
+        if ctype in ("number", "datetime"):
+            mn, mx = (
+                await session.execute(sa.select(sa.func.min(col), sa.func.max(col)))
+            ).one()
+            out["min"] = _serialize(mn)
+            out["max"] = _serialize(mx)
+    except Exception:  # noqa: BLE001 — profiling is best-effort; fall back to a text box
+        return {"type": ctype, "enum": False}
+    return out
 
 
 # --------------------------------------------------------------- builder query

@@ -20,8 +20,8 @@ import { Chart, VizPicker, autoViz, type Viz } from "@/components/admin/explorer
    charts, and saved cards you can open/edit/visualise. Read-only, admin-only. */
 
 const OP_LABEL: Record<string, string> = {
-  "=": "=", "!=": "≠", ">": ">", ">=": "≥", "<": "<", "<=": "≤",
-  contains: "contains", starts: "starts with", in: "in (a,b,c)", null: "is empty", notnull: "is not empty",
+  "=": "=", "!=": "≠", ">": ">", ">=": "≥", "<": "<", "<=": "≤", between: "between",
+  contains: "contains", starts: "starts with", in: "is any of", null: "is empty", notnull: "is not empty",
 };
 const PAGE = 25;
 
@@ -389,7 +389,7 @@ function Browse({ meta, onBack }: { meta: any; onBack: () => void }) {
   return (
     <>
       <BackBar onBack={() => setTable(null)} title={table} note={data ? `${data.total.toLocaleString()} rows` : ""} mono />
-      <FilterBuilder cols={cols} operators={meta.operators} filters={filters} setFilters={setFilters} busy={busy} onRun={() => { setOffset(0); run(table, filters, sort, 0); }} />
+      <FilterBuilder meta={meta} base={table} joins={[]} cols={cols} filters={filters} setFilters={setFilters} busy={busy} onRun={() => { setOffset(0); run(table, filters, sort, 0); }} />
       {!data ? <Loader2 className="mx-auto mt-6 size-6 animate-spin text-gold" /> : (
         <Card className="gap-0 overflow-hidden p-0">
           <ResultsGrid data={data} sort={sort} onSort={toggleSort} />
@@ -450,6 +450,60 @@ function colsFor(meta: any, table: string, joins: any[]): any[] {
   return out;
 }
 
+/* map a (possibly alias-qualified) column name back to its real source table + bare
+   column, so we can profile it (distinct values / range) on the underlying table. */
+function sourceOf(base: string, joins: any[], qualified: string): { table: string; col: string } {
+  const dot = qualified.indexOf(".");
+  if (dot < 0) return { table: base, col: qualified };
+  const alias = qualified.slice(0, dot);
+  const col = qualified.slice(dot + 1);
+  if (alias === base) return { table: base, col };
+  const found = withAliases(base, joins).find((j) => j.alias === alias);
+  return { table: found?.table || base, col };
+}
+
+/* one-click join suggestions from the relationship graph: every relation that links a
+   table already in the query to a new table, in either direction, with keys pre-filled. */
+function joinSuggestions(meta: any, base: string, joins: any[]): any[] {
+  const rels: any[] = meta.relations || [];
+  const inQuery = new Set<string>([base, ...joins.map((j) => j.table).filter(Boolean)]);
+  const existing = new Set(joins.map((j) => `${j.table}|${j.left}|${j.right}`));
+  const out: any[] = [];
+  const push = (table: string, left: string, right: string, via: string, kind: string) => {
+    if (!table || inQuery.has(table)) return; // new tables only; custom join re-adds
+    const key = `${table}|${left}|${right}`;
+    if (existing.has(key) || out.some((o) => o.key === key)) return;
+    out.push({ key, table, left, right, via, kind });
+  };
+  for (const r of rels) {
+    const clause = `${r.from_table}.${r.from_col} = ${r.to_table}.${r.to_col}`;
+    if (inQuery.has(r.from_table)) push(r.to_table, `${r.from_table}.${r.from_col}`, r.to_col, clause, r.kind);
+    if (inQuery.has(r.to_table)) push(r.from_table, `${r.to_table}.${r.to_col}`, r.from_col, clause, r.kind);
+  }
+  return out;
+}
+
+const opsForType = (meta: any, type?: string): string[] =>
+  (type && meta.ops_by_type?.[type]) || meta.operators || [];
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const toLocalInput = (d: Date) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+/* quick date-range presets for a datetime "between" filter */
+function datePresets(): { label: string; lo: string; hi: string }[] {
+  const now = new Date();
+  const hi = toLocalInput(now);
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const ago = (days: number) => toLocalInput(new Date(now.getTime() - days * 864e5));
+  return [
+    { label: "Today", lo: toLocalInput(startOfDay), hi },
+    { label: "7d", lo: ago(7), hi },
+    { label: "30d", lo: ago(30), hi },
+    { label: "Month", lo: toLocalInput(new Date(now.getFullYear(), now.getMonth(), 1)), hi },
+  ];
+}
+
 /* ============================ builder ============================ */
 function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; onBack: () => void; onSaved: () => void }) {
   const init = editing?.kind === "builder" ? editing.spec || {} : {};
@@ -504,7 +558,7 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
         {table && (
           <>
             <JoinBuilder meta={meta} base={table} joins={joins} setJoins={setJoins} />
-            <FilterBuilder cols={cols} operators={meta.operators} filters={filters} setFilters={setFilters} inline />
+            <FilterBuilder meta={meta} base={table} joins={joins} cols={cols} filters={filters} setFilters={setFilters} inline />
             <div className="mt-1 flex items-center gap-2">
               <button onClick={() => setSummarize((v) => !v)}
                 className={cn("flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold", summarize ? "bg-gold text-black" : "bg-secondary text-muted-foreground")}>
@@ -585,49 +639,134 @@ function Builder({ meta, editing, onBack, onSaved }: { meta: any; editing: any; 
 }
 
 function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string; joins: any[]; setJoins: (j: any) => void }) {
-  const baseCols = meta.tables.find((t: any) => t.name === base)?.columns ?? [];
+  const [adding, setAdding] = useState(false);
+  const [custom, setCustom] = useState(false);
   const aliased = withAliases(base, joins);
+  const suggestions = joinSuggestions(meta, base, joins);
+
+  const addJoin = (table: string, left: string, right: string) => {
+    setJoins((xs: any[]) => [...xs, { table, type: "left", left, right }]);
+    setAdding(false);
+    setCustom(false);
+  };
+
   return (
     <div className="space-y-1.5">
-      {joins.map((j, i) => {
-        const jcols = meta.tables.find((t: any) => t.name === j.table)?.columns ?? [];
-        const alias = aliased[i].alias;
-        return (
-          <div key={i} className="rounded-lg bg-black/20 p-2">
-            <div className="mb-1 flex items-center gap-1.5">
-              <Link2 className="size-3.5 text-gold" />
-              <select value={j.type} onChange={(e) => setJoins((xs: any[]) => xs.map((x, k) => k === i ? { ...x, type: e.target.value } : x))}
-                className="rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[10px]">
-                <option value="left">left join</option><option value="inner">inner join</option>
-              </select>
-              <select value={j.table} onChange={(e) => setJoins((xs: any[]) => xs.map((x, k) => k === i ? { ...x, table: e.target.value, right: "" } : x))}
-                className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[11px]">
-                <option value="">table…</option>
-                <TableOptions tables={meta.tables} />
-              </select>
-              {alias && alias !== j.table && (
-                <span className="shrink-0 rounded bg-gold/20 px-1 py-0.5 text-[9px] font-bold text-gold" title="join alias">as {alias}</span>
-              )}
-              <button onClick={() => setJoins((xs: any[]) => xs.filter((_: any, k: number) => k !== i))} className="grid size-6 place-items-center rounded bg-secondary text-muted-foreground"><X className="size-3" /></button>
-            </div>
-            <div className="flex items-center gap-1 text-[10px]">
-              <select value={j.left} onChange={(e) => setJoins((xs: any[]) => xs.map((x, k) => k === i ? { ...x, left: e.target.value } : x))}
-                className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1">
-                <option value="">{base}.column…</option>
-                {baseCols.map((c: any) => <option key={c.name} value={c.name}>{base}.{c.name}</option>)}
-              </select>
-              <span className="text-muted-foreground">=</span>
-              <select value={j.right} onChange={(e) => setJoins((xs: any[]) => xs.map((x, k) => k === i ? { ...x, right: e.target.value } : x))}
-                className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1">
-                <option value="">{alias || "table"}.column…</option>
-                {jcols.map((c: any) => <option key={c.name} value={c.name}>{alias}.{c.name}</option>)}
-              </select>
-            </div>
+      {joins.map((j, i) => (
+        <JoinRow key={i} meta={meta} base={base} joins={joins} index={i} alias={aliased[i].alias} setJoins={setJoins} />
+      ))}
+
+      {!adding ? (
+        <Button size="sm" variant="outline" className="h-7" onClick={() => setAdding(true)}>
+          <Link2 className="size-3.5" /> Join data
+        </Button>
+      ) : (
+        <div className="space-y-1.5 rounded-lg bg-black/20 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Add related data</span>
+            <button onClick={() => { setAdding(false); setCustom(false); }} className="grid size-5 place-items-center rounded text-muted-foreground"><X className="size-3" /></button>
           </div>
-        );
-      })}
-      <Button size="sm" variant="outline" className="h-7" onClick={() => setJoins((xs: any[]) => [...xs, { table: "", type: "left", left: "", right: "" }])}>
-        <Link2 className="size-3.5" /> Join data
+          {suggestions.length === 0 && !custom && (
+            <div className="text-[11px] text-muted-foreground">No detected relationships — add a custom join.</div>
+          )}
+          <div className="flex flex-col gap-1">
+            {suggestions.map((s) => (
+              <button key={s.key} onClick={() => addJoin(s.table, s.left, s.right)}
+                className="flex items-center gap-1.5 rounded-lg bg-secondary px-2 py-1.5 text-left active:scale-[0.99]">
+                <Link2 className="size-3.5 shrink-0 text-gold" />
+                <span className="shrink-0 font-mono text-[11px] font-bold">{s.table}</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground">{s.via}</span>
+                <span className={cn("shrink-0 rounded px-1 py-0.5 text-[9px] font-bold",
+                  s.kind === "fk" ? "bg-win/15 text-win" : "bg-white/5 text-muted-foreground")}
+                  title={s.kind === "fk" ? "foreign key" : s.kind === "curated" ? "known relation" : "guessed from name"}>
+                  {s.kind === "fk" ? "FK" : s.kind === "curated" ? "REL" : "GUESS"}
+                </span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setCustom((v) => !v)} className="self-start text-[10px] font-semibold text-muted-foreground underline">
+            {custom ? "hide custom join" : "custom join…"}
+          </button>
+          {custom && <CustomJoin meta={meta} base={base} joins={joins} onAdd={addJoin} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* an existing join, shown as a readable clause; the keys can be revealed + overridden */
+function JoinRow({ meta, base, joins, index, alias, setJoins }: {
+  meta: any; base: string; joins: any[]; index: number; alias: string; setJoins: (j: any) => void;
+}) {
+  const j = joins[index];
+  const [edit, setEdit] = useState(!(j.left && j.right));
+  const patch = (p: any) => setJoins((xs: any[]) => xs.map((x, k) => (k === index ? { ...x, ...p } : x)));
+  const jcols = meta.tables.find((t: any) => t.name === j.table)?.columns ?? [];
+  const leftCols = colsFor(meta, base, joins.slice(0, index)); // base + earlier joins
+  return (
+    <div className="rounded-lg bg-black/20 p-2">
+      <div className="flex items-center gap-1.5">
+        <select value={j.type} onChange={(e) => patch({ type: e.target.value })}
+          className="rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[10px]">
+          <option value="left">left join</option><option value="inner">inner join</option>
+        </select>
+        <span className="font-mono text-[11px] font-bold">{j.table || "—"}</span>
+        {alias && alias !== j.table && (
+          <span className="shrink-0 rounded bg-gold/20 px-1 py-0.5 text-[9px] font-bold text-gold" title="join alias">as {alias}</span>
+        )}
+        <button onClick={() => setEdit((v) => !v)} className="ml-auto grid size-6 place-items-center rounded bg-secondary text-muted-foreground" title="edit keys"><Pencil className="size-3" /></button>
+        <button onClick={() => setJoins((xs: any[]) => xs.filter((_: any, k: number) => k !== index))} className="grid size-6 place-items-center rounded bg-secondary text-muted-foreground"><X className="size-3" /></button>
+      </div>
+      {edit ? (
+        <div className="mt-1 flex items-center gap-1 text-[10px]">
+          <select value={j.left} onChange={(e) => patch({ left: e.target.value })}
+            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1">
+            <option value="">left column…</option>
+            {leftCols.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
+          </select>
+          <span className="text-muted-foreground">=</span>
+          <select value={j.right} onChange={(e) => patch({ right: e.target.value })}
+            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1">
+            <option value="">{alias || j.table}.column…</option>
+            {jcols.map((c: any) => <option key={c.name} value={c.name}>{alias}.{c.name}</option>)}
+          </select>
+        </div>
+      ) : (
+        <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
+          on {j.left} = {alias}.{j.right}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* manual fallback when no relationship is detected (or you want a non-standard key) */
+function CustomJoin({ meta, base, joins, onAdd }: { meta: any; base: string; joins: any[]; onAdd: (t: string, l: string, r: string) => void }) {
+  const [table, setTable] = useState("");
+  const [left, setLeft] = useState("");
+  const [right, setRight] = useState("");
+  const leftCols = colsFor(meta, base, joins);
+  const jcols = meta.tables.find((t: any) => t.name === table)?.columns ?? [];
+  return (
+    <div className="space-y-1.5 rounded-lg bg-black/20 p-2">
+      <select value={table} onChange={(e) => { setTable(e.target.value); setRight(""); }}
+        className="w-full rounded-lg border border-white/10 bg-secondary px-1.5 py-1 text-[11px]">
+        <option value="">table…</option>
+        <TableOptions tables={meta.tables} />
+      </select>
+      <div className="flex items-center gap-1 text-[10px]">
+        <select value={left} onChange={(e) => setLeft(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1">
+          <option value="">left column…</option>
+          {leftCols.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
+        </select>
+        <span className="text-muted-foreground">=</span>
+        <select value={right} onChange={(e) => setRight(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-1.5 py-1">
+          <option value="">{table || "table"}.column…</option>
+          {jcols.map((c: any) => <option key={c.name} value={c.name}>{table}.{c.name}</option>)}
+        </select>
+      </div>
+      <Button size="sm" variant="outline" className="h-7 w-full" disabled={!table || !left || !right} onClick={() => onAdd(table, left, right)}>
+        <Plus className="size-3.5" /> Add join
       </Button>
     </div>
   );
@@ -690,28 +829,70 @@ function BackBar({ onBack, title, note, mono }: { onBack: () => void; title: str
   );
 }
 
-function FilterBuilder({ cols, operators, filters, setFilters, busy, onRun, inline }: {
-  cols: any[]; operators: string[]; filters: any[]; setFilters: (f: any) => void; busy?: boolean; onRun?: () => void; inline?: boolean;
+function FilterBuilder({ meta, base, joins, cols, filters, setFilters, busy, onRun, inline }: {
+  meta: any; base: string; joins: any[]; cols: any[]; filters: any[]; setFilters: (f: any) => void; busy?: boolean; onRun?: () => void; inline?: boolean;
 }) {
+  // profile cache keyed by real source table.column (null = in-flight)
+  const [profiles, setProfiles] = useState<Record<string, any>>({});
+  const typeOf = (name: string) => cols.find((c: any) => c.name === name)?.type || "text";
+  const keyOf = (name: string) => { const s = sourceOf(base, joins, name); return `${s.table}.${s.col}`; };
+
+  // lazily profile each filtered column so the value editor can adapt (enum list / range)
+  const colKey = filters.map((f) => f.col).filter(Boolean).join("|");
+  useEffect(() => {
+    filters.forEach((f) => {
+      if (!f.col) return;
+      const s = sourceOf(base, joins, f.col);
+      const key = `${s.table}.${s.col}`;
+      setProfiles((p) => {
+        if (p[key] !== undefined) return p;
+        api.explorerColumnProfile(s.table, s.col)
+          .then((pr: any) => setProfiles((q) => ({ ...q, [key]: pr })))
+          .catch(() => setProfiles((q) => ({ ...q, [key]: { enum: false } })));
+        return { ...p, [key]: null };
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colKey, base]);
+
+  const setF = (i: number, patch: any) => setFilters((fs: any[]) => fs.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const pickCol = (i: number, name: string) => {
+    const ops = opsForType(meta, typeOf(name));
+    setF(i, { col: name, op: ops[0] || "=", val: "" });
+  };
+
   const body = (
     <>
-      {filters.map((f, i) => (
-        <div key={i} className="flex items-center gap-1.5">
-          <select value={f.col} onChange={(e) => setFilters((fs: any[]) => fs.map((x, j) => j === i ? { ...x, col: e.target.value } : x))}
-            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs">
-            <option value="">column…</option>
-            {cols.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
-          </select>
-          <select value={f.op} onChange={(e) => setFilters((fs: any[]) => fs.map((x, j) => j === i ? { ...x, op: e.target.value } : x))}
-            className="rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs">
-            {operators.map((o) => <option key={o} value={o}>{OP_LABEL[o] ?? o}</option>)}
-          </select>
-          {!["null", "notnull"].includes(f.op) && (
-            <Input value={f.val ?? ""} onChange={(e) => setFilters((fs: any[]) => fs.map((x, j) => j === i ? { ...x, val: e.target.value } : x))} placeholder="value" className="h-8 w-24 text-xs" />
-          )}
-          <button onClick={() => setFilters((fs: any[]) => fs.filter((_: any, j: number) => j !== i))} className="grid size-7 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground"><X className="size-3.5" /></button>
-        </div>
-      ))}
+      {filters.map((f, i) => {
+        const type = typeOf(f.col);
+        const ops = opsForType(meta, type);
+        const prof = f.col ? profiles[keyOf(f.col)] : undefined;
+        const hasVal = f.col && !["null", "notnull"].includes(f.op);
+        return (
+          <div key={i} className="rounded-lg bg-black/10 p-1.5">
+            <div className="flex items-center gap-1.5">
+              <select value={f.col} onChange={(e) => pickCol(i, e.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs">
+                <option value="">column…</option>
+                {cols.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
+              </select>
+              {f.col && (
+                <select value={f.op} onChange={(e) => setF(i, { op: e.target.value, val: e.target.value === "between" ? ["", ""] : "" })}
+                  className="rounded-lg border border-white/10 bg-secondary px-2 py-1.5 text-xs">
+                  {ops.map((o: string) => <option key={o} value={o}>{OP_LABEL[o] ?? o}</option>)}
+                </select>
+              )}
+              <button onClick={() => setFilters((fs: any[]) => fs.filter((_: any, j: number) => j !== i))} className="grid size-7 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground"><X className="size-3.5" /></button>
+            </div>
+            {hasVal && (
+              <div className="mt-1.5">
+                <FilterValue type={type} op={f.op} profile={prof} value={f.val} onChange={(v: any) => setF(i, { val: v })} />
+                {prof === null && <div className="mt-1 text-[9px] text-muted-foreground">reading values…</div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
       <div className="flex gap-2">
         <Button size="sm" variant="outline" className="h-8" onClick={() => setFilters((fs: any[]) => [...fs, { col: "", op: "=", val: "" }])}><Plus className="size-3.5" /> Filter</Button>
         {onRun && <Button size="sm" className="h-8 flex-1" disabled={busy} onClick={onRun}>{busy ? <Loader2 className="size-4 animate-spin" /> : "Run"}</Button>}
@@ -720,4 +901,72 @@ function FilterBuilder({ cols, operators, filters, setFilters, busy, onRun, inli
   );
   if (inline) return <div className="space-y-2">{body}</div>;
   return <Card className="mb-2 gap-2 p-3">{body}</Card>;
+}
+
+/* type-aware value editor: date/number range, enum pick-list, boolean, or plain input */
+function FilterValue({ type, op, profile, value, onChange }: {
+  type: string; op: string; profile: any; value: any; onChange: (v: any) => void;
+}) {
+  const enumVals: any[] | null = profile && profile.enum ? profile.values : null;
+  const cls = "h-8 w-full min-w-0 rounded-lg border border-white/10 bg-secondary px-2 text-xs";
+
+  if (op === "between") {
+    const arr = Array.isArray(value) ? value : ["", ""];
+    const set = (k: number, v: string) => onChange(k === 0 ? [v, arr[1] ?? ""] : [arr[0] ?? "", v]);
+    const itype = type === "datetime" ? "datetime-local" : "number";
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <input type={itype} value={arr[0] ?? ""} onChange={(e) => set(0, e.target.value)} className={cls} />
+          <span className="shrink-0 text-[10px] text-muted-foreground">to</span>
+          <input type={itype} value={arr[1] ?? ""} onChange={(e) => set(1, e.target.value)} className={cls} />
+        </div>
+        {type === "datetime" && (
+          <div className="flex flex-wrap gap-1">
+            {datePresets().map((p) => (
+              <button key={p.label} onClick={() => onChange([p.lo, p.hi])}
+                className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground active:bg-white/10">{p.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (op === "in") {
+    if (enumVals) {
+      const sel: any[] = Array.isArray(value) ? value : [];
+      const toggle = (v: any) => onChange(sel.includes(v) ? sel.filter((x) => x !== v) : [...sel, v]);
+      return (
+        <div className="flex flex-wrap gap-1">
+          {enumVals.map((v) => (
+            <button key={String(v)} onClick={() => toggle(v)}
+              className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", sel.includes(v) ? "bg-gold text-black" : "bg-secondary text-muted-foreground")}>
+              {v === null ? "∅" : String(v)}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    return <input value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder="a, b, c" className={cls} />;
+  }
+
+  if (type === "bool") {
+    return (
+      <select value={String(value ?? "true")} onChange={(e) => onChange(e.target.value)} className={cls}>
+        <option value="true">true</option><option value="false">false</option>
+      </select>
+    );
+  }
+  if (enumVals && (op === "=" || op === "!=")) {
+    return (
+      <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} className={cls}>
+        <option value="">choose…</option>
+        {enumVals.map((v) => <option key={String(v)} value={String(v)}>{v === null ? "∅" : String(v)}</option>)}
+      </select>
+    );
+  }
+  if (type === "datetime") return <input type="datetime-local" value={value ?? ""} onChange={(e) => onChange(e.target.value)} className={cls} />;
+  if (type === "number") return <input type="number" value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder="value" className={cls} />;
+  return <input value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder="value" className={cls} />;
 }
