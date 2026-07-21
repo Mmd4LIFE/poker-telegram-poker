@@ -469,18 +469,48 @@ function joinSuggestions(meta: any, base: string, joins: any[]): any[] {
   const inQuery = new Set<string>([base, ...joins.map((j) => j.table).filter(Boolean)]);
   const existing = new Set(joins.map((j) => `${j.table}|${j.left}|${j.right}`));
   const out: any[] = [];
-  const push = (table: string, left: string, right: string, via: string, kind: string) => {
+  const push = (table: string, left: string, right: string, via: string, kind: string, card: string) => {
     if (!table || inQuery.has(table)) return; // new tables only; custom join re-adds
     const key = `${table}|${left}|${right}`;
     if (existing.has(key) || out.some((o) => o.key === key)) return;
-    out.push({ key, table, left, right, via, kind });
+    out.push({ key, table, left, right, via, kind, card });
   };
   for (const r of rels) {
     const clause = `${r.from_table}.${r.from_col} = ${r.to_table}.${r.to_col}`;
-    if (inQuery.has(r.from_table)) push(r.to_table, `${r.from_table}.${r.from_col}`, r.to_col, clause, r.kind);
-    if (inQuery.has(r.to_table)) push(r.from_table, `${r.to_table}.${r.to_col}`, r.from_col, clause, r.kind);
+    // cardinality is stated as existing-side → new-side, so the icon reads left-to-right.
+    // The FK column's uniqueness decides one-to-one vs many. The PK ("to") side is one.
+    if (inQuery.has(r.from_table)) // existing holds the FK → each existing row hits one new row
+      push(r.to_table, `${r.from_table}.${r.from_col}`, r.to_col, clause, r.kind, r.from_unique ? "one-to-one" : "many-to-one");
+    if (inQuery.has(r.to_table))   // existing is the PK side → one existing row, many new rows
+      push(r.from_table, `${r.to_table}.${r.to_col}`, r.from_col, clause, r.kind, r.from_unique ? "one-to-one" : "one-to-many");
   }
   return out;
+}
+
+/* crow's-foot cardinality glyph (ER-diagram notation): a spine with a "one" bar or a
+   "many" fork at each end. Left end = the data already in your query, right end = the
+   table you'd be adding, so it reads left-to-right: e.g. many-to-one = ⪫—┃. */
+function CardinalityIcon({ card, className }: { card: string; className?: string }) {
+  const [left, right] = card.split("-to-"); // "one" | "many"
+  const foot = (endX: number, dir: 1 | -1, many: boolean) =>
+    many ? (
+      <>
+        <line x1={endX} y1={7} x2={endX + dir * 5} y2={2} />
+        <line x1={endX} y1={7} x2={endX + dir * 5} y2={7} />
+        <line x1={endX} y1={7} x2={endX + dir * 5} y2={12} />
+      </>
+    ) : (
+      <line x1={endX + dir * 3} y1={3} x2={endX + dir * 3} y2={11} />
+    );
+  return (
+    <svg width={22} height={14} viewBox="0 0 22 14" fill="none" stroke="currentColor"
+      strokeWidth={1.4} strokeLinecap="round" className={className}
+      role="img" aria-label={card.replace(/-/g, " ")}>
+      <line x1={6} y1={7} x2={16} y2={7} />
+      {foot(6, -1, left === "many")}
+      {foot(16, 1, right === "many")}
+    </svg>
+  );
 }
 
 const opsForType = (meta: any, type?: string): string[] =>
@@ -673,7 +703,7 @@ function JoinBuilder({ meta, base, joins, setJoins }: { meta: any; base: string;
             {suggestions.map((s) => (
               <button key={s.key} onClick={() => addJoin(s.table, s.left, s.right)}
                 className="flex items-center gap-1.5 rounded-lg bg-secondary px-2 py-1.5 text-left active:scale-[0.99]">
-                <Link2 className="size-3.5 shrink-0 text-gold" />
+                <CardinalityIcon card={s.card} className="shrink-0 text-gold" />
                 <span className="shrink-0 font-mono text-[11px] font-bold">{s.table}</span>
                 <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground">{s.via}</span>
                 <span className={cn("shrink-0 rounded px-1 py-0.5 text-[9px] font-bold",

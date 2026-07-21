@@ -95,6 +95,26 @@ def _pk_name(tbl: sa.Table) -> str | None:
     return pk[0].name if len(pk) == 1 else None
 
 
+def _col_unique(tbl: sa.Table, colname: str) -> bool:
+    """Is a single column uniquely-valued? (single-col PK, a UNIQUE flag/constraint, or a
+    unique single-column index). Used to tell one-to-one from many-to-one relationships;
+    reflected views expose no constraints, so their FK-ish columns read as non-unique."""
+    col = tbl.columns.get(colname)
+    if col is None:
+        return False
+    if col.primary_key:
+        return len(tbl.primary_key.columns) == 1
+    if col.unique:
+        return True
+    for con in tbl.constraints:
+        if isinstance(con, sa.UniqueConstraint) and len(con.columns) == 1 and colname in con.columns:
+            return True
+    for idx in tbl.indexes:
+        if idx.unique and [c.name for c in idx.columns] == [colname]:
+            return True
+    return False
+
+
 def _relations(all_tbls: dict[str, sa.Table]) -> list[dict]:
     """Derive a join-relationship graph so the UI can auto-suggest join keys.
 
@@ -119,8 +139,11 @@ def _relations(all_tbls: dict[str, sa.Table]) -> list[dict]:
         key = (ft, fc)
         prev = edges.get(key)
         if prev is None or rank[kind] > rank[prev["kind"]]:
+            # to_col references a PK/unique, so the "to" side is always one; the "from"
+            # side is one iff the FK column is itself unique → one-to-one, else many-to-one.
             edges[key] = {"from_table": ft, "from_col": fc, "to_table": tt,
-                          "to_col": tc, "kind": kind}
+                          "to_col": tc, "kind": kind,
+                          "from_unique": _col_unique(all_tbls[ft], fc)}
 
     # 1) real foreign keys
     for tbl in all_tbls.values():
